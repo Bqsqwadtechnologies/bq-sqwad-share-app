@@ -1,0 +1,11 @@
+
+{
+  "publisher": "BQ Sqwad Technologies",
+  "apps": [
+    {
+      "name": "BQ Sqwad Share",
+      "package": "com.bqsqwad.share",
+      "summary": "Nearby file sharing with no account and no mobile data."
+    }
+  ]
+}
