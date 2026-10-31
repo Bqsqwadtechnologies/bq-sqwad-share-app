@@ -89,7 +89,8 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
         } else {
             val nav = rememberNavController()
             val adFree = settings.adFreeUntil > System.currentTimeMillis()
-            NavHost(nav, startDestination = "home") {
+            Scaffold(bottomBar = { BannerSlot(enabled = !adFree && ads.canRequestAds, modifier = Modifier.navigationBarsPadding()) }) { adPadding ->
+            NavHost(nav, startDestination = "home", modifier = Modifier.padding(adPadding)) {
                 composable("home") { Home(nav, vm, ads, adFree) }
                 composable("send") { Send(nav, vm) }
                 composable("receive") { Receive(vm) }
@@ -104,6 +105,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                 composable("chat") { Chat(vm) }
                 composable("more") { More() }
                 composable("debug") { Debug(ads) }
+            }
             }
         }
     }
@@ -146,7 +148,7 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
     val history by vm.history.collectAsState()
     val (free, total) = vm.storage()
     val ctx = LocalContext.current
-    Scaffold(bottomBar = { BannerSlot(enabled = !adFree && ads.canRequestAds, modifier = Modifier.navigationBarsPadding()) }) { pad ->
+    Scaffold { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(16.dp)) {
             item {
                 BrandHeader()
@@ -318,7 +320,7 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
 @Composable
 private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
     val history by vm.history.collectAsState()
-    Scaffold(bottomBar = { BannerSlot(!adFree && ads.canRequestAds) }) { pad ->
+    Scaffold { pad ->
         LazyColumn(Modifier.padding(pad).padding(16.dp)) {
             itemsIndexed(history, key = { _, it -> it.id }) { index, item ->
                 if (index > 0 && index % 8 == 0) NativeSlot(!adFree && ads.canRequestAds)
@@ -348,7 +350,7 @@ private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adF
         "videos" -> history.filter { it.status != "DELETED" && (it.mime.startsWith("video/") || it.displayName.substringAfterLast('.', "").lowercase() in setOf("mp4","mkv","mov","webm","3gp")) }
         else -> emptyList()
     }
-    Scaffold(bottomBar = { BannerSlot(enabled = !adFree && ads.canRequestAds, modifier = Modifier.navigationBarsPadding()) }) { pad ->
+    Scaffold { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
             item {
                 Text(title, style = MaterialTheme.typography.headlineSmall)
