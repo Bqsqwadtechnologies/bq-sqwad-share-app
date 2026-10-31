@@ -383,7 +383,7 @@ private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adF
                         }
                     }
                 }
-                if (section == "deleted") Text("Long-press an item in another library to move it here. Restore it or permanently delete it.")
+                if (section == "deleted") Text("Long-press a transfer record to move it here. Restore it or remove the record from the list.")
                 else if (section != "memory" && section != "apps") Text("Long-press a transfer record to move it to Deleted.")
             }
             itemsIndexed(rows, key = { _, item -> item.id }) { _, item ->
