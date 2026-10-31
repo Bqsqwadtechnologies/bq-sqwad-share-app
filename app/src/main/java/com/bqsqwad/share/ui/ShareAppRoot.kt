@@ -92,6 +92,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                 composable("receive") { Receive(vm) }
                 composable("picker") { Picker(nav, vm, ads, adFree) }
                 composable("history") { History(vm, ads, adFree) }
+                composable("library/{section}") { entry -> LibraryPage(entry.arguments?.getString("section").orEmpty(), vm, ads, adFree) }
                 composable("settings") { Settings(nav, vm, ads, activity) }
                 composable("clone") { Gated(settings, ads, activity, vm, "clone") { Clone(vm) } }
                 composable("computer") { Gated(settings, ads, activity, vm, "computer") { Computer(vm) } }
@@ -177,6 +178,17 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { nav.navigate("clone") }) { Text(stringResource(R.string.clone)) }
                     TextButton(onClick = { nav.navigate("computer") }) { Text(stringResource(R.string.computer)) }
+                }
+                Text("Your files", style = MaterialTheme.typography.titleLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("music", "pictures", "videos", "apps").forEach { section ->
+                        TextButton(onClick = { nav.navigate("library/$section") }) { Text(section.replaceFirstChar { it.uppercase() }) }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("received", "sent", "deleted", "memory").forEach { section ->
+                        TextButton(onClick = { nav.navigate("library/$section") }) { Text(section.replaceFirstChar { it.uppercase() }) }
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { nav.navigate("cleaner") }) { Text(stringResource(R.string.cleaner)) }
@@ -316,6 +328,80 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
     }
 }
 
+
+@Composable
+private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
+    val history by vm.history.collectAsState()
+    val apps = remember(section) { if (section == "apps") vm.installedApps() else emptyList() }
+    val (free, total) = vm.storage()
+    val title = section.replaceFirstChar { it.uppercase() }
+    val rows = when (section) {
+        "received" -> history.filter { it.direction.equals("RECEIVE", true) && it.status != "DELETED" }
+        "sent" -> history.filter { it.direction.equals("SEND", true) && it.status != "DELETED" }
+        "deleted" -> history.filter { it.status == "DELETED" }
+        "music" -> history.filter { it.status != "DELETED" && (it.mime.startsWith("audio/") || it.displayName.substringAfterLast('.', "").lowercase() in setOf("mp3","m4a","aac","wav","ogg","flac")) }
+        "pictures" -> history.filter { it.status != "DELETED" && (it.mime.startsWith("image/") || it.displayName.substringAfterLast('.', "").lowercase() in setOf("jpg","jpeg","png","gif","webp","heic")) }
+        "videos" -> history.filter { it.status != "DELETED" && (it.mime.startsWith("video/") || it.displayName.substringAfterLast('.', "").lowercase() in setOf("mp4","mkv","mov","webm","3gp")) }
+        else -> emptyList()
+    }
+    Scaffold(bottomBar = { BannerSlot(enabled = !adFree && ads.canRequestAds, modifier = Modifier.navigationBarsPadding()) }) { pad ->
+        LazyColumn(Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
+            item {
+                Text(title, style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.height(8.dp))
+                if (section == "memory") {
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text("Device storage", style = MaterialTheme.typography.titleMedium)
+                            Text("${free / 1_048_576} MB available")
+                            Text("${(total - free).coerceAtLeast(0) / 1_048_576} MB used")
+                        }
+                    }
+                }
+                if (section == "apps") {
+                    Text("Installed apps", style = MaterialTheme.typography.titleMedium)
+                    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                        columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(3),
+                        modifier = Modifier.fillMaxWidth().height(420.dp),
+                        userScrollEnabled = true,
+                        contentPadding = PaddingValues(vertical = 12.dp),
+                    ) {
+                        items(apps.size) { index ->
+                            val app = apps[index]
+                            Card(Modifier.padding(4.dp)) {
+                                Column(Modifier.fillMaxWidth().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("▦", style = MaterialTheme.typography.headlineMedium)
+                                    Text(app.first, style = MaterialTheme.typography.labelSmall, maxLines = 2)
+                                }
+                            }
+                        }
+                    }
+                }
+                if (section == "deleted") Text("Long-press an item in another library to move it here. Restore it or permanently delete it.")
+                else if (section != "memory" && section != "apps") Text("Long-press a transfer record to move it to Deleted.")
+            }
+            itemsIndexed(rows, key = { _, item -> item.id }) { _, item ->
+                Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(item.displayName, style = MaterialTheme.typography.titleSmall)
+                        Text("${item.bytes / 1024} KB · ${item.peerName}")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (section == "deleted") {
+                                TextButton(onClick = { vm.restoreFromDeleted(item) }) { Text("Restore") }
+                                TextButton(onClick = { vm.permanentlyDelete(item) }) { Text("Delete permanently") }
+                            } else {
+                                TextButton(onClick = { vm.toggleFavorite(item) }) { Text("Favorite") }
+                                TextButton(onClick = { vm.moveToDeleted(item) }) { Text("Move to Deleted") }
+                            }
+                        }
+                    }
+                }
+            }
+            if (rows.isEmpty() && section != "memory" && section != "apps") item { Text("No items in this section yet.") }
+        }
+    }
+}
+
 @Composable
 private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager, activity: Activity) {
     val settings by vm.settings.collectAsState(initial = null)
@@ -341,7 +427,8 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
         item { SwitchRow(stringResource(R.string.notifications), s.notifications) { vm.notif(it) } }
         item { Text(stringResource(R.string.language) + ": English") }
         item {
-            Button(onClick = { ads.showRewarded(activity) { vm.adFreeDay() } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.ad_free)) }
+            Text("Watch five rewarded videos to unlock 24 hours without ads (${s.adFreeRewardCount}/5)")
+            Button(onClick = { ads.showRewarded(activity) { vm.rewardAdFreeProgress() } }, modifier = Modifier.fillMaxWidth()) { Text("Watch rewarded video") }
             Spacer(Modifier.height(8.dp))
             Button(onClick = { ads.showRewarded(activity) { vm.premiumDay() } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.unlock_premium)) }
         }
