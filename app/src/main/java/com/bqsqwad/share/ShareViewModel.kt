@@ -50,11 +50,19 @@ class ShareViewModel @Inject constructor(
     fun haptics(on: Boolean) = viewModelScope.launch { store.setHaptics(on) }
     fun motion(on: Boolean) = viewModelScope.launch { store.setReduceMotion(on) }
     fun notif(on: Boolean) = viewModelScope.launch { store.setNotifications(on) }
-    fun adFreeDay() = viewModelScope.launch { store.grantAdFree(System.currentTimeMillis() + 86_400_000L) }
+    fun rewardAdFreeProgress() = viewModelScope.launch {
+        if (store.addAdFreeReward() >= 5) store.grantAdFree(System.currentTimeMillis() + 86_400_000L)
+    }
     fun premiumDay() = viewModelScope.launch { store.grantPremium(System.currentTimeMillis() + 86_400_000L) }
     fun block(name: String) = viewModelScope.launch { store.block(name) }
     fun nickname(id: String, name: String) = viewModelScope.launch { store.setNickname(id, name) }
     fun clearHistory() = viewModelScope.launch { dao.clear() }
+    fun moveToDeleted(item: TransferEntity) = viewModelScope.launch { dao.update(item.copy(status = "DELETED")) }
+    fun restoreFromDeleted(item: TransferEntity) = viewModelScope.launch { dao.update(item.copy(status = "DONE")) }
+    fun permanentlyDelete(item: TransferEntity) = viewModelScope.launch {
+        item.localPath?.let { path -> runCatching { File(path).takeIf { it.isFile }?.delete() } }
+        dao.delete(item.id)
+    }
 
     fun storage(): Pair<Long, Long> {
         val stat = StatFs(context.filesDir.absolutePath)
