@@ -24,6 +24,7 @@ data class UserSettings(
     val notifications: Boolean,
     val reminderMinutes: Int,
     val adFreeUntil: Long,
+    val adFreeRewardCount: Int,
     val premiumUntil: Long,
     val blocked: Set<String>,
     val nicknames: Map<String, String>,
@@ -40,6 +41,7 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
     private val notif = booleanPreferencesKey("notif")
     private val reminder = longPreferencesKey("reminder")
     private val adFree = longPreferencesKey("adfree")
+    private val adFreeRewards = longPreferencesKey("adfree_rewards")
     private val premium = longPreferencesKey("premium")
     private val blocked = stringSetPreferencesKey("blocked")
     private val nick = stringPreferencesKey("nicks")
@@ -60,6 +62,7 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
             notifications = p[notif] != false,
             reminderMinutes = (p[reminder] ?: (9 * 60L)).toInt(),
             adFreeUntil = p[adFree] ?: 0L,
+            adFreeRewardCount = (p[adFreeRewards] ?: 0L).toInt().coerceIn(0, 4),
             premiumUntil = p[premium] ?: 0L,
             blocked = p[blocked] ?: emptySet(),
             nicknames = map,
@@ -74,7 +77,14 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
     suspend fun setReduceMotion(on: Boolean) = context.dataStore.edit { it[motion] = on }
     suspend fun setNotifications(on: Boolean) = context.dataStore.edit { it[notif] = on }
     suspend fun setReminderMinutes(min: Int) = context.dataStore.edit { it[reminder] = min.toLong() }
-    suspend fun grantAdFree(until: Long) = context.dataStore.edit { it[adFree] = until }
+    suspend fun grantAdFree(until: Long) = context.dataStore.edit { it[adFree] = until; it[adFreeRewards] = 0L }
+    suspend fun addAdFreeReward(): Int {
+        val updated = context.dataStore.edit { prefs ->
+            val next = ((prefs[adFreeRewards] ?: 0L).toInt() + 1).coerceAtMost(5)
+            prefs[adFreeRewards] = next.toLong()
+        }
+        return (updated[adFreeRewards] ?: 0L).toInt()
+    }
     suspend fun grantPremium(until: Long) = context.dataStore.edit { it[premium] = until }
     suspend fun block(name: String) = context.dataStore.edit { it[blocked] = (it[blocked] ?: emptySet()) + name }
     suspend fun markBackground(now: Long) = context.dataStore.edit { it[bg] = now }
