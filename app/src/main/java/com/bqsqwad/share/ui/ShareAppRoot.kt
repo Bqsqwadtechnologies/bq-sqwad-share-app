@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -384,7 +385,7 @@ private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adF
                 else if (section != "memory" && section != "apps") Text("Long-press a transfer record to move it to Deleted.")
             }
             itemsIndexed(rows, key = { _, item -> item.id }) { _, item ->
-                Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Card(Modifier.fillMaxWidth().padding(vertical = 4.dp).combinedClickable(onClick = {}, onLongClick = { if (section != "deleted") vm.moveToDeleted(item) })) {
                     Column(Modifier.padding(12.dp)) {
                         Text(item.displayName, style = MaterialTheme.typography.titleSmall)
                         Text("${item.bytes / 1024} KB · ${item.peerName}")
