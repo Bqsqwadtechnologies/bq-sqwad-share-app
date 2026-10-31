@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,6 +63,7 @@ import com.bqsqwad.share.design.ShareTheme
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -333,6 +335,7 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
 private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
     val history by vm.history.collectAsState()
     val apps = remember(section) { if (section == "apps") vm.installedApps() else emptyList() }
+    val appContext = LocalContext.current
     val (free, total) = vm.storage()
     val title = section.replaceFirstChar { it.uppercase() }
     val rows = when (section) {
@@ -366,11 +369,11 @@ private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adF
                         userScrollEnabled = true,
                         contentPadding = PaddingValues(vertical = 12.dp),
                     ) {
-                        items(apps.size) { index ->
-                            val app = apps[index]
+                        items(apps, key = { it.second }) { app ->
+                            val icon = remember(app.second) { runCatching { appContext.packageManager.getApplicationIcon(app.second).toBitmap().asImageBitmap() }.getOrNull() }
                             Card(Modifier.padding(4.dp)) {
                                 Column(Modifier.fillMaxWidth().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("▦", style = MaterialTheme.typography.headlineMedium)
+                                    if (icon != null) Image(bitmap = icon, contentDescription = app.first, modifier = Modifier.size(42.dp))
                                     Text(app.first, style = MaterialTheme.typography.labelSmall, maxLines = 2)
                                 }
                             }
@@ -388,7 +391,7 @@ private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adF
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (section == "deleted") {
                                 TextButton(onClick = { vm.restoreFromDeleted(item) }) { Text("Restore") }
-                                TextButton(onClick = { vm.permanentlyDelete(item) }) { Text("Delete permanently") }
+                                TextButton(onClick = { vm.permanentlyDelete(item) }) { Text("Remove record") }
                             } else {
                                 TextButton(onClick = { vm.toggleFavorite(item) }) { Text("Favorite") }
                                 TextButton(onClick = { vm.moveToDeleted(item) }) { Text("Move to Deleted") }
