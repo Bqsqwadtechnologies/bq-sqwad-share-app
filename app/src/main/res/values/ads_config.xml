@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AdMob IDs for BQ Sqwad Share (com.bqsqwad.share).
+  Replace test values with your real IDs from AdMob.
+  Keep Kotlin AdUnits in Slots.kt in sync with these strings.
+-->
+<resources>
+    <string name="admob_app_id" translatable="false">ca-app-pub-3940256099942544~3347511713</string>
+    <string name="ad_unit_banner_home" translatable="false">ca-app-pub-3940256099942544/9214589741</string>
+    <string name="ad_unit_native_lists" translatable="false">ca-app-pub-3940256099942544/2247696110</string>
+    <string name="ad_unit_interstitial_home" translatable="false">ca-app-pub-3940256099942544/1033173712</string>
+    <string name="ad_unit_rewarded" translatable="false">ca-app-pub-3940256099942544/5224354917</string>
+    <string name="ad_unit_app_open" translatable="false">ca-app-pub-3940256099942544/9257395921</string>
+</resources>
