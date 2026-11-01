@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>BQ Sqwad Share — receive by code</title>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<main>
+  <h1>BQ Sqwad Share</h1>
+  <p class="lead">Receive files from someone far away. No app install required on this device.</p>
+  <label for="code">Transfer code</label>
+  <input id="code" maxlength="8" placeholder="e.g. K7M2PQ" autocomplete="off"/>
+  <button id="join" type="button">Join transfer</button>
+  <p id="status" class="note">Codes expire in about 15 minutes. The sender must stay online and approve. File contents are end-to-end encrypted; signaling only introduces the two devices.</p>
+  <ul id="files"></ul>
+  <p class="note">BQ Sqwad Technologies · <a href="https://bqsqwadtechnologies.github.io/bq-sqwad-share-app/privacy.html">Privacy</a></p>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
