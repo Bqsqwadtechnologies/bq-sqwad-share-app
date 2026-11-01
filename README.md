@@ -1,52 +1,56 @@
 # BQ Sqwad Share
 
-Offline, no-account file sharing for nearby Android phones. Package `com.bqsqwad.share`. Published by BQ Sqwad Technologies (`bqsqwadtechnologies@bqsqwadai.com`).
+Offline, no-account file sharing for nearby Android phones, plus browser paths for iPhone and computers. Package `com.bqsqwad.share`. Published by BQ Sqwad Technologies (`bqsqwadtechnologies@bqsqwadai.com`).
 
-Files move between devices. The app does not upload them to a BQ Sqwad server.
+Nearby and same-network transfers do not upload your files to BQ Sqwad. Optional internet transfer uses short-lived codes; signaling only introduces peers.
 
 ## Open the project
 
-Use Android Studio with SDK 36 and JDK 17. From this folder:
+Android Studio, SDK 36, JDK 17:
 
 ```bash
 ./gradlew :core:common:test :app:assembleDebug
 ```
 
-`minSdk` 26, `targetSdk` 36, `versionName` 1.0.0, `versionCode` 1 unless CI sets `VERSION_CODE`.
+`minSdk` 26, `targetSdk` 36, default `versionName` **1.1.0**, `versionCode` **2** (CI can override).
 
 ## Logo
 
-Replace [branding/logo/logo.png](branding/logo/logo.png), then:
-
-```bash
-python3 scripts/generate_branding.py
-```
-
-That refreshes the launcher, monochrome icon, notification icon, in-app header and the 512 px Play icon. See [branding/logo/README.md](branding/logo/README.md).
+Replace `branding/logo/logo.png`, then `python3 scripts/generate_branding.py`.
 
 ## Ad unit IDs
 
-Test IDs live in one place: `core/ads/src/main/kotlin/com/bqsqwad/share/ads/Slots.kt` (`AdUnits`) and the AdMob app id meta-data in `app/src/main/AndroidManifest.xml`. Replace those strings with your real IDs. Do not scatter IDs through screens. `AdManager` owns consent, caps and loading. `BannerSlot` and `NativeSlot` are the only composable placements.
+Test IDs in `core/ads/.../Slots.kt` (`AdUnits`) and the AdMob app id in `AndroidManifest.xml`. Replace with your real IDs in one place only.
+
+## Transfer protocol
+
+`core/common` includes `TransferProtocol` (framing, chunk SHA-256, resume offsets, AES-GCM frame wrap) and unit tests. CI runs `./gradlew :core:common:test`.
+
+## Browser / iPhone on the same Wi-Fi
+
+In-app **Share to a computer** starts a local PIN-gated HTTP server on the phone. Open the QR or URL on Safari/Chrome. No install on the other device.
+
+## Internet transfer (optional)
+
+1. Deploy `signaling/` (`npx wrangler deploy`). Free Worker tier is usually enough for setup messages only.
+2. Point the app and `web/app.js` at the Worker `wss://` URL.
+3. Publish `web/` for receive-by-code in any browser.
+
+STUN is free. **TURN can cost money per GB — leave it off until you accept that cost.**
+
+## Future iOS companion (not in this repo)
+
+A native iOS app would need Multipeer Connectivity or a Network.framework path, the same QR/code formats, and the same WebRTC code path for far transfers. Browser transfer already covers iPhone without an App Store build.
 
 ## Release
 
-1. Keep `bq-sqwad-share-release.jks` outside git. Losing it blocks updates. Enroll in Play App Signing.
-2. Repository secrets the release workflow expects: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
-3. Tag `v1.0.0` or run the Release workflow. It runs JVM unit tests, then uploads a signed APK and AAB when the secrets exist. Without secrets, release builds fall back to the debug signing key so the Gradle task can still finish.
-4. Debug workflow builds a debug APK on every push to `main`.
+Keystore stays out of git. Secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. Tag or run Release workflow for signed APK/AAB.
 
-Signing reads `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD`, or a local `keystore.properties` (gitignored).
+## Docs
 
-## Play and legal
+- `docs/STATUS.md` — done / half-done / missing
+- `docs/VERIFICATION_REPORT.md` — what was proven vs manual steps
+- `docs/privacy.html`, `docs/terms.html`
+- `docs/store/PLAY_LISTING.md`
 
-Listing copy, Data safety notes and the pre-launch list are in `PLAY_STORE.md`, `DATA_SAFETY.md` and `PRELAUNCH.md`.
-
-Privacy and terms: `docs/privacy.html` and `docs/terms.html`. In the app they open `https://bqsqwadtechnologies.github.io/bq-sqwad-share-app/privacy.html` and `terms.html`. Enable GitHub Pages from the `/docs` folder on `main`.
-
-## Modules
-
-`app` (UI), `core:common` (crypto, speed, file kinds), `core:domain`, `core:data` (Room, DataStore, Nearby, local web share), `core:design`, `core:ads`.
-
-## Extra behavior beyond the brief
-
-Shared clipboard text, group send to every connected phone, nearby chat on the same encrypted session, favorite files, device block from the accept sheet, and a debug ad screen in debug builds.
+Enable GitHub Pages from `/docs` on `main`.
