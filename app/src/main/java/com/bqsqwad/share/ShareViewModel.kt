@@ -32,9 +32,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
-@HiltViewModel
 private data class OutgoingShareFile(val file: File, val mime: String, val bytes: Long, val displayName: String)
 
+@HiltViewModel
 class ShareViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dao: TransferDao,
