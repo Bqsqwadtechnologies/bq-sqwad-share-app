@@ -72,26 +72,55 @@ class ShareViewModel @Inject constructor(
                 TransferService.update(context, text, progress.bytes, progress.total, complete)
             }
         }
+        val pendingIncoming = java.util.concurrent.ConcurrentHashMap<Long, Pair<String, File>>()
+        val completedIncoming = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
+
+        fun persistCompletedPayload(payloadId: Long) {
+            val pending = pendingIncoming.remove(payloadId) ?: return
+            completedIncoming.remove(payloadId)
+            val (endpointId, incomingFile) = pending
+            viewModelScope.launch {
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        val name = incomingFile.name.ifBlank { "received-file" }
+                        val extension = name.substringAfterLast('.', "").lowercase()
+                        val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
+                        val kind = kindForMime(mime, name)
+                        val directory = File(context.getExternalFilesDir(null), folderFor(kind)).apply { mkdirs() }
+                        val destination = File(directory, name).let { file ->
+                            if (!file.exists()) file else File(directory, "${System.currentTimeMillis()}-$name")
+                        }
+                        incomingFile.copyTo(destination, overwrite = true)
+                        record(name, mime, destination.length(), "RECEIVE", endpointId, destination.absolutePath)
+                    }
+                }
+            }
+        }
+
         viewModelScope.launch {
             nearby.payloads.collect { event ->
-                val endpointId = event?.endpointId ?: return@collect
                 val payload = event.payload
                 if (payload.type == Payload.Type.FILE) {
                     val incomingFile = runCatching { payload.asFile()?.asJavaFile() }.getOrNull() ?: return@collect
-                    withContext(Dispatchers.IO) {
-                        runCatching {
-                            val name = incomingFile.name.ifBlank { "received-file" }
-                            val extension = name.substringAfterLast('.', "").lowercase()
-                            val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
-                            val kind = kindForMime(mime, name)
-                            val directory = File(context.getExternalFilesDir(null), folderFor(kind)).apply { mkdirs() }
-                            val destination = File(directory, name).let { file ->
-                                if (!file.exists()) file else File(directory, "${System.currentTimeMillis()}-$name")
-                            }
-                            incomingFile.copyTo(destination, overwrite = true)
-                            record(name, mime, destination.length(), "RECEIVE", endpointId, destination.absolutePath)
-                        }
+                    pendingIncoming[payload.id] = event.endpointId to incomingFile
+                    if (completedIncoming.remove(payload.id)) persistCompletedPayload(payload.id)
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            nearby.progress.collect { event ->
+                if (event.status == 1) {
+                    if (pendingIncoming.containsKey(event.payloadId)) {
+                        persistCompletedPayload(event.payloadId)
+                    } else {
+                        completedIncoming.add(event.payloadId)
                     }
+                } else if (event.status != 2) {
+                    pendingIncoming.remove(event.payloadId)?.second?.let { file ->
+                        runCatching { file.delete() }
+                    }
+                    completedIncoming.remove(event.payloadId)
                 }
             }
         }
