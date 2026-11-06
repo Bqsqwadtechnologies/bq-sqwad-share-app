@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -69,22 +68,31 @@ fun MediaLibraryScreen(initialKind: String = "music") {
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { grants ->
-        permissionGranted = grants.values.any { it }
+        permissionGranted = grants[requiredMediaPermission()] == true || hasMediaPermission()
     }
+
+    fun requiredMediaPermission(): String =
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (kind == "music") Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_MEDIA_VIDEO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+
+    fun hasMediaPermission(): Boolean =
+        ContextCompat.checkSelfPermission(context, requiredMediaPermission()) == PackageManager.PERMISSION_GRANTED
 
     fun requestMediaPermissions() {
-        val permissions = if (Build.VERSION.SDK_INT >= 33) {
-            arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.READ_MEDIA_VIDEO)
+        if (hasMediaPermission()) {
+            permissionGranted = true
         } else {
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            permissionLauncher.launch(arrayOf(requiredMediaPermission()))
         }
-        val missing = permissions.filter {
-            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
-        }
-        if (missing.isEmpty()) permissionGranted = true else permissionLauncher.launch(missing.toTypedArray())
     }
 
-    LaunchedEffect(Unit) { requestMediaPermissions() }
+    LaunchedEffect(kind) {
+        permissionGranted = hasMediaPermission()
+        if (!permissionGranted) requestMediaPermissions()
+    }
 
     LaunchedEffect(permissionGranted, kind) {
         if (permissionGranted) {
