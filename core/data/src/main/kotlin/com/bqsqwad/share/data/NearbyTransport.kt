@@ -34,7 +34,11 @@ data class PayloadEvent(val endpointId: String, val payload: Payload)
 data class ProgressEvent(val endpointId: String, val payloadId: Long, val bytes: Long, val total: Long, val status: Int)
 
 @Singleton
-class NearbyTransport @Inject constructor(\n    @ApplicationContext context: Context,\n    private val settingsStore: SettingsStore,\n) {\n    private val callbackScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+class NearbyTransport @Inject constructor(
+    @ApplicationContext context: Context,
+    private val settingsStore: SettingsStore,
+) {
+    private val callbackScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val client = Nearby.getConnectionsClient(context)
     private val serviceId = "com.bqsqwad.share"
     private val strategy = Strategy.P2P_CLUSTER
