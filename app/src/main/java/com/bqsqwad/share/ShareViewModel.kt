@@ -18,6 +18,7 @@ import com.bqsqwad.share.data.WebShareServer
 import com.bqsqwad.share.domain.Peer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -37,12 +38,27 @@ class ShareViewModel @Inject constructor(
     val moved = dao.observeMovedBytes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
 
     val sessionKey = SessionCrypto.newKey()
-    val sessionCode = SessionCrypto.sixDigitCode()
+    var sessionCode: String = SessionCrypto.sixDigitCode()
+        private set
+    val receiveExpiresAt = MutableStateFlow(0L)
     val verification = SessionCrypto.fingerprint(sessionKey)
     val keyText = SessionCrypto.keyToString(sessionKey)
 
     var web: WebShareServer? = null
         private set
+
+    /** Creates a fresh receive code each time the Receive screen is opened or regenerated. */
+    fun startReceiveSession() {
+        val previous = sessionCode
+        var next = SessionCrypto.sixDigitCode()
+        while (next == previous) next = SessionCrypto.sixDigitCode()
+        sessionCode = next
+        receiveExpiresAt.value = System.currentTimeMillis() + 10 * 60 * 1000L
+    }
+
+    fun expireReceiveSessionIfNeeded(now: Long = System.currentTimeMillis()) {
+        if (receiveExpiresAt.value > 0L && now >= receiveExpiresAt.value) sessionCode = ""
+    }
 
     fun confirmAge() = viewModelScope.launch { store.setAgeConfirmed() }
     fun theme(mode: String) = viewModelScope.launch { store.setTheme(mode) }
