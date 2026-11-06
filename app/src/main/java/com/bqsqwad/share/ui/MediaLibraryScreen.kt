@@ -143,8 +143,8 @@ fun MediaLibraryScreen(initialKind: String = "music") {
 
     fun playFrom(index: Int, shuffleAll: Boolean = false) {
         val player = controller ?: return
-        if (media.isEmpty()) return
-        val queue = media.map { item ->
+        if (visibleMedia.isEmpty()) return
+        val queue = visibleMedia.map { item ->
             MediaItem.Builder()
                 .setUri(item.uri)
                 .setMediaMetadata(
