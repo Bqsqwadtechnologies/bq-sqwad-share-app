@@ -340,6 +340,30 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                     }
                 }
             }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Card(Modifier.weight(1f).clickable { nav.navigate("send") }) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        androidx.compose.material3.Icon(Icons.Filled.Send, contentDescription = null)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Send files", style = MaterialTheme.typography.titleSmall)
+                    }
+                }
+                Card(Modifier.weight(1f).clickable { nav.navigate("receive") }) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        androidx.compose.material3.Icon(Icons.Filled.QrCodeScanner, contentDescription = null)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Receive files", style = MaterialTheme.typography.titleSmall)
+                    }
+                }
+            }
             Text("Browse your phone", style = MaterialTheme.typography.titleLarge)
             Text("Choose a category. Hold an item to select it, then select more items and send.", style = MaterialTheme.typography.bodySmall)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
