@@ -356,7 +356,7 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
                 nav.navigate("picker")
             }) { Text(peer.name, modifier = Modifier.padding(16.dp)) }
         }
-        Button(onClick = { nav.navigate("receive") }, modifier = Modifier.height(48.dp)) { Text(stringResource(R.string.scan_qr)) }
+        Button(onClick = { nav.navigate("scan") }, modifier = Modifier.height(48.dp)) { Text(stringResource(R.string.scan_qr)) }
     }
 }
 
