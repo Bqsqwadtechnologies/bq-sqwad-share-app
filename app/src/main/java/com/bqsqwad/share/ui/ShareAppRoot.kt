@@ -454,7 +454,6 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
             "apps" -> {
                 LazyColumn(Modifier.weight(1f, fill = false)) {
                     itemsIndexed(vm.installedApps(), key = { _, it -> it.second }) { index, app ->
-                        if (index > 0 && index % 8 == 0) NativeSlot(!adFree && ads.canRequestAds)
                         Text("${app.first}\n${app.second}", modifier = Modifier.padding(vertical = 8.dp).clickable {
                             vm.record(app.first + ".apk", "application/vnd.android.package-archive", 0, "SEND", "nearby", null)
                         })
@@ -499,7 +498,6 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
     Scaffold { pad ->
         LazyColumn(Modifier.padding(pad).padding(16.dp)) {
             itemsIndexed(history, key = { _, it -> it.id }) { index, item ->
-                if (index > 0 && index % 8 == 0) NativeSlot(!adFree && ads.canRequestAds)
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("${item.displayName} · ${item.status}")
                     TextButton(onClick = { vm.toggleFavorite(item) }) { Text(stringResource(R.string.favorites)) }
