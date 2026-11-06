@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.core.graphics.drawable.toBitmap
 import com.bqsqwad.share.ShareViewModel
+import coil.ImageLoader
+import coil.decode.VideoFrameDecoder
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -56,6 +58,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String = "apps") {
     val context = LocalContext.current
+    val videoImageLoader = remember(context) { ImageLoader.Builder(context).components { add(VideoFrameDecoder.Factory()) }.build() }
     val haptic = LocalHapticFeedback.current
     val history by vm.history.collectAsState()
     val tabs = listOf("Apps", "Photos", "Videos", "Music", "Documents", "Files", "Received", "Sent")
@@ -237,6 +240,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                                 } else if (tab == "Videos") {
                                     AsyncImage(
                                         model = item.uri,
+                                        imageLoader = videoImageLoader,
                                         contentDescription = item.name,
                                         modifier = Modifier.size(88.dp),
                                         contentScale = ContentScale.Crop,
