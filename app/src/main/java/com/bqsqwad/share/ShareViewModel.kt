@@ -21,6 +21,7 @@ import com.bqsqwad.share.data.WebShareServer
 import com.bqsqwad.share.domain.Peer
 import com.bqsqwad.share.transfer.TransferService
 import com.google.android.gms.nearby.connection.Payload
+import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,7 +70,7 @@ class ShareViewModel @Inject constructor(
         val activePayloadIds = mutableSetOf<Long>()
         viewModelScope.launch {
             nearby.progress.collect { progress ->
-                if (progress.status == 2) {
+                if (progress.status == PayloadTransferUpdate.Status.IN_PROGRESS) {
                     activePayloadIds.add(progress.payloadId)
                     outgoingPayloadRecords[progress.payloadId]?.let { outgoing ->
                         viewModelScope.launch {
@@ -87,7 +88,7 @@ class ShareViewModel @Inject constructor(
                     if (outgoing != null) {
                         outgoingPayloadIds.remove(outgoing.id)
 
-                        val succeeded = progress.status == 1
+                        val succeeded = progress.status == PayloadTransferUpdate.Status.SUCCESS
                         viewModelScope.launch {
                             dao.update(
                                 outgoing.copy(
@@ -105,7 +106,7 @@ class ShareViewModel @Inject constructor(
                     }
                     pumpOutgoingQueue()
                 }
-                val complete = progress.status != 2 && activePayloadIds.isEmpty()
+                val complete = progress.status != PayloadTransferUpdate.Status.IN_PROGRESS && activePayloadIds.isEmpty()
                 val text = if (complete) {
                     if (progress.status == 1) "Transfer completed" else "Transfer ended"
                 } else {
@@ -152,13 +153,13 @@ class ShareViewModel @Inject constructor(
 
         viewModelScope.launch {
             nearby.progress.collect { event ->
-                if (event.status == 1) {
+                if (event.status == PayloadTransferUpdate.Status.SUCCESS) {
                     if (pendingIncoming.containsKey(event.payloadId)) {
                         persistCompletedPayload(event.payloadId)
                     } else {
                         completedIncoming.add(event.payloadId)
                     }
-                } else if (event.status != 2) {
+                } else if (event.status != PayloadTransferUpdate.Status.IN_PROGRESS) {
                     pendingIncoming.remove(event.payloadId)?.second?.let { file ->
                         runCatching { file.delete() }
                     }
@@ -388,7 +389,7 @@ class ShareViewModel @Inject constructor(
             } finally {
                 pumpingQueue.set(false)
                 if (outgoingPayloadRecords.size < maxConcurrentPayloads &&
-                    pendingOutgoingQueue.peek()?.peerName in nearby.connected.value
+                    pendingOutgoingQueue.peek()?.let { it.peerName in nearby.connected.value } == true
                 ) {
                     pumpOutgoingQueue()
                 }
