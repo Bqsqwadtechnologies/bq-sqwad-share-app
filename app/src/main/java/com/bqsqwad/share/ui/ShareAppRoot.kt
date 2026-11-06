@@ -270,11 +270,11 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                     }
                 }
                 Spacer(Modifier.height(12.dp))
+                NativeSlot(!adFree && ads.canRequestAds)
                 Text(stringResource(R.string.recent), style = MaterialTheme.typography.titleLarge)
             }
             if (history.isEmpty()) item { Text(stringResource(R.string.empty_recent), modifier = Modifier.padding(vertical = 8.dp)) }
             itemsIndexed(history.take(8), key = { _, it -> it.id }) { index, item ->
-                if (index > 0 && index % 8 == 0) NativeSlot(!adFree && ads.canRequestAds)
                 Text("${item.direction} · ${item.displayName}", modifier = Modifier.padding(vertical = 8.dp))
             }
             item {
