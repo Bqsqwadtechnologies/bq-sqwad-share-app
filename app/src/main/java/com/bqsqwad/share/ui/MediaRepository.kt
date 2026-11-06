@@ -6,6 +6,8 @@ import android.provider.MediaStore
 import android.os.Environment
 import java.util.Locale
 
+data class ShareAppItem(val label: String, val packageName: String)
+
 data class ShareMediaItem(
     val key: String,
     val name: String,
@@ -16,6 +18,17 @@ data class ShareMediaItem(
 )
 
 object MediaRepository {
+    fun loadApps(context: Context, systemOnly: Boolean): List<ShareAppItem> {
+        val pm = context.packageManager
+        val launcher = android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+        return pm.queryIntentActivities(launcher, 0).mapNotNull { info ->
+            val appInfo = info.activityInfo?.applicationInfo ?: return@mapNotNull null
+            val isSystem = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+            if (isSystem != systemOnly) return@mapNotNull null
+            ShareAppItem(info.loadLabel(pm).toString(), appInfo.packageName)
+        }.distinctBy { it.packageName }.sortedBy { it.label.lowercase(Locale.ROOT) }
+    }
+
     private val projection = arrayOf(
         MediaStore.MediaColumns._ID,
         MediaStore.MediaColumns.DISPLAY_NAME,
