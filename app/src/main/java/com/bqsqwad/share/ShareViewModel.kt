@@ -49,6 +49,7 @@ class ShareViewModel @Inject constructor(
         private set
     val receiveExpiresAt = MutableStateFlow(0L)
     val pendingUris = MutableStateFlow<List<Uri>>(emptyList())
+    val pendingLocalFiles = MutableStateFlow<List<File>>(emptyList())
     val scannedReceiveCode = MutableStateFlow("")
     val verification = SessionCrypto.fingerprint(sessionKey)
     val keyText = SessionCrypto.keyToString(sessionKey)
@@ -201,7 +202,11 @@ class ShareViewModel @Inject constructor(
         pendingUris.value = (pendingUris.value + uris).distinct()
     }
 
-    fun clearQueuedFiles() { pendingUris.value = emptyList() }
+    fun queueLocalFiles(files: List<File>) {
+        pendingLocalFiles.value = (pendingLocalFiles.value + files.filter { it.isFile }).distinctBy { it.absolutePath }
+    }
+
+    fun clearQueuedFiles() { pendingUris.value = emptyList(); pendingLocalFiles.value = emptyList() }
 
     /** Copies picked content URIs into app-private cache, then sends real Nearby file payloads. */
     fun sendQueuedFiles(endpointId: String) = viewModelScope.launch {
@@ -227,6 +232,8 @@ class ShareViewModel @Inject constructor(
                         ?: error("Unable to read selected file")
                     Triple(target, mime, size.takeIf { it > 0L } ?: target.length(), name)
                 }.getOrNull()
+            } + pendingLocalFiles.value.filter { it.isFile }.map { file ->
+                Triple(file, MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase()) ?: "application/octet-stream", file.length(), file.name)
             }
         }
         if (outgoing.isEmpty()) return@launch
@@ -235,6 +242,7 @@ class ShareViewModel @Inject constructor(
             record(displayName, mime, bytes, "SEND", endpointId, file.absolutePath)
         }
         pendingUris.value = emptyList()
+        pendingLocalFiles.value = emptyList()
     }
 
     fun sendText(endpointId: String, text: String) {
