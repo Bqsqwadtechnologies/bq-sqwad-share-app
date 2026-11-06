@@ -193,7 +193,7 @@ class ShareViewModel @Inject constructor(
         nearby.stopAdvertising()
         nearby.setExpectedReceiveCode(next)
         receiveExpiresAt.value = System.currentTimeMillis() + 10 * 60 * 1000L
-        nearby.startAdvertising("BQ Sqwad Share $next")
+        nearby.startAdvertising("BQ Sqwad Share")
     }
 
     fun expireReceiveSessionIfNeeded(now: Long = System.currentTimeMillis()) {
