@@ -24,6 +24,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -69,6 +76,9 @@ import com.bqsqwad.share.ads.NativeSlot
 import com.bqsqwad.share.data.UserSettings
 import com.bqsqwad.share.design.ShareTheme
 import com.bqsqwad.share.design.QR_SIZE
+import com.bqsqwad.share.design.ActionTile
+import com.bqsqwad.share.design.GradientHero
+import com.bqsqwad.share.design.SectionTitle
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import androidx.compose.ui.graphics.asImageBitmap
@@ -229,11 +239,25 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
         LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(16.dp)) {
             item {
                 BrandHeader()
-                Text(stringResource(R.string.tagline))
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = { nav.navigate("send") }, modifier = Modifier.weight(1f).height(56.dp)) { Text(stringResource(R.string.send)) }
-                    Button(onClick = { nav.navigate("receive") }, modifier = Modifier.weight(1f).height(56.dp)) { Text(stringResource(R.string.receive)) }
+                GradientHero {
+                    Text(stringResource(R.string.tagline), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(14.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = { nav.navigate("send") }, modifier = Modifier.weight(1f).height(56.dp)) { Text(stringResource(R.string.send)) }
+                        OutlinedButton(onClick = { nav.navigate("receive") }, modifier = Modifier.weight(1f).height(56.dp)) { Text(stringResource(R.string.receive)) }
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                SectionTitle("Quick actions")
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ActionTile(Icons.Filled.QrCodeScanner, "Scan QR", "Connect by QR", { nav.navigate("send") }, Modifier.weight(1f))
+                    ActionTile(Icons.Filled.Computer, "Computer/iPhone", "Transfer on browser", { nav.navigate("computer") }, Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ActionTile(Icons.Filled.PhoneAndroid, "Phone Clone", "Move phone data", { nav.navigate("clone") }, Modifier.weight(1f))
+                    ActionTile(Icons.Filled.Apps, "Apps", "Browse installed apps", { nav.navigate("library/apps") }, Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(16.dp))
                 Card(Modifier.fillMaxWidth()) {
