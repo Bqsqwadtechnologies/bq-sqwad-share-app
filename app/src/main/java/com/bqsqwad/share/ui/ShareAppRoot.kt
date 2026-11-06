@@ -47,6 +47,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -94,6 +100,8 @@ import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import java.io.File
 import kotlinx.coroutines.delay
 
@@ -117,66 +125,151 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
             val adFree = settings.adFreeUntil > System.currentTimeMillis()
             val backStackEntry by nav.currentBackStackEntryAsState()
             val currentRoute = backStackEntry?.destination?.route
-            Scaffold(topBar = {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(painterResource(R.drawable.brand_logo), contentDescription = "BQ Sqwad Share logo", modifier = Modifier.size(42.dp))
-                        Column(Modifier.padding(start = 10.dp)) {
-                            Text("BQ Sqwad Share", style = MaterialTheme.typography.titleMedium)
-                            Text("BQ Sqwad Technologies", style = MaterialTheme.typography.labelSmall)
+            val drawerState = rememberDrawerState(DrawerValue.Closed)
+            val scope = rememberCoroutineScope()
+            ModalNavigationDrawer(
+                drawerState = drawerState,
+                drawerContent = {
+                    ModalDrawerSheet {
+                        Column(
+                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)
+                        ) {
+                            BrandHeader()
+                            Text("SHARE", style = MaterialTheme.typography.labelLarge)
+                            listOf(
+                                "Send" to "send",
+                                "Scan QR" to "scan",
+                                "Receive" to "receive",
+                                "Computer/iPhone" to "computer",
+                                "Phone Clone" to "clone",
+                            ).forEach { (label, route) ->
+                                NavigationDrawerItem(
+                                    label = { Text(label) },
+                                    selected = currentRoute == route,
+                                    onClick = {
+                                        scope.launch { drawerState.close() }
+                                        nav.navigate(route) { launchSingleTop = true }
+                                    },
+                                )
+                            }
+                            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                            Text("BROWSE", style = MaterialTheme.typography.labelLarge)
+                            listOf(
+                                "Files" to "files",
+                                "Apps" to "library/apps",
+                                "Photos" to "library/pictures",
+                                "Videos" to "library/videos",
+                                "Music" to "library/music",
+                                "Documents" to "files",
+                                "Received" to "library/received",
+                                "Sent" to "library/sent",
+                            ).forEach { (label, route) ->
+                                NavigationDrawerItem(
+                                    label = { Text(label) },
+                                    selected = currentRoute == route,
+                                    onClick = {
+                                        scope.launch { drawerState.close() }
+                                        nav.navigate(route) { launchSingleTop = true }
+                                    },
+                                )
+                            }
+                            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                            Text("TOOLS", style = MaterialTheme.typography.labelLarge)
+                            listOf(
+                                "Clean" to "cleaner",
+                                "Favorites" to "favorites",
+                                "Chat" to "chat",
+                            ).forEach { (label, route) ->
+                                NavigationDrawerItem(
+                                    label = { Text(label) },
+                                    selected = currentRoute == route,
+                                    onClick = {
+                                        scope.launch { drawerState.close() }
+                                        nav.navigate(route) { launchSingleTop = true }
+                                    },
+                                )
+                            }
+                            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                            Text("MORE", style = MaterialTheme.typography.labelLarge)
+                            listOf(
+                                "Settings" to "settings",
+                                "About" to "more",
+                            ).forEach { (label, route) ->
+                                NavigationDrawerItem(
+                                    label = { Text(label) },
+                                    selected = currentRoute == route,
+                                    onClick = {
+                                        scope.launch { drawerState.close() }
+                                        nav.navigate(route) { launchSingleTop = true }
+                                    },
+                                )
+                            }
                         }
-                        Spacer(Modifier.weight(1f))
                     }
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf(
-                            Triple("Home", "home", Icons.Filled.Home),
-                            Triple("Send", "send", Icons.Filled.Send),
-                            Triple("Receive", "receive", Icons.Filled.QrCodeScanner),
-                            Triple("Apps", "library/apps", Icons.Filled.Apps),
-                            Triple("Photos", "library/pictures", Icons.Filled.PhotoLibrary),
-                            Triple("Videos", "library/videos", Icons.Filled.VideoLibrary),
-                            Triple("Music", "library/music", Icons.Filled.MusicNote),
-                            Triple("Files", "files", Icons.Filled.FolderOpen),
-                            Triple("Transfers", "history", Icons.Filled.History),
-                            Triple("Clean", "cleaner", Icons.Filled.DeleteSweep),
-                            Triple("Settings", "settings", Icons.Filled.Settings),
-                            Triple("About", "more", Icons.Filled.Info),
-                        ).forEach { (label, route, icon) ->
-                            FilterChip(
-                                selected = currentRoute == route || (route.startsWith("library/") && currentRoute == "library/{section}"),
-                                onClick = { nav.navigate(route) { launchSingleTop = true } },
-                                label = { Text(label) },
-                                leadingIcon = { androidx.compose.material3.Icon(icon, contentDescription = "$label", modifier = Modifier.size(18.dp)) },
+                },
+            ) {
+                Scaffold(
+                    topBar = {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Text("☰ Menu")
+                            }
+                            Image(
+                                painterResource(R.drawable.brand_logo),
+                                contentDescription = "BQ Sqwad Share logo",
+                                modifier = Modifier.size(36.dp).padding(start = 4.dp),
+                            )
+                            Text(
+                                "BQ Sqwad Share",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(start = 10.dp),
                             )
                         }
+                    },
+                    bottomBar = {
+                        BannerSlot(
+                            enabled = !adFree && ads.canRequestAds,
+                            modifier = Modifier.navigationBarsPadding(),
+                        )
+                    },
+                ) { adPadding ->
+                    NavHost(
+                        nav,
+                        startDestination = "home",
+                        modifier = Modifier.padding(adPadding),
+                    ) {
+                        composable("home") { Home(nav, vm, ads, adFree) }
+                        composable("files") { FilesBrowser(nav, vm) }
+                        composable("send") { Send(nav, vm) }
+                        composable("scan") {
+                            QrScanner { code ->
+                                vm.setScannedReceiveCode(code)
+                                nav.navigate("send") { popUpTo("scan") { inclusive = true } }
+                            }
+                        }
+                        composable("receive") { Receive(vm) }
+                        composable("picker") { Picker(nav, vm, ads, adFree) }
+                        composable("history") { History(vm, ads, adFree) }
+                        composable("library/{section}") { entry ->
+                            FilesBrowser(nav, vm, initialTab = entry.arguments?.getString("section").orEmpty())
+                        }
+                        composable("settings") { Settings(nav, vm, ads, activity) }
+                        composable("clone") { Gated(settings, ads, activity, vm, "clone") { Clone(vm) } }
+                        composable("computer") { Gated(settings, ads, activity, vm, "computer") { Computer(vm) } }
+                        composable("cleaner") { Cleaner(vm) }
+                        composable("favorites") { Favorites(vm) }
+                        composable("chat") { Chat(vm) }
+                        composable("more") { More() }
+                        composable("debug") { Debug(ads) }
                     }
                 }
-            }, bottomBar = {
-                BannerSlot(enabled = !adFree && ads.canRequestAds, modifier = Modifier.navigationBarsPadding())
-            }) { adPadding ->
-            NavHost(nav, startDestination = "home", modifier = Modifier.padding(adPadding)) {
-                composable("home") { Home(nav, vm, ads, adFree) }
-                composable("files") { FilesBrowser(nav, vm) }
-                composable("send") { Send(nav, vm) }
-                composable("scan") { QrScanner { code -> vm.setScannedReceiveCode(code); nav.navigate("send") { popUpTo("scan") { inclusive = true } } } }
-                composable("receive") { Receive(vm) }
-                composable("picker") { Picker(nav, vm, ads, adFree) }
-                composable("history") { History(vm, ads, adFree) }
-                composable("library/{section}") { entry -> FilesBrowser(nav, vm, initialTab = entry.arguments?.getString("section").orEmpty()) }
-                composable("settings") { Settings(nav, vm, ads, activity) }
-                composable("clone") { Gated(settings, ads, activity, vm, "clone") { Clone(vm) } }
-                composable("computer") { Gated(settings, ads, activity, vm, "computer") { Computer(vm) } }
-                composable("cleaner") { Cleaner(vm) }
-                composable("favorites") { Favorites(vm) }
-                composable("chat") { Chat(vm) }
-                composable("more") { More() }
-                composable("debug") { Debug(ads) }
-            }
             }
         }
     }
 }
-
 @Composable
 private fun AgeGate(onYes: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
@@ -639,7 +732,7 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("About, legal and support", style = MaterialTheme.typography.titleMedium)
-                    Text("Company details, signature, software acknowledgements and legal links are together on the About page.")
+                    Text("Legal information and support.")
                     Button(onClick = { nav.navigate("more") }) { Text("Open About") }
                     if (BuildConfig.DEBUG) TextButton(onClick = { nav.navigate("debug") }) { Text(stringResource(R.string.debug_ads)) }
                 }
@@ -739,11 +832,7 @@ private fun More() {
         BrandHeader()
         Text("About BQ Sqwad Share", style = MaterialTheme.typography.headlineSmall)
         Text("Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-        Text("Built and published by BQ Sqwad Technologies.")
         Text("Share photos, videos, music, documents and apps with nearby devices.")
-        Text("Our signature: BQ Sqwad Technologies")
-        Text("Copyright © 2026 BQ Sqwad Technologies. All rights reserved.")
-        Text("Open-source components: AndroidX, Kotlin, Hilt, ML Kit, Google Nearby Connections, ZXing and Google Mobile Ads.")
         TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMS))) }) { Text("Terms of Service") }
         TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY))) }) { Text("Privacy Policy") }
         TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:bqsqwadtechnologies@bqsqwadai.com"))) }) { Text("Contact BQ Sqwad Technologies") }
