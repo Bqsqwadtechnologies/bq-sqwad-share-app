@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -136,6 +137,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                             Triple("Transfers", "history", Icons.Filled.History),
                             Triple("Clean", "cleaner", Icons.Filled.Apps),
                             Triple("Settings", "settings", Icons.Filled.Settings),
+                            Triple("About", "more", Icons.Filled.Info),
                         ).forEach { (label, route, icon) ->
                             FilterChip(
                                 selected = currentRoute == route || (route.startsWith("library/") && currentRoute == "library/{section}"),
