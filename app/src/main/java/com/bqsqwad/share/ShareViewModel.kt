@@ -64,6 +64,16 @@ class ShareViewModel @Inject constructor(
             nearby.progress.collect { progress ->
                 if (progress.status == 2) {
                     activePayloadIds.add(progress.payloadId)
+                    outgoingPayloadRecords[progress.payloadId]?.let { outgoing ->
+                        viewModelScope.launch {
+                            dao.update(
+                                outgoing.copy(
+                                    status = "SENDING",
+                                    bytesDone = progress.bytes.coerceIn(0L, outgoing.bytes),
+                                ),
+                            )
+                        }
+                    }
                 } else {
                     activePayloadIds.remove(progress.payloadId)
                     val outgoing = outgoingPayloadRecords.remove(progress.payloadId)
@@ -315,6 +325,7 @@ class ShareViewModel @Inject constructor(
                 nearby.sendFile(endpointId, file)
             } catch (_: Exception) {
                 dao.update(row.copy(id = rowId, status = "FAILED"))
+                if (file.name.startsWith("outgoing-")) runCatching { file.delete() }
                 return@forEach
             }
             outgoingPayloadRecords[payloadId] = row.copy(id = rowId)
