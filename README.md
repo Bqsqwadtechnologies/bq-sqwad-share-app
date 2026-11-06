@@ -1,8 +1,6 @@
 # BQ Sqwad Share
 
-Offline, no-account file sharing for nearby Android phones, plus browser paths for iPhone and computers. Package `com.bqsqwad.share`. Published by BQ Sqwad Technologies (`bqsqwadtechnologies@bqsqwadai.com`).
-
-Nearby and same-network transfers do not upload your files to BQ Sqwad. Optional internet transfer uses short-lived codes; signaling only introduces peers.
+Offline, no-account file sharing for nearby devices. Transfers are local-only; the app does not provide internet-based long-distance file transfer. Package `com.bqsqwad.share`. Published by BQ Sqwad Technologies (`bqsqwadtechnologies@bqsqwadai.com`).
 
 ## Open the project
 
@@ -30,18 +28,6 @@ Test IDs in `core/ads/.../Slots.kt` (`AdUnits`) and the AdMob app id in `Android
 
 In-app **Share to a computer** starts a local PIN-gated HTTP server on the phone. Open the QR or URL on Safari/Chrome. No install on the other device.
 
-## Internet transfer (optional)
-
-1. Deploy `signaling/` (`npx wrangler deploy`). Free Worker tier is usually enough for setup messages only.
-2. Point the app and `web/app.js` at the Worker `wss://` URL.
-3. Publish `web/` for receive-by-code in any browser.
-
-STUN is free. **TURN can cost money per GB — leave it off until you accept that cost.**
-
-## Future iOS companion (not in this repo)
-
-A native iOS app would need Multipeer Connectivity or a Network.framework path, the same QR/code formats, and the same WebRTC code path for far transfers. Browser transfer already covers iPhone without an App Store build.
-
 ## Release
 
 Keystore stays out of git. Secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. Tag or run Release workflow for signed APK/AAB.
@@ -65,4 +51,4 @@ Enable GitHub Pages from `/docs` on `main`.
 - Do not promise zero battery use: discovery and radio activity consume power. Use bounded, opportunistic discovery and pause under OS restrictions or critical battery/storage conditions.
 - Android background execution and foreground-service notification requirements must be respected; do not hide required system notifications.
 
-See [docs/OFFLINE_MESH_POLICY.md](docs/OFFLINE_MESH_POLICY.md) for the implementation contract.
+Internet-based transfer, WebRTC, TURN, remote signaling, and cloud file transfer are out of scope and must not be added. See [docs/OFFLINE_MESH_POLICY.md](docs/OFFLINE_MESH_POLICY.md) for the implementation contract.
