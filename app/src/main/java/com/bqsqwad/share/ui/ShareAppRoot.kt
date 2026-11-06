@@ -365,7 +365,20 @@ private fun Receive(vm: ShareViewModel) {
     val incoming by vm.nearby.incoming.collectAsState()
     val expiresAt by vm.receiveExpiresAt.collectAsState()
     var remainingSeconds by remember { mutableStateOf(0L) }
-    LaunchedEffect(Unit) { vm.startReceiveSession() }
+    val receivePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        if (result.values.all { it }) vm.startReceiveSession()
+        else Toast.makeText(LocalContext.current, "Nearby permissions are required to receive files.", Toast.LENGTH_LONG).show()
+    }
+    LaunchedEffect(Unit) {
+        val required = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.NEARBY_WIFI_DEVICES)
+        } else if (android.os.Build.VERSION.SDK_INT >= 31) {
+            arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_ADVERTISE)
+        } else {
+            arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        receivePermissions.launch(required)
+    }
     DisposableEffect(Unit) {
         onDispose { vm.stopReceiveSession() }
     }
@@ -380,7 +393,7 @@ private fun Receive(vm: ShareViewModel) {
             delay(1000L)
         }
     }
-    val code = vm.sessionCode
+    val code = if (expiresAt > 0L && remainingSeconds > 0L) vm.sessionCode else ""
     val payload = if (code.isNotBlank()) "bqsqwad://share?code=$code&expires=$expiresAt&key=${vm.keyText}&v=${vm.verification}" else ""
     Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(stringResource(R.string.show_qr), style = MaterialTheme.typography.titleLarge)
@@ -394,7 +407,7 @@ private fun Receive(vm: ShareViewModel) {
             Text("${stringResource(R.string.manual_code)}: $code", style = MaterialTheme.typography.headlineSmall)
             Text("Code expires in %02d:%02d".format(remainingSeconds / 60, remainingSeconds % 60))
         } else {
-            Text("This receive code has expired. Generate a new one to receive files.")
+            Text(if (expiresAt == 0L) "Allow Nearby permissions to create a receive code." else "This receive code has expired. Generate a new one to receive files.")
         }
         Button(onClick = { vm.startReceiveSession() }) { Text(if (code.isBlank()) "Generate new code" else "Regenerate code") }
         Text("${stringResource(R.string.verification)}: ${vm.verification}")
