@@ -6,7 +6,7 @@ import android.provider.MediaStore
 import android.os.Environment
 import java.util.Locale
 
-data class ShareAppItem(val label: String, val packageName: String)
+data class ShareAppItem(val label: String, val packageName: String, val apkPaths: List<String>)
 
 data class ShareMediaItem(
     val key: String,
@@ -25,7 +25,7 @@ object MediaRepository {
             val appInfo = info.activityInfo?.applicationInfo ?: return@mapNotNull null
             val isSystem = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
             if (isSystem != systemOnly) return@mapNotNull null
-            ShareAppItem(info.loadLabel(pm).toString(), appInfo.packageName)
+            ShareAppItem(info.loadLabel(pm).toString(), appInfo.packageName, (listOfNotNull(appInfo.sourceDir) + appInfo.splitSourceDirs.orEmpty()).distinct())
         }.distinctBy { it.packageName }.sortedBy { it.label.lowercase(Locale.ROOT) }
     }
 
