@@ -49,6 +49,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -350,9 +351,9 @@ private fun Receive(vm: ShareViewModel) {
     val incoming by vm.nearby.incoming.collectAsState()
     val expiresAt by vm.receiveExpiresAt.collectAsState()
     var remainingSeconds by remember { mutableStateOf(0L) }
-    LaunchedEffect(Unit) {
-        vm.startReceiveSession()
-        vm.nearby.startAdvertising("BQ Sqwad Share")
+    LaunchedEffect(Unit) { vm.startReceiveSession() }
+    DisposableEffect(Unit) {
+        onDispose { vm.nearby.stopAdvertising() }
     }
     LaunchedEffect(expiresAt) {
         while (expiresAt > 0L) {
