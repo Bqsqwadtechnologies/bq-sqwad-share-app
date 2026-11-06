@@ -180,6 +180,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                 composable("home") { Home(nav, vm, ads, adFree) }
                 composable("files") { FilesBrowser(nav, vm) }
                 composable("send") { Send(nav, vm) }
+                composable("scan") { QrScanner { code -> vm.setScannedReceiveCode(code); nav.navigate("send") { popUpTo("scan") { inclusive = true } } } }
                 composable("receive") { Receive(vm) }
                 composable("picker") { Picker(nav, vm, ads, adFree) }
                 composable("history") { History(vm, ads, adFree) }
@@ -252,7 +253,7 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                 SectionTitle("Quick actions")
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ActionTile(Icons.Filled.QrCodeScanner, "Scan QR", "Connect by QR", { nav.navigate("send") }, Modifier.weight(1f))
+                    ActionTile(Icons.Filled.QrCodeScanner, "Scan QR", "Connect by QR", { nav.navigate("scan") }, Modifier.weight(1f))
                     ActionTile(Icons.Filled.Computer, "Computer/iPhone", "Transfer on browser", { nav.navigate("computer") }, Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(10.dp))
@@ -320,7 +321,9 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
 @Composable
 private fun Send(nav: NavHostController, vm: ShareViewModel) {
     val peers by vm.nearby.peers.collectAsState()
-    var receiveCode by remember { mutableStateOf("") }
+    val scannedCode by vm.scannedReceiveCode.collectAsState()
+    var receiveCode by remember { mutableStateOf(scannedCode) }
+    LaunchedEffect(scannedCode) { if (scannedCode.isNotBlank()) receiveCode = scannedCode }
     val matchingPeers = if (receiveCode.length == 6) peers.filter { it.name.contains(receiveCode) } else peers
     val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted.values.all { it }) vm.nearby.startDiscovery()
