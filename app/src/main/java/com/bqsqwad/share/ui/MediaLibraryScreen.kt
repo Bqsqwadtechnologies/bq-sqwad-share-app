@@ -229,6 +229,18 @@ fun MediaLibraryScreen(initialKind: String = "music") {
                 },
                 update = { it.player = activePlayer },
             )
+            OutlinedButton(
+                onClick = {
+                    playbackSpeed = when (playbackSpeed) {
+                        1f -> 1.25f
+                        1.25f -> 1.5f
+                        1.5f -> 2f
+                        else -> 1f
+                    }
+                    activePlayer.setPlaybackSpeed(playbackSpeed)
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Video speed · ${playbackSpeed}×") }
         } else if (activePlayer != null && kind == "music") {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
