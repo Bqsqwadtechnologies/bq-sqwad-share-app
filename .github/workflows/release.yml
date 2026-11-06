@@ -10,8 +10,6 @@ on:
         description: "Allow test ad IDs (only for a trial build)"
         type: boolean
         default: false
-  push:
-    tags: ["v*"]
 permissions:
   contents: write
 jobs:
