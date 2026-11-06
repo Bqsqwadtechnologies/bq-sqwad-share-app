@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import android.content.pm.PackageManager
 import android.os.StatFs
 import androidx.lifecycle.ViewModel
@@ -19,6 +20,7 @@ import com.bqsqwad.share.data.TransferEntity
 import com.bqsqwad.share.data.WebShareServer
 import com.bqsqwad.share.domain.Peer
 import com.bqsqwad.share.transfer.TransferService
+import com.google.android.gms.nearby.connection.Payload
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,6 +63,28 @@ class ShareViewModel @Inject constructor(
                     "Transferring ${event.bytes} of ${event.total} bytes"
                 }
                 TransferService.update(context, text, event.bytes, event.total, complete)
+            }
+        }
+        viewModelScope.launch {
+            nearby.payloads.collect { event ->
+                val payload = event?.payload ?: return@collect
+                if (payload.type == Payload.Type.FILE) {
+                    val incomingFile = runCatching { payload.asFile().asJavaFile() }.getOrNull() ?: return@collect
+                    withContext(Dispatchers.IO) {
+                        runCatching {
+                            val name = incomingFile.name.ifBlank { "received-file" }
+                            val extension = name.substringAfterLast('.', "").lowercase()
+                            val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
+                            val kind = kindForMime(mime, name)
+                            val directory = File(context.getExternalFilesDir(null), folderFor(kind)).apply { mkdirs() }
+                            val destination = File(directory, name).let { file ->
+                                if (!file.exists()) file else File(directory, "${System.currentTimeMillis()}-$name")
+                            }
+                            incomingFile.copyTo(destination, overwrite = true)
+                            record(name, mime, destination.length(), "RECEIVE", event.endpointId, destination.absolutePath)
+                        }
+                    }
+                }
             }
         }
     }
