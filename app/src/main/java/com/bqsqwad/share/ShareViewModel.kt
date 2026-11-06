@@ -211,7 +211,7 @@ class ShareViewModel @Inject constructor(
     /** Copies picked content URIs into app-private cache, then sends real Nearby file payloads. */
     fun sendQueuedFiles(endpointId: String) = viewModelScope.launch {
         val queued = pendingUris.value
-        if (queued.isEmpty()) return@launch
+        if (queued.isEmpty() && pendingLocalFiles.value.isEmpty()) return@launch
         val outgoing = withContext(Dispatchers.IO) {
             queued.mapNotNull { uri ->
                 runCatching {
