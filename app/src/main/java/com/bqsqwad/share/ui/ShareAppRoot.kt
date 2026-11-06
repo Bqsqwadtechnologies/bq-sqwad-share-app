@@ -46,12 +46,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -98,10 +92,6 @@ import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.rememberDrawerState
-import kotlinx.coroutines.launch
 import java.io.File
 import kotlinx.coroutines.delay
 
@@ -125,45 +115,6 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
             val adFree = settings.adFreeUntil > System.currentTimeMillis()
             val backStackEntry by nav.currentBackStackEntryAsState()
             val currentRoute = backStackEntry?.destination?.route
-            val drawerState = rememberDrawerState(DrawerValue.Closed)
-            val scope = rememberCoroutineScope()
-            ModalNavigationDrawer(
-                drawerState = drawerState,
-                drawerContent = {
-                    ModalDrawerSheet {
-                        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                            BrandHeader()
-                            Text("SHARE", style = MaterialTheme.typography.labelLarge)
-                            listOf("Send" to "send", "Scan QR" to "scan", "Receive" to "receive", "Computer/iPhone" to "computer", "Phone Clone" to "clone").forEach { (label, route) ->
-                                NavigationDrawerItem(label = { Text(label) }, selected = false, onClick = {
-                                    scope.launch { drawerState.close() }; nav.navigate(route)
-                                })
-                            }
-                            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                            Text("BROWSE", style = MaterialTheme.typography.labelLarge)
-                            listOf("Files" to "files", "Apps" to "library/apps", "Photos" to "library/pictures", "Videos" to "library/videos", "Music" to "library/music", "Documents" to "files", "Received" to "library/received", "Sent" to "library/sent").forEach { (label, route) ->
-                                NavigationDrawerItem(label = { Text(label) }, selected = currentRoute == route, onClick = {
-                                    scope.launch { drawerState.close() }; nav.navigate(route)
-                                })
-                            }
-                            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                            Text("TOOLS", style = MaterialTheme.typography.labelLarge)
-                            listOf("Clean" to "cleaner", "Favorites" to "favorites", "Chat" to "chat").forEach { (label, route) ->
-                                NavigationDrawerItem(label = { Text(label) }, selected = currentRoute == route, onClick = {
-                                    scope.launch { drawerState.close() }; nav.navigate(route)
-                                })
-                            }
-                            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                            Text("MORE", style = MaterialTheme.typography.labelLarge)
-                            listOf("Settings" to "settings", "About and more apps" to "more").forEach { (label, route) ->
-                                NavigationDrawerItem(label = { Text(label) }, selected = currentRoute == route, onClick = {
-                                    scope.launch { drawerState.close() }; nav.navigate(route)
-                                })
-                            }
-                        }
-                    }
-                },
-            ) {
             Scaffold(topBar = {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -173,7 +124,6 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                             Text("BQ Sqwad Technologies", style = MaterialTheme.typography.labelSmall)
                         }
                         Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { nav.navigate("more") }) { Text("About") }
                     }
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf(
@@ -216,8 +166,6 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                 composable("chat") { Chat(vm) }
                 composable("more") { More() }
                 composable("debug") { Debug(ads) }
-            }
-            }
             }
         }
     }
