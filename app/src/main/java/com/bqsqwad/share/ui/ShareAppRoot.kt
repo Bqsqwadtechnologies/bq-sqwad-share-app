@@ -463,43 +463,103 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
     val settings by vm.settings.collectAsState(initial = null)
     val s = settings ?: return
     val ctx = LocalContext.current
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
+    val (freeBytes, totalBytes) = vm.storage()
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { BrandHeader() }
-        item { Text(stringResource(R.string.theme), style = MaterialTheme.typography.titleLarge) }
         item {
-            Row {
-                listOf("system", "light", "dark").forEach { mode ->
-                    FilterChip(selected = s.themeMode == mode, onClick = { vm.theme(mode) }, label = { Text(mode) }, modifier = Modifier.padding(end = 6.dp))
-                }
-            }
-            Row {
-                listOf("royal", "ocean", "ember", "violet").forEach { accent ->
-                    FilterChip(selected = s.accent == accent, onClick = { vm.accent(accent) }, label = { Text(accent) }, modifier = Modifier.padding(end = 6.dp))
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("This device", style = MaterialTheme.typography.titleMedium)
+                    Text(android.os.Build.MODEL)
+                    Text("Android ${android.os.Build.VERSION.RELEASE}")
                 }
             }
         }
-        item { SwitchRow(stringResource(R.string.haptics), s.haptics) { vm.haptics(it) } }
-        item { SwitchRow(stringResource(R.string.reduce_motion), s.reduceMotion) { vm.motion(it) } }
-        item { SwitchRow(stringResource(R.string.notifications), s.notifications) { vm.notif(it) } }
-        item { Text(stringResource(R.string.language) + ": English") }
         item {
-            Text("Watch five rewarded videos to unlock 24 hours without ads (${s.adFreeRewardCount}/5)")
-            Button(onClick = { ads.showRewarded(activity) { vm.rewardAdFreeProgress() } }, modifier = Modifier.fillMaxWidth()) { Text("Watch rewarded video") }
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = { ads.showRewarded(activity) { vm.premiumDay() } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.unlock_premium)) }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Transfer", style = MaterialTheme.typography.titleMedium)
+                    Text("Nearby sharing and connected-device transfers")
+                    SwitchRow(stringResource(R.string.haptics), s.haptics) { vm.haptics(it) }
+                }
+            }
         }
-        item { TextButton(onClick = { ads.privacyOptions(activity) }) { Text(stringResource(R.string.privacy_options)) } }
-        item { TextButton(onClick = { vm.clearHistory() }) { Text(stringResource(R.string.clear_data)) } }
-        item { TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMS))) }) { Text(stringResource(R.string.terms)) } }
-        item { TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY))) }) { Text(stringResource(R.string.privacy)) } }
-        item { TextButton(onClick = {
-            val email = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:bqsqwadtechnologies@bqsqwadai.com"))
-            ctx.startActivity(email)
-        }) { Text(stringResource(R.string.feedback)) } }
-        item { TextButton(onClick = { nav.navigate("more") }) { Text(stringResource(R.string.more_apps)) } }
-        item { Text(stringResource(R.string.about) + " " + BuildConfig.VERSION_NAME + " · " + stringResource(R.string.company)) }
-        item { Text(stringResource(R.string.licenses) + ": AndroidX, Kotlin, Hilt, Room, ML Kit, Nearby, ZXing, AdMob.") }
-        if (BuildConfig.DEBUG) item { TextButton(onClick = { nav.navigate("debug") }) { Text(stringResource(R.string.debug_ads)) } }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Appearance", style = MaterialTheme.typography.titleMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("system", "light", "dark").forEach { mode ->
+                            FilterChip(selected = s.themeMode == mode, onClick = { vm.theme(mode) }, label = { Text(mode) })
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("royal", "ocean", "ember", "violet").forEach { accent ->
+                            FilterChip(selected = s.accent == accent, onClick = { vm.accent(accent) }, label = { Text(accent) })
+                        }
+                    }
+                    SwitchRow(stringResource(R.string.reduce_motion), s.reduceMotion) { vm.motion(it) }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Notifications", style = MaterialTheme.typography.titleMedium)
+                    SwitchRow(stringResource(R.string.notifications), s.notifications) { vm.notif(it) }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Storage and data", style = MaterialTheme.typography.titleMedium)
+                    Text("${freeBytes / 1_048_576} MB free of ${totalBytes / 1_048_576} MB")
+                    TextButton(onClick = { nav.navigate("history") }) { Text(stringResource(R.string.history)) }
+                    TextButton(onClick = { vm.clearHistory() }) { Text(stringResource(R.string.clear_data)) }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Ads and rewards", style = MaterialTheme.typography.titleMedium)
+                    Text("Watch five rewarded videos to unlock 24 hours without ads (${s.adFreeRewardCount}/5).")
+                    Button(onClick = { ads.showRewarded(activity) { vm.rewardAdFreeProgress() } }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Watch rewarded video")
+                    }
+                    OutlinedButton(onClick = { ads.showRewarded(activity) { vm.premiumDay() } }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.unlock_premium))
+                    }
+                    TextButton(onClick = { ads.privacyOptions(activity) }) { Text(stringResource(R.string.privacy_options)) }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Legal and support", style = MaterialTheme.typography.titleMedium)
+                    TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMS))) }) { Text(stringResource(R.string.terms)) }
+                    TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY))) }) { Text(stringResource(R.string.privacy)) }
+                    TextButton(onClick = {
+                        val email = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:bqsqwadtechnologies@bqsqwadai.com"))
+                        ctx.startActivity(email)
+                    }) { Text(stringResource(R.string.feedback)) }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("About", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.app_name) + " " + BuildConfig.VERSION_NAME)
+                    Text(stringResource(R.string.company))
+                    Text(stringResource(R.string.licenses) + ": AndroidX, Kotlin, Hilt, Room, ML Kit, Nearby, ZXing, AdMob.")
+                    TextButton(onClick = { nav.navigate("more") }) { Text(stringResource(R.string.more_apps)) }
+                    if (BuildConfig.DEBUG) TextButton(onClick = { nav.navigate("debug") }) { Text(stringResource(R.string.debug_ads)) }
+                }
+            }
+        }
     }
 }
 
