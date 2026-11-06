@@ -2,13 +2,13 @@
 
 ## Google Play storage and media permission declaration
 
-BQ Sqwad Share uses media access to provide its Photos, Videos, and Music browsing categories. Google Play restricts access to `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, and especially `MANAGE_EXTERNAL_STORAGE`. Play Console may require a permissions declaration and a review of the app's core functionality. Approval is not automatic, even for file-transfer and file-manager apps.
+BQ Sqwad Share uses scoped media permissions for Photos, Videos, and Music. The current manifest does not request `MANAGE_EXTERNAL_STORAGE`; this avoids relying on a restricted all-files permission without an approved Play Console declaration.
 
-Before publishing, decide whether to apply for the required Play Console declarations and submit the requested demonstration and policy information.
+Current behavior:
+- Photos, Videos, Music, Apps, Received, and Sent remain available with applicable media access.
+- Documents and full Files browsing display a friendly notice because broad storage access is not enabled in this build.
+- App startup and the other categories must remain usable when media access is denied.
 
-If the all-files access declaration is not approved or the owner decides not to apply, remove the `MANAGE_EXTERNAL_STORAGE` permission from `app/src/main/AndroidManifest.xml`. The app must continue to work without it:
-- Photos, Videos, Music, Apps, Received, and Sent remain available with their applicable media permissions.
-- Documents, Files, and deep-clean scans must show a friendly explanation that broader file access is unavailable, with an optional link to the system settings where appropriate.
-- Do not block app startup or the other categories when full storage access is denied.
+If the owner later decides to apply for all-files access, first verify the current Google Play policy, demonstrate that the use case qualifies as core functionality, and submit the required Play Console declaration. Approval is not automatic. Only add `MANAGE_EXTERNAL_STORAGE` after that policy decision and update the in-app access explanation accordingly.
 
-Re-check the current Google Play policy and the exact permission declarations in Play Console immediately before release. Do not assume that adding a permission to the manifest grants approval.
+Re-check the current Google Play policy and the exact permission declarations in Play Console immediately before release.
