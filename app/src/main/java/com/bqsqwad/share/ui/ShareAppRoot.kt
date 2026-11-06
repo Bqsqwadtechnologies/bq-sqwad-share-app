@@ -665,24 +665,9 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Legal and support", style = MaterialTheme.typography.titleMedium)
-                    TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMS))) }) { Text(stringResource(R.string.terms)) }
-                    TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY))) }) { Text(stringResource(R.string.privacy)) }
-                    TextButton(onClick = {
-                        val email = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:bqsqwadtechnologies@bqsqwadai.com"))
-                        ctx.startActivity(email)
-                    }) { Text(stringResource(R.string.feedback)) }
-                }
-            }
-        }
-        item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("About", style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.app_name) + " " + BuildConfig.VERSION_NAME)
-                    Text(stringResource(R.string.company))
-                    Text(stringResource(R.string.licenses) + ": AndroidX, Kotlin, Hilt, Room, ML Kit, Nearby, ZXing, AdMob.")
-                    TextButton(onClick = { nav.navigate("more") }) { Text(stringResource(R.string.more_apps)) }
+                    Text("About, legal and support", style = MaterialTheme.typography.titleMedium)
+                    Text("Company details, signature, software acknowledgements and legal links are together on the About page.")
+                    Button(onClick = { nav.navigate("more") }) { Text("Open About") }
                     if (BuildConfig.DEBUG) TextButton(onClick = { nav.navigate("debug") }) { Text(stringResource(R.string.debug_ads)) }
                 }
             }
@@ -784,10 +769,11 @@ private fun More() {
         Text("Built and published by BQ Sqwad Technologies.")
         Text("Share photos, videos, music, documents and apps with nearby devices.")
         Text("Our signature: BQ Sqwad Technologies")
+        Text("Copyright © 2026 BQ Sqwad Technologies. All rights reserved.")
         Text("Open-source components: AndroidX, Kotlin, Hilt, ML Kit, Google Nearby Connections, ZXing and Google Mobile Ads.")
         TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMS))) }) { Text("Terms of Service") }
         TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY))) }) { Text("Privacy Policy") }
-        TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:hello@bqsqwadai.com"))) }) { Text("Contact BQ Sqwad Technologies") }
+        TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:bqsqwadtechnologies@bqsqwadai.com"))) }) { Text("Contact BQ Sqwad Technologies") }
     }
 }
 
