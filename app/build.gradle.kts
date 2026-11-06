@@ -95,6 +95,7 @@ dependencies {
     implementation(libs.nearby)
     implementation(libs.splash)
     implementation(libs.coil)
+    implementation(libs.coil.video)
     implementation(libs.zxing)
     implementation(libs.review)
     implementation(libs.app.update)
