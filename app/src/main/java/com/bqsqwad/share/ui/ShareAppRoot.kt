@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -102,6 +103,8 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import kotlinx.coroutines.delay
 
@@ -789,17 +792,106 @@ private fun Computer(vm: ShareViewModel) {
 
 @Composable
 private fun Cleaner(vm: ShareViewModel) {
+    val context = LocalContext.current
     val history by vm.history.collectAsState()
     val dupes = history.groupBy { it.displayName }.filter { it.value.size > 1 }
-    Column(Modifier.padding(16.dp)) {
-        Text(stringResource(R.string.cleaner), style = MaterialTheme.typography.titleLarge)
-        Text("Large items and repeated names in your transfer history.")
-        history.filter { it.bytes > 50_000_000 }.forEach { Text(it.displayName) }
-        dupes.forEach { (name, rows) -> Text("$name appears ${rows.size} times") }
-        if (history.isEmpty()) Text(stringResource(R.string.empty_recent))
+    val cacheRoots = remember(context) { listOfNotNull(context.cacheDir, context.externalCacheDir).distinctBy { it.absolutePath } }
+    var cacheBytes by remember { mutableStateOf<Long?>(null) }
+    var scanning by remember { mutableStateOf(false) }
+    var cleaning by remember { mutableStateOf(false) }
+    var showConfirm by remember { mutableStateOf(false) }
+    var cleanedBytes by remember { mutableStateOf<Long?>(null) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun scanCache(): Long = withContext(Dispatchers.IO) {
+        cacheRoots.sumOf { root ->
+            runCatching {
+                if (!root.exists()) 0L
+                else root.walkTopDown().filter { it.isFile }.sumOf { file -> file.length() }
+            }.getOrDefault(0L)
+        }
+    }
+
+    LaunchedEffect(cacheRoots) {
+        scanning = true
+        cacheBytes = scanCache()
+        scanning = false
+    }
+
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("Deep Clean", style = MaterialTheme.typography.headlineSmall)
+        Text("Scan temporary files created by BQ Sqwad Share and safely clear its app cache.")
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("App cache", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    cacheBytes?.let { MediaRepository.formatBytes(it) } ?: if (scanning) "Scanning…" else "Not scanned",
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+                Text("Only temporary cache belonging to this app is included. Photos, videos, downloads, received files, app data and other apps are never deleted.")
+                if (scanning || cleaning) LinearProgressIndicator(Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        enabled = !scanning && !cleaning,
+                        onClick = {
+                            scope.launch {
+                                scanning = true
+                                cacheBytes = scanCache()
+                                scanning = false
+                            }
+                        },
+                    ) { Text("Scan again") }
+                    Button(
+                        enabled = (cacheBytes ?: 0L) > 0L && !scanning && !cleaning,
+                        onClick = { showConfirm = true },
+                    ) { Text("Clean cache") }
+                }
+                cleanedBytes?.let {
+                    Text("Cleaned ${MediaRepository.formatBytes(it)} of temporary cache.")
+                }
+            }
+        }
+        Text("Storage review", style = MaterialTheme.typography.titleMedium)
+        Text("Large transfers and repeated names are shown as review suggestions only. Nothing in your personal storage is removed automatically.")
+        history.filter { it.bytes > 50_000_000 }.take(20).forEach { item ->
+            Text("• ${item.displayName} · ${MediaRepository.formatBytes(item.bytes)}")
+        }
+        dupes.take(20).forEach { (name, rows) ->
+            Text("• $name appears ${rows.size} times in transfer history")
+        }
+        if (history.isEmpty()) Text("No transfer history to review.")
+    }
+
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text("Clear temporary cache?") },
+            text = { Text("This removes only files inside this app's cache folders. It does not delete received files, photos, videos, downloads, personal documents, or data belonging to other apps.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showConfirm = false
+                    scope.launch {
+                        cleaning = true
+                        val before = cacheBytes ?: scanCache()
+                        withContext(Dispatchers.IO) {
+                            cacheRoots.forEach { root ->
+                                runCatching { root.listFiles()?.forEach { child -> child.deleteRecursively() } }
+                            }
+                        }
+                        val after = scanCache()
+                        cleanedBytes = (before - after).coerceAtLeast(0L)
+                        cacheBytes = after
+                        cleaning = false
+                    }
+                }) { Text("Clear app cache") }
+            },
+            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("Cancel") } },
+        )
     }
 }
-
 @Composable
 private fun Favorites(vm: ShareViewModel) {
     val fav by vm.favorites.collectAsState()
