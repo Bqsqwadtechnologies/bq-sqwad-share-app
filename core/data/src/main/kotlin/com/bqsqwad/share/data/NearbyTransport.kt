@@ -134,9 +134,10 @@ class NearbyTransport @Inject constructor(@ApplicationContext context: Context) 
         client.sendPayload(endpointId, Payload.fromBytes(bytes))
     }
 
-    fun sendFile(endpointId: String, file: File) {
+    fun sendFile(endpointId: String, file: File): Long {
         val payload = Payload.fromFile(file)
         client.sendPayload(endpointId, payload)
+        return payload.id
     }
 
     fun cancelPayload(id: Long) { client.cancelPayload(id) }
