@@ -790,6 +790,19 @@ private fun Computer(vm: ShareViewModel) {
     }
 }
 
+private fun clearCacheSafely(directory: File) {
+    directory.listFiles()?.forEach { child ->
+        runCatching {
+            if (child.isDirectory) {
+                clearCacheSafely(child)
+                if (child.listFiles()?.isEmpty() == true) child.delete()
+            } else if (!child.name.startsWith("outgoing-")) {
+                child.delete()
+            }
+        }
+    }
+}
+
 @Composable
 private fun Cleaner(vm: ShareViewModel) {
     val context = LocalContext.current
@@ -807,7 +820,7 @@ private fun Cleaner(vm: ShareViewModel) {
         cacheRoots.sumOf { root ->
             runCatching {
                 if (!root.exists()) 0L
-                else root.walkTopDown().filter { it.isFile }.sumOf { file -> file.length() }
+                else root.walkTopDown().filter { it.isFile && !it.name.startsWith("outgoing-") }.sumOf { file -> file.length() }
             }.getOrDefault(0L)
         }
     }
@@ -878,7 +891,7 @@ private fun Cleaner(vm: ShareViewModel) {
                         val before = cacheBytes ?: scanCache()
                         withContext(Dispatchers.IO) {
                             cacheRoots.forEach { root ->
-                                runCatching { root.listFiles()?.forEach { child -> child.deleteRecursively() } }
+                                runCatching { clearCacheSafely(root) }
                             }
                         }
                         val after = scanCache()
