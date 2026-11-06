@@ -67,7 +67,8 @@ class ShareViewModel @Inject constructor(
         }
         viewModelScope.launch {
             nearby.payloads.collect { event ->
-                val payload = event?.payload ?: return@collect
+                val endpointId = event?.endpointId ?: return@collect
+                val payload = event.payload
                 if (payload.type == Payload.Type.FILE) {
                     val incomingFile = runCatching { payload.asFile().asJavaFile() }.getOrNull() ?: return@collect
                     withContext(Dispatchers.IO) {
@@ -81,7 +82,7 @@ class ShareViewModel @Inject constructor(
                                 if (!file.exists()) file else File(directory, "${System.currentTimeMillis()}-$name")
                             }
                             incomingFile.copyTo(destination, overwrite = true)
-                            record(name, mime, destination.length(), "RECEIVE", event.endpointId, destination.absolutePath)
+                            record(name, mime, destination.length(), "RECEIVE", endpointId, destination.absolutePath)
                         }
                     }
                 }
