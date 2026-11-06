@@ -61,6 +61,7 @@ import com.bqsqwad.share.ads.BannerSlot
 import com.bqsqwad.share.ads.NativeSlot
 import com.bqsqwad.share.data.UserSettings
 import com.bqsqwad.share.design.ShareTheme
+import com.bqsqwad.share.design.QR_SIZE
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import androidx.compose.ui.graphics.asImageBitmap
@@ -70,6 +71,7 @@ import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import java.io.File
+import kotlinx.coroutines.delay
 
 private const val TERMS = "https://bqsqwadtechnologies.github.io/bq-sqwad-share-app/terms.html"
 private const val PRIVACY = "https://bqsqwadtechnologies.github.io/bq-sqwad-share-app/privacy.html"
@@ -247,13 +249,40 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
 @Composable
 private fun Receive(vm: ShareViewModel) {
     val incoming by vm.nearby.incoming.collectAsState()
-    LaunchedEffect(Unit) { vm.nearby.startAdvertising("BQ Sqwad Share") }
-    val payload = "bqsqwad://share?code=${vm.sessionCode}&key=${vm.keyText}&v=${vm.verification}"
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
+    val expiresAt by vm.receiveExpiresAt.collectAsState()
+    var remainingSeconds by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) {
+        vm.startReceiveSession()
+        vm.nearby.startAdvertising("BQ Sqwad Share")
+    }
+    LaunchedEffect(expiresAt) {
+        while (expiresAt > 0L) {
+            val remaining = ((expiresAt - System.currentTimeMillis()).coerceAtLeast(0L) / 1000L)
+            remainingSeconds = remaining
+            if (remaining <= 0L) {
+                vm.expireReceiveSessionIfNeeded()
+                break
+            }
+            delay(1000L)
+        }
+    }
+    val code = vm.sessionCode
+    val payload = if (code.isNotBlank()) "bqsqwad://share?code=$code&expires=$expiresAt&key=${vm.keyText}&v=${vm.verification}" else ""
+    Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(stringResource(R.string.show_qr), style = MaterialTheme.typography.titleLarge)
-        Image(bitmap = qrBitmap(payload).asImageBitmap(), contentDescription = stringResource(R.string.show_qr), modifier = Modifier.size(240.dp).padding(12.dp))
-        Text(stringResource(R.string.qr_help))
-        Text("${stringResource(R.string.manual_code)}: ${vm.sessionCode}")
+        if (code.isNotBlank()) {
+            Image(
+                bitmap = qrBitmap(payload).asImageBitmap(),
+                contentDescription = stringResource(R.string.show_qr),
+                modifier = Modifier.size(QR_SIZE).padding(8.dp),
+            )
+            Text(stringResource(R.string.qr_help))
+            Text("${stringResource(R.string.manual_code)}: $code", style = MaterialTheme.typography.headlineSmall)
+            Text("Code expires in %02d:%02d".format(remainingSeconds / 60, remainingSeconds % 60))
+        } else {
+            Text("This receive code has expired. Generate a new one to receive files.")
+        }
+        Button(onClick = { vm.startReceiveSession() }) { Text(if (code.isBlank()) "Generate new code" else "Regenerate code") }
         Text("${stringResource(R.string.verification)}: ${vm.verification}")
         incoming?.let { req ->
             Spacer(Modifier.height(12.dp))
