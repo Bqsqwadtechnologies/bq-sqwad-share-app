@@ -188,14 +188,14 @@ class ShareViewModel @Inject constructor(
                     val target = File(context.cacheDir, "outgoing-${System.currentTimeMillis()}-${name.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
                     resolver.openInputStream(uri)?.use { input -> target.outputStream().use(input::copyTo) }
                         ?: error("Unable to read selected file")
-                    Triple(target, mime, size.takeIf { it > 0L } ?: target.length())
+                    Triple(target, mime, size.takeIf { it > 0L } ?: target.length(), name)
                 }.getOrNull()
             }
         }
         if (outgoing.isEmpty()) return@launch
-        outgoing.forEach { (file, mime, bytes) ->
+        outgoing.forEach { (file, mime, bytes, displayName) ->
             nearby.sendFile(endpointId, file)
-            record(file.name.removePrefix(Regex("outgoing-[0-9]+-").toString()), mime, bytes, "SEND", endpointId, file.absolutePath)
+            record(displayName, mime, bytes, "SEND", endpointId, file.absolutePath)
         }
         pendingUris.value = emptyList()
     }
