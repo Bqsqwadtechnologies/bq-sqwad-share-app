@@ -18,6 +18,7 @@ import com.bqsqwad.share.data.TransferDao
 import com.bqsqwad.share.data.TransferEntity
 import com.bqsqwad.share.data.WebShareServer
 import com.bqsqwad.share.domain.Peer
+import com.bqsqwad.share.transfer.TransferService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,6 +49,20 @@ class ShareViewModel @Inject constructor(
     val pendingUris = MutableStateFlow<List<Uri>>(emptyList())
     val verification = SessionCrypto.fingerprint(sessionKey)
     val keyText = SessionCrypto.keyToString(sessionKey)
+
+    init {
+        viewModelScope.launch {
+            nearby.progress.collect { event ->
+                val complete = event.status != 2 // Nearby PayloadTransferUpdate.Status.IN_PROGRESS
+                val text = if (complete) {
+                    if (event.status == 1) "Transfer completed" else "Transfer ended"
+                } else {
+                    "Transferring ${event.bytes} of ${event.total} bytes"
+                }
+                TransferService.update(context, text, event.bytes, event.total, complete)
+            }
+        }
+    }
 
     var web: WebShareServer? = null
         private set
