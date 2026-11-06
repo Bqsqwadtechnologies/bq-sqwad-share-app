@@ -92,7 +92,7 @@ fun QrScanner(onCodeScanned: (String) -> Unit) {
                                     val uri = runCatching { Uri.parse(raw) }.getOrNull()
                                     val code = uri?.getQueryParameter("code")
                                     val expires = uri?.getQueryParameter("expires")?.toLongOrNull() ?: 0L
-                                    if (uri?.scheme == "bqsqwad" && code?.length == 6 && code.all(Char::isDigit)) {
+                                    if (uri?.scheme == "bqsqwad" && code != null && code.length == 6 && code.all { it.isDigit() }) {
                                         if (expires > System.currentTimeMillis()) {
                                             completed = true
                                             ContextCompat.getMainExecutor(ctx).execute { onCodeScanned(code) }
