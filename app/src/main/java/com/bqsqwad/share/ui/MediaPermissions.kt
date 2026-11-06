@@ -67,7 +67,7 @@ fun rememberMediaPermissionRequest(category: String = "all", onGranted: () -> Un
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         if (MediaPermissions.hasMedia(context, category)) latestOnGranted()
     }
-    return remember {
+    return remember(category) {
         {
             if (MediaPermissions.hasMedia(context)) latestOnGranted()
             else launcher.launch(MediaPermissions.list(category))
