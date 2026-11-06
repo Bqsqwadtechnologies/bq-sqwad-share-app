@@ -21,6 +21,49 @@ object FileUtilities {
     private const val MAX_ENTRIES = 100_000
     private const val MAX_UNCOMPRESSED_BYTES = 2L * 1024 * 1024 * 1024
 
+    
+    /**
+     * Copies an incoming file into an app-owned directory using a safe display name.
+     * A destination is reserved atomically before copying so existing received files
+     * are never overwritten, even when two transfers use the same filename.
+     */
+    fun copyToUniqueDestination(source: File, directory: File, preferredName: String): File {
+        require(source.isFile && source.canRead()) { "A readable source file is required." }
+        require(directory.exists() || directory.mkdirs()) { "The destination folder could not be created." }
+        require(directory.isDirectory) { "The destination must be a folder." }
+
+        val safeName = safeFileName(preferredName)
+        val dot = safeName.lastIndexOf('.')
+        val stem = if (dot > 0) safeName.substring(0, dot) else safeName
+        val extension = if (dot > 0) safeName.substring(dot) else ""
+        var suffix = 1
+        while (true) {
+            val candidateName = if (suffix == 1) safeName else "$stem ($suffix)$extension"
+            val destination = File(directory, candidateName)
+            if (destination.createNewFile()) {
+                try {
+                    source.copyTo(destination, overwrite = true)
+                    return destination
+                } catch (failure: Throwable) {
+                    destination.delete()
+                    throw failure
+                }
+            }
+            suffix++
+        }
+    }
+
+    /** Removes path components, control characters and filesystem-reserved characters. */
+    fun safeFileName(input: String): String {
+        val leaf = input.replace('\\\\', '/').substringAfterLast('/')
+        val cleaned = leaf
+            .filter { it.code >= 32 && it.code != 127 && it !in "<>:\"|?*" }
+            .trim()
+            .trim('.')
+            .take(180)
+        return cleaned.ifBlank { "received-file" }
+    }
+
     fun sha256(file: File): String {
         require(file.isFile && file.canRead()) { "A readable file is required." }
         val digest = MessageDigest.getInstance("SHA-256")

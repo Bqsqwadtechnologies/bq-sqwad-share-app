@@ -16,6 +16,7 @@ import com.bqsqwad.share.common.kindForMime
 import com.bqsqwad.share.data.NearbyTransport
 import com.bqsqwad.share.data.SettingsStore
 import com.bqsqwad.share.data.TransferDao
+import com.bqsqwad.share.files.FileUtilities
 import com.bqsqwad.share.data.TransferEntity
 import com.bqsqwad.share.data.WebShareServer
 import com.bqsqwad.share.domain.Peer
@@ -135,19 +136,19 @@ class ShareViewModel @Inject constructor(
             completedIncoming.remove(payloadId)
             val (endpointId, incomingFile) = pending
             viewModelScope.launch {
-                withContext(Dispatchers.IO) {
-                    runCatching {
-                        val name = incomingFile.name.ifBlank { "received-file" }
+                try {
+                    withContext(Dispatchers.IO) {
+                        val name = FileUtilities.safeFileName(incomingFile.name)
                         val extension = name.substringAfterLast('.', "").lowercase()
                         val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
                         val kind = kindForMime(mime, name)
-                        val directory = File(context.getExternalFilesDir(null), folderFor(kind)).apply { mkdirs() }
-                        val destination = File(directory, name).let { file ->
-                            if (!file.exists()) file else File(directory, "${System.currentTimeMillis()}-$name")
-                        }
-                        incomingFile.copyTo(destination, overwrite = true)
-                        record(name, mime, destination.length(), "RECEIVE", endpointId, destination.absolutePath)
+                        val directory = File(context.getExternalFilesDir(null), folderFor(kind))
+                        val destination = FileUtilities.copyToUniqueDestination(incomingFile, directory, name)
+                        record(destination.name, mime, destination.length(), "RECEIVE", endpointId, destination.absolutePath)
                     }
+                } finally {
+                    // Nearby's temporary payload file is no longer needed after the app-owned copy.
+                    withContext(Dispatchers.IO) { runCatching { incomingFile.delete() } }
                 }
             }
         }

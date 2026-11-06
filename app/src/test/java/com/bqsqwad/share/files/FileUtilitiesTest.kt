@@ -44,6 +44,30 @@ class FileUtilitiesTest {
     }
 
     @Test
+    fun incomingFileNamesAreSanitizedAndFallbackWhenEmpty() {
+        assertEquals("report.txt", FileUtilities.safeFileName("../../report.txt"))
+        assertEquals("received-file", FileUtilities.safeFileName("../.."))
+        assertEquals("myfile.txt", FileUtilities.safeFileName("my<file>.txt"))
+    }
+
+    @Test
+    fun receivedFilesNeverOverwriteExistingNames() {
+        val directory = Files.createTempDirectory("bq-share-receive").toFile()
+        val firstSource = File(directory, "first.tmp").apply { writeText("first") }
+        val secondSource = File(directory, "second.tmp").apply { writeText("second") }
+        try {
+            val first = FileUtilities.copyToUniqueDestination(firstSource, directory, "../report.txt")
+            val second = FileUtilities.copyToUniqueDestination(secondSource, directory, "report.txt")
+            assertEquals("report.txt", first.name)
+            assertEquals("report (2).txt", second.name)
+            assertEquals("first", first.readText())
+            assertEquals("second", second.readText())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun extractionRejectsParentTraversal() {
         val directory = Files.createTempDirectory("bq-share-zip-traversal").toFile()
         val archive = File(directory, "unsafe.zip")
