@@ -426,15 +426,18 @@ class ShareViewModel @Inject constructor(
             dao.update(item.copy(status = "FAILED_SOURCE_MISSING", bytesDone = 0L))
             return@launch
         }
-        try {
-            val payloadId = nearby.sendFile(endpointId, source)
-            val retryRow = item.copy(status = "SENDING", bytesDone = 0L, createdAt = System.currentTimeMillis())
-            dao.update(retryRow)
-            outgoingPayloadRecords[payloadId] = retryRow
-            outgoingPayloadIds[item.id] = payloadId
-        } catch (_: Exception) {
-            dao.update(item.copy(status = "FAILED", bytesDone = 0L))
-        }
+        val alreadyQueued = pendingOutgoingQueue.any { it.id == item.id }
+        val alreadyActive = outgoingPayloadIds.containsKey(item.id)
+        if (alreadyQueued || alreadyActive) return@launch
+        val retryRow = item.copy(
+            peerName = endpointId,
+            status = "QUEUED",
+            bytesDone = 0L,
+            createdAt = System.currentTimeMillis(),
+        )
+        dao.update(retryRow)
+        pendingOutgoingQueue.add(retryRow)
+        pumpOutgoingQueue()
     }
 
     fun sendText(endpointId: String, text: String) {
