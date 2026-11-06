@@ -59,7 +59,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
     val haptic = LocalHapticFeedback.current
     val history by vm.history.collectAsState()
     val tabs = listOf("Apps", "Photos", "Videos", "Music", "Documents", "Files", "Received", "Sent")
-    var tab by remember { mutableStateOf(initialTab.lowercase().let { key -> when (key) { "photos", "pictures" -> "Photos"; "videos" -> "Videos"; "music" -> "Music"; "documents" -> "Documents"; "files" -> "Files"; "received" -> "Received"; "sent" -> "Sent"; else -> "Apps" } }) }
+    var tab by remember(initialTab) { mutableStateOf(initialTab.lowercase().let { key -> when (key) { "photos", "pictures" -> "Photos"; "videos" -> "Videos"; "music" -> "Music"; "documents" -> "Documents"; "files" -> "Files"; "received" -> "Received"; "sent" -> "Sent"; else -> "Apps" } }) }
     var systemApps by remember { mutableStateOf(false) }
     var refresh by remember { mutableStateOf(0) }
     var media by remember { mutableStateOf(emptyList<ShareMediaItem>()) }
@@ -110,6 +110,18 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                     selected = tab == label,
                     onClick = { tab = label; selected.clear(); selectedUris.clear(); selectedFiles.clear() },
                     label = { Text(label) },
+                    leadingIcon = {
+                        val icon = when (label) {
+                            "Apps" -> androidx.compose.material.icons.Icons.Filled.Apps
+                            "Photos" -> androidx.compose.material.icons.Icons.Filled.PhotoLibrary
+                            "Videos" -> androidx.compose.material.icons.Icons.Filled.VideoLibrary
+                            "Music" -> androidx.compose.material.icons.Icons.Filled.MusicNote
+                            "Received" -> androidx.compose.material.icons.Icons.Filled.Download
+                            "Sent" -> androidx.compose.material.icons.Icons.Filled.Send
+                            else -> androidx.compose.material.icons.Icons.Filled.FolderOpen
+                        }
+                        androidx.compose.material3.Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+                    },
                 )
             }
         }
