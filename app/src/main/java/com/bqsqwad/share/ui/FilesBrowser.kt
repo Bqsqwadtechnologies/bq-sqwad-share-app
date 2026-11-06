@@ -3,6 +3,7 @@ package com.bqsqwad.share.ui
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
@@ -80,6 +81,8 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
         if (selected.containsKey(key)) selected.remove(key) else selected[key] = size
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
     }
+
+    BackHandler(enabled = selected.isNotEmpty()) { selected.clear(); selectedUris.clear() }
 
     val mediaPermissionNeeded = tab in listOf("Photos", "Videos", "Music", "Documents") && !MediaPermissions.hasMedia(context)
     val allFilesNeeded = tab == "Files" && !MediaPermissions.hasFull(context)
