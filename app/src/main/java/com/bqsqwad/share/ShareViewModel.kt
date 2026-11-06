@@ -2,6 +2,8 @@ package com.bqsqwad.share
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.content.pm.PackageManager
 import android.os.StatFs
 import androidx.lifecycle.ViewModel
@@ -22,6 +24,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
@@ -41,6 +45,7 @@ class ShareViewModel @Inject constructor(
     var sessionCode: String = SessionCrypto.sixDigitCode()
         private set
     val receiveExpiresAt = MutableStateFlow(0L)
+    val pendingUris = MutableStateFlow<List<Uri>>(emptyList())
     val verification = SessionCrypto.fingerprint(sessionKey)
     val keyText = SessionCrypto.keyToString(sessionKey)
 
@@ -53,11 +58,16 @@ class ShareViewModel @Inject constructor(
         var next = SessionCrypto.sixDigitCode()
         while (next == previous) next = SessionCrypto.sixDigitCode()
         sessionCode = next
+        nearby.stopAdvertising()
         receiveExpiresAt.value = System.currentTimeMillis() + 10 * 60 * 1000L
+        nearby.startAdvertising("BQ Sqwad Share")
     }
 
     fun expireReceiveSessionIfNeeded(now: Long = System.currentTimeMillis()) {
-        if (receiveExpiresAt.value > 0L && now >= receiveExpiresAt.value) sessionCode = ""
+        if (receiveExpiresAt.value > 0L && now >= receiveExpiresAt.value) {
+            sessionCode = ""
+            nearby.stopAdvertising()
+        }
     }
 
     fun confirmAge() = viewModelScope.launch { store.setAgeConfirmed() }
@@ -134,6 +144,46 @@ class ShareViewModel @Inject constructor(
     fun stopWeb() { web?.stop(); web = null }
 
     fun peers(): List<Peer> = nearby.peers.value
+
+    fun queueFiles(uris: List<Uri>) {
+        pendingUris.value = (pendingUris.value + uris).distinct()
+    }
+
+    fun clearQueuedFiles() { pendingUris.value = emptyList() }
+
+    /** Copies picked content URIs into app-private cache, then sends real Nearby file payloads. */
+    fun sendQueuedFiles(endpointId: String) = viewModelScope.launch {
+        val queued = pendingUris.value
+        if (queued.isEmpty()) return@launch
+        val outgoing = withContext(Dispatchers.IO) {
+            queued.mapNotNull { uri ->
+                runCatching {
+                    val resolver = context.contentResolver
+                    var name = uri.lastPathSegment?.substringAfterLast('/') ?: "shared-file"
+                    var size = 0L
+                    resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                            if (nameIndex >= 0) name = cursor.getString(nameIndex) ?: name
+                            if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) size = cursor.getLong(sizeIndex)
+                        }
+                    }
+                    val mime = resolver.getType(uri) ?: "application/octet-stream"
+                    val target = File(context.cacheDir, "outgoing-${System.currentTimeMillis()}-${name.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
+                    resolver.openInputStream(uri)?.use { input -> target.outputStream().use(input::copyTo) }
+                        ?: error("Unable to read selected file")
+                    Triple(target, mime, size.takeIf { it > 0L } ?: target.length())
+                }.getOrNull()
+            }
+        }
+        if (outgoing.isEmpty()) return@launch
+        outgoing.forEach { (file, mime, bytes) ->
+            nearby.sendFile(endpointId, file)
+            record(file.name.removePrefix(Regex("outgoing-[0-9]+-").toString()), mime, bytes, "SEND", endpointId, file.absolutePath)
+        }
+        pendingUris.value = emptyList()
+    }
 
     fun sendText(endpointId: String, text: String) {
         val secret = SessionCrypto.encrypt(sessionKey, text.toByteArray())
