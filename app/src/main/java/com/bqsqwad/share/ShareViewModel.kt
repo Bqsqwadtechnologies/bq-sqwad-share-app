@@ -26,6 +26,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -64,6 +65,13 @@ class ShareViewModel @Inject constructor(
     private val maxConcurrentPayloads = 3
 
     init {
+        // A process restart cannot resume a Nearby payload in place. Mark unfinished
+        // rows as recoverable so the user can retry instead of leaving them stuck.
+        viewModelScope.launch {
+            dao.observeAll().first()
+                .filter { it.direction.equals("SEND", true) && it.status in setOf("SENDING", "QUEUED") }
+                .forEach { dao.update(it.copy(status = "WAITING_FOR_DEVICE", bytesDone = 0L)) }
+        }
         viewModelScope.launch {
             nearby.connected.collect { pumpOutgoingQueue() }
         }
