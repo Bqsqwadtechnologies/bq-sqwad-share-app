@@ -5,6 +5,8 @@ import android.net.Uri
 import java.io.File
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -83,6 +85,30 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
     var sortBySize by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val requestMedia = rememberMediaPermissionRequest(tab) { refresh++ }
+    val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        uris.forEach { uri ->
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            var name = uri.lastPathSegment?.substringAfterLast('/') ?: "Selected file"
+            var size = 0L
+            context.contentResolver.query(
+                uri,
+                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE),
+                null, null, null,
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                    if (nameIndex >= 0) name = cursor.getString(nameIndex) ?: name
+                    if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) size = cursor.getLong(sizeIndex).coerceAtLeast(0L)
+                }
+            }
+            val key = "document:$uri"
+            selected[key] = size
+            selectedUris[key] = uri
+        }
+    }
     val visibleApps = remember(apps, searchText) { apps.filter { it.label.contains(searchText.trim(), true) || it.packageName.contains(searchText.trim(), true) } }
     val visibleMedia = remember(media, searchText, sortBySize) {
         media.filter { it.name.contains(searchText.trim(), ignoreCase = true) }
@@ -116,7 +142,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
     BackHandler(enabled = selected.isNotEmpty()) { selected.clear(); selectedUris.clear(); selectedFiles.clear() }
 
     val mediaPermissionNeeded = tab in listOf("Photos", "Videos", "Music") && !MediaPermissions.hasMedia(context, tab)
-    val allFilesNeeded = tab in listOf("Files", "Documents") && !MediaPermissions.hasFull(context)
+    val documentPickerNeeded = tab == "Files" || tab == "Documents"
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -182,8 +208,31 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                 Text("Allow media access to browse $tab.")
                 Button(onClick = requestMedia) { Text("Grant access") }
             }
-            allFilesNeeded -> Column(Modifier.padding(20.dp)) {
-                Text("Documents and full Files browsing are not enabled because this version uses scoped storage. Photos, Videos, Music, Apps, Received and Sent remain available.")
+            documentPickerNeeded -> Column(Modifier.weight(1f).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    if (tab == "Documents") "Choose documents from your device. Android will show its secure file picker, so BQ Sqwad Share does not need unrestricted storage access."
+                    else "Choose files from your device using Android’s secure file picker. You can select multiple files and send them together.",
+                )
+                Button(onClick = {
+                    documentPicker.launch(
+                        if (tab == "Documents") arrayOf(
+                            "application/pdf", "text/plain", "text/csv", "application/json",
+                            "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                            "application/zip",
+                        ) else arrayOf("*/*"),
+                    )
+                }) { Text(if (tab == "Documents") "Browse documents" else "Browse files") }
+                if (selectedUris.isNotEmpty()) {
+                    Text("${selectedUris.size} item(s) selected · ${MediaRepository.formatBytes(selected.values.sum())}")
+                    selectedUris.forEach { (key, uri) ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(uri.lastPathSegment?.substringAfterLast("/") ?: "Selected file", Modifier.weight(1f), maxLines = 1)
+                            TextButton(onClick = { selected.remove(key); selectedUris.remove(key) }) { Text("Remove") }
+                        }
+                    }
+                }
             }
             else -> LazyColumn(
                 Modifier.weight(1f),
