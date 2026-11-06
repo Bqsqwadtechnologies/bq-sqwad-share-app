@@ -56,13 +56,35 @@ class ShareViewModel @Inject constructor(
     val scannedReceiveCode = MutableStateFlow("")
     val verification = SessionCrypto.fingerprint(sessionKey)
     val keyText = SessionCrypto.keyToString(sessionKey)
+    private val outgoingPayloadRecords = java.util.concurrent.ConcurrentHashMap<Long, TransferEntity>()
 
     init {
         val activePayloadIds = mutableSetOf<Long>()
         viewModelScope.launch {
-            nearby.progress.collect { event ->
-                val progress = event ?: return@collect
-                if (progress.status == 2) activePayloadIds.add(progress.payloadId) else activePayloadIds.remove(progress.payloadId)
+            nearby.progress.collect { progress ->
+                if (progress.status == 2) {
+                    activePayloadIds.add(progress.payloadId)
+                } else {
+                    activePayloadIds.remove(progress.payloadId)
+                    val outgoing = outgoingPayloadRecords.remove(progress.payloadId)
+                    if (outgoing != null) {
+                        val succeeded = progress.status == 1
+                        viewModelScope.launch {
+                            dao.update(
+                                outgoing.copy(
+                                    status = if (succeeded) "DONE" else "FAILED",
+                                    bytesDone = if (succeeded) outgoing.bytes else progress.bytes.coerceAtLeast(0L),
+                                ),
+                            )
+                        }
+                        if (succeeded) {
+                            outgoing.localPath?.let { path ->
+                                val file = File(path)
+                                if (file.name.startsWith("outgoing-")) runCatching { file.delete() }
+                            }
+                        }
+                    }
+                }
                 val complete = progress.status != 2 && activePayloadIds.isEmpty()
                 val text = if (complete) {
                     if (progress.status == 1) "Transfer completed" else "Transfer ended"
@@ -276,8 +298,21 @@ class ShareViewModel @Inject constructor(
         }
         if (outgoing.isEmpty()) return@launch
         outgoing.forEach { (file, mime, bytes, displayName) ->
-            nearby.sendFile(endpointId, file)
-            record(displayName, mime, bytes, "SEND", endpointId, file.absolutePath)
+            val row = TransferEntity(
+                direction = "SEND",
+                displayName = displayName,
+                mime = mime,
+                bytes = bytes,
+                bytesDone = 0L,
+                status = "SENDING",
+                peerName = endpointId,
+                localPath = file.absolutePath,
+                createdAt = System.currentTimeMillis(),
+                favorite = false,
+            )
+            val rowId = dao.insert(row)
+            val payloadId = nearby.sendFile(endpointId, file)
+            outgoingPayloadRecords[payloadId] = row.copy(id = rowId)
         }
         pendingUris.value = emptyList()
         pendingLocalFiles.value = emptyList()
