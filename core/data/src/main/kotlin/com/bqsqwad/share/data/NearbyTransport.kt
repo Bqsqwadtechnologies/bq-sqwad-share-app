@@ -16,6 +16,11 @@ import com.google.android.gms.nearby.connection.PayloadCallback
 import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import com.google.android.gms.nearby.connection.Strategy
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -29,7 +34,7 @@ data class PayloadEvent(val endpointId: String, val payload: Payload)
 data class ProgressEvent(val endpointId: String, val payloadId: Long, val bytes: Long, val total: Long, val status: Int)
 
 @Singleton
-class NearbyTransport @Inject constructor(@ApplicationContext context: Context) {
+class NearbyTransport @Inject constructor(\n    @ApplicationContext context: Context,\n    private val settingsStore: SettingsStore,\n) {\n    private val callbackScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val client = Nearby.getConnectionsClient(context)
     private val serviceId = "com.bqsqwad.share"
     private val strategy = Strategy.P2P_CLUSTER
@@ -66,12 +71,20 @@ class NearbyTransport @Inject constructor(@ApplicationContext context: Context) 
 
     private val connectionCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
-            val expected = expectedReceiveCode
-            if (expected.length == 6 && info.endpointName.contains(expected)) {
-                client.acceptConnection(endpointId, payloadCallback)
-                _incoming.value = null
-            } else {
-                _incoming.value = IncomingRequest(endpointId, info.endpointName, info.authenticationDigits)
+            callbackScope.launch {
+                val blocked = runCatching { settingsStore.settings.first().blocked }.getOrDefault(emptySet())
+                if (info.endpointName in blocked || endpointId in blocked) {
+                    client.rejectConnection(endpointId)
+                    _incoming.value = null
+                    return@launch
+                }
+                val expected = expectedReceiveCode
+                if (expected.length == 6 && info.endpointName.contains(expected)) {
+                    client.acceptConnection(endpointId, payloadCallback)
+                    _incoming.value = null
+                } else {
+                    _incoming.value = IncomingRequest(endpointId, info.endpointName, info.authenticationDigits)
+                }
             }
         }
         override fun onConnectionResult(endpointId: String, resolution: ConnectionResolution) {
