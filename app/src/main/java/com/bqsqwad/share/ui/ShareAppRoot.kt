@@ -336,6 +336,7 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
 }
 
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
     val history by vm.history.collectAsState()
