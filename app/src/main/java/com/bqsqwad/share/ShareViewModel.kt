@@ -74,13 +74,15 @@ class ShareViewModel @Inject constructor(
         while (next == previous) next = SessionCrypto.sixDigitCode()
         sessionCode = next
         nearby.stopAdvertising()
+        nearby.setExpectedReceiveCode(next)
         receiveExpiresAt.value = System.currentTimeMillis() + 10 * 60 * 1000L
-        nearby.startAdvertising("BQ Sqwad Share")
+        nearby.startAdvertising("BQ Sqwad Share $next")
     }
 
     fun expireReceiveSessionIfNeeded(now: Long = System.currentTimeMillis()) {
         if (receiveExpiresAt.value > 0L && now >= receiveExpiresAt.value) {
             sessionCode = ""
+            nearby.setExpectedReceiveCode("")
             nearby.stopAdvertising()
         }
     }
