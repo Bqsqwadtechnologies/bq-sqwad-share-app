@@ -113,6 +113,13 @@ class ShareViewModel @Inject constructor(
         }
     }
 
+    fun stopReceiveSession() {
+        nearby.setExpectedReceiveCode("")
+        nearby.stopAdvertising()
+        sessionCode = ""
+        receiveExpiresAt.value = 0L
+    }
+
     fun confirmAge() = viewModelScope.launch { store.setAgeConfirmed() }
     fun theme(mode: String) = viewModelScope.launch { store.setTheme(mode) }
     fun accent(name: String) = viewModelScope.launch { store.setAccent(name) }
