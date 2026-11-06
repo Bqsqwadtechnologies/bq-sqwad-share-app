@@ -366,7 +366,7 @@ private fun Receive(vm: ShareViewModel) {
     var remainingSeconds by remember { mutableStateOf(0L) }
     LaunchedEffect(Unit) { vm.startReceiveSession() }
     DisposableEffect(Unit) {
-        onDispose { vm.nearby.stopAdvertising() }
+        onDispose { vm.stopReceiveSession() }
     }
     LaunchedEffect(expiresAt) {
         while (expiresAt > 0L) {
