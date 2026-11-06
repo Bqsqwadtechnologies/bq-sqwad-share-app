@@ -100,7 +100,11 @@ class ShareViewModel @Inject constructor(
                         viewModelScope.launch {
                             dao.update(
                                 outgoing.copy(
-                                    status = if (succeeded) "DONE" else "FAILED",
+                                    status = when (progress.status) {
+                                        PayloadTransferUpdate.Status.SUCCESS -> "DONE"
+                                        PayloadTransferUpdate.Status.CANCELED -> "CANCELLED"
+                                        else -> "FAILED"
+                                    },
                                     bytesDone = if (succeeded) outgoing.bytes else progress.bytes.coerceAtLeast(0L),
                                 ),
                             )
