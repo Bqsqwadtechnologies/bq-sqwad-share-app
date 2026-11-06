@@ -625,6 +625,18 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
     val history by vm.history.collectAsState()
     Scaffold { pad ->
         LazyColumn(Modifier.padding(pad).padding(16.dp)) {
+            item {
+                val queuedCount = history.count { it.direction.equals("SEND", true) && it.status == "QUEUED" }
+                val activeCount = history.count { it.direction.equals("SEND", true) && it.status == "SENDING" }
+                val waitingCount = history.count { it.direction.equals("SEND", true) && it.status == "WAITING_FOR_DEVICE" }
+                Card(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Transfer activity", style = MaterialTheme.typography.titleMedium)
+                        Text("$activeCount transferring · $queuedCount queued · $waitingCount waiting to retry")
+                        Text("Multiple files are sent in parallel in small batches to keep the connection responsive.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
             itemsIndexed(history, key = { _, it -> it.id }) { _, item ->
                 Card(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -633,11 +645,13 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
                         Text("Device: ${item.peerName}", style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = { vm.toggleFavorite(item) }) { Text(stringResource(R.string.favorites)) }
-                            if (item.direction.equals("SEND", true) && item.status == "SENDING") {
+                            if (item.direction.equals("SEND", true) &&
+                                item.status in setOf("SENDING", "QUEUED", "WAITING_FOR_DEVICE")
+                            ) {
                                 TextButton(onClick = { vm.cancelTransfer(item) }) { Text("Cancel transfer") }
                             }
                             if (item.direction.equals("SEND", true) &&
-                                (item.status == "FAILED" || item.status == "WAITING_FOR_DEVICE")
+                                item.status in setOf("FAILED", "WAITING_FOR_DEVICE", "FAILED_SOURCE_MISSING")
                             ) {
                                 TextButton(onClick = { vm.retryTransfer(item) }) { Text("Retry") }
                             }
