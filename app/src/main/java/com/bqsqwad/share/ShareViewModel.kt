@@ -55,10 +55,12 @@ class ShareViewModel @Inject constructor(
     val keyText = SessionCrypto.keyToString(sessionKey)
 
     init {
+        val activePayloadIds = mutableSetOf<Long>()
         viewModelScope.launch {
             nearby.progress.collect { event ->
                 val progress = event ?: return@collect
-                val complete = progress.status != 2 // Nearby PayloadTransferUpdate.Status.IN_PROGRESS
+                if (progress.status == 2) activePayloadIds.add(progress.payloadId) else activePayloadIds.remove(progress.payloadId)
+                val complete = progress.status != 2 && activePayloadIds.isEmpty()
                 val text = if (complete) {
                     if (progress.status == 1) "Transfer completed" else "Transfer ended"
                 } else {
