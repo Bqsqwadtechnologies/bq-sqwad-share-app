@@ -324,6 +324,8 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
     var tab by remember { mutableStateOf("files") }
     val ctx = LocalContext.current
     val picked = remember { mutableStateOf(listOf<Uri>()) }
+    val queued by vm.pendingUris.collectAsState()
+    val connected by vm.nearby.connected.collectAsState()
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         picked.value = uris
     }
@@ -356,13 +358,22 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
             else -> {
                 Button(onClick = { pick.launch(arrayOf("*/*")) }, modifier = Modifier.height(48.dp)) { Text(stringResource(R.string.pick_files)) }
                 Text(stringResource(R.string.photos) + " · " + stringResource(R.string.videos) + " · " + stringResource(R.string.music) + " · " + stringResource(R.string.documents))
-                picked.value.forEach { Text(it.toString(), modifier = Modifier.padding(vertical = 4.dp)) }
+                picked.value.forEach { Text(it.lastPathSegment ?: it.toString(), modifier = Modifier.padding(vertical = 4.dp)) }
+                if (queued.isNotEmpty()) Text("${queued.size} item(s) selected from Files", style = MaterialTheme.typography.bodyMedium)
             }
         }
         Button(onClick = {
-            picked.value.forEach { uri -> vm.record(uri.lastPathSegment ?: "file", "application/octet-stream", 0, "SEND", "nearby", uri.toString()) }
-            ads.onTaskCompleted(ctx as Activity, adFree)
-            nav.popBackStack()
+            if (picked.value.isNotEmpty()) vm.queueFiles(picked.value)
+            val endpointId = connected.firstOrNull()
+            if (endpointId == null) {
+                Toast.makeText(ctx, "Connect to a nearby device first, then send the selected files.", Toast.LENGTH_LONG).show()
+            } else if (queued.isNotEmpty() || picked.value.isNotEmpty()) {
+                vm.sendQueuedFiles(endpointId)
+                ads.onTaskCompleted(ctx as Activity, adFree)
+                nav.popBackStack()
+            } else {
+                Toast.makeText(ctx, "Choose at least one file to send.", Toast.LENGTH_SHORT).show()
+            }
         }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text(stringResource(R.string.send_selected)) }
     }
 }
