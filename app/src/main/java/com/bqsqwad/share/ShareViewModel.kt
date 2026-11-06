@@ -78,7 +78,9 @@ class ShareViewModel @Inject constructor(
                 } else {
                     activePayloadIds.remove(progress.payloadId)
                     val outgoing = outgoingPayloadRecords.remove(progress.payloadId)
-                    if (outgoing != null) {\n                        outgoingPayloadIds.remove(outgoing.id)\n
+                    if (outgoing != null) {
+                        outgoingPayloadIds.remove(outgoing.id)
+
                         val succeeded = progress.status == 1
                         viewModelScope.launch {
                             dao.update(
