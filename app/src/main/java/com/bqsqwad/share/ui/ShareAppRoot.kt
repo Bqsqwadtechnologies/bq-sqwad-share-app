@@ -728,6 +728,8 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
     val s = settings ?: return
     val ctx = LocalContext.current
     val (freeBytes, totalBytes) = vm.storage()
+    val connectedDevices by vm.nearby.connected.collectAsState()
+    val discoveredPeers by vm.nearby.peers.collectAsState()
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { BrandHeader() }
         item {
@@ -745,6 +747,31 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
                     Text("Transfer", style = MaterialTheme.typography.titleMedium)
                     Text("Nearby sharing and connected-device transfers")
                     SwitchRow(stringResource(R.string.haptics), s.haptics) { vm.haptics(it) }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Connected devices · ${connectedDevices.size}", style = MaterialTheme.typography.titleMedium)
+                    if (connectedDevices.isEmpty()) {
+                        Text("No devices are connected.")
+                    } else {
+                        connectedDevices.forEach { endpointId ->
+                            val deviceName = discoveredPeers.firstOrNull { it.endpointId == endpointId }?.name ?: "Nearby device"
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(deviceName, style = MaterialTheme.typography.titleSmall)
+                                    Text("Connected securely for this session", style = MaterialTheme.typography.bodySmall)
+                                }
+                                TextButton(onClick = { vm.nearby.disconnect(endpointId) }) { Text("Disconnect") }
+                            }
+                        }
+                    }
                 }
             }
         }
