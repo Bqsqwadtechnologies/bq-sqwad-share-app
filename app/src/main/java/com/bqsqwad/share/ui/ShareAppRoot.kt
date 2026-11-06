@@ -362,12 +362,13 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
 
 @Composable
 private fun Receive(vm: ShareViewModel) {
+    val context = LocalContext.current
     val incoming by vm.nearby.incoming.collectAsState()
     val expiresAt by vm.receiveExpiresAt.collectAsState()
     var remainingSeconds by remember { mutableStateOf(0L) }
     val receivePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         if (result.values.all { it }) vm.startReceiveSession()
-        else Toast.makeText(LocalContext.current, "Nearby permissions are required to receive files.", Toast.LENGTH_LONG).show()
+        else Toast.makeText(context, "Nearby permissions are required to receive files.", Toast.LENGTH_LONG).show()
     }
     LaunchedEffect(Unit) {
         val required = if (android.os.Build.VERSION.SDK_INT >= 33) {
