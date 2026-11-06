@@ -56,7 +56,7 @@ class FileUtilitiesTest {
             }
             val failure = runCatching { FileUtilities.extractZip(archive, destination) }.exceptionOrNull()
             assertTrue(failure is IllegalArgumentException)
-            assertFalse(File(directory.parentFile, "escaped.txt").exists())
+            assertFalse(File(directory, "escaped.txt").exists())
         } finally {
             directory.deleteRecursively()
         }
