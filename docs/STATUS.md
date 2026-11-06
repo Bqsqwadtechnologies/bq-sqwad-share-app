@@ -40,7 +40,6 @@ Package: `com.bqsqwad.share` · Target **1.1.0**
 - Cross-platform browser transfer polish, ZIP folders, HTTP Range resume
 - HEIC/HEVC conversion helpers
 - Share ID, trusted devices, multi-receiver send
-- Internet transfer WebRTC + Cloudflare Worker signaling
 - Static web client under web/
 - Share-sheet intents, compress-before-send, widgets
 - Compose UI tests and multi-API emulator matrix
