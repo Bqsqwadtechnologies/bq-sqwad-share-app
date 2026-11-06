@@ -124,14 +124,14 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         Column(Modifier.fillMaxWidth().padding(16.dp)) {
                             BrandHeader()
                             Text("SHARE", style = MaterialTheme.typography.labelLarge)
-                            listOf("Send" to "send", "Receive" to "receive", "Computer/iPhone" to "computer", "Phone Clone" to "clone").forEach { (label, route) ->
+                            listOf("Send" to "send", "Scan QR" to "scan", "Receive" to "receive", "Computer/iPhone" to "computer", "Phone Clone" to "clone").forEach { (label, route) ->
                                 NavigationDrawerItem(label = { Text(label) }, selected = false, onClick = {
                                     scope.launch { drawerState.close() }; nav.navigate(route)
                                 })
                             }
                             HorizontalDivider(Modifier.padding(vertical = 8.dp))
                             Text("BROWSE", style = MaterialTheme.typography.labelLarge)
-                            listOf("Files" to "files", "Photos" to "library/pictures", "Videos" to "library/videos", "Music" to "library/music", "Received" to "library/received", "Sent" to "library/sent").forEach { (label, route) ->
+                            listOf("Files" to "files", "Apps" to "library/apps", "Photos" to "library/pictures", "Videos" to "library/videos", "Music" to "library/music", "Documents" to "files", "Received" to "library/received", "Sent" to "library/sent").forEach { (label, route) ->
                                 NavigationDrawerItem(label = { Text(label) }, selected = currentRoute == route, onClick = {
                                     scope.launch { drawerState.close() }; nav.navigate(route)
                                 })
