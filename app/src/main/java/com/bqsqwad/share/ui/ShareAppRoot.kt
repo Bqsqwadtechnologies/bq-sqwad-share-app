@@ -234,7 +234,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                     },
                     bottomBar = {
                         BannerSlot(
-                            enabled = currentRoute in setOf("home", "history") && !adFree && ads.canRequestAds,
+                            enabled = !adFree && ads.canRequestAds,
                             modifier = Modifier.navigationBarsPadding(),
                         )
                     },
@@ -536,6 +536,7 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
         val endpointId = connected.firstOrNull()
         if (autoSend && endpointId != null && (queued.isNotEmpty() || queuedLocal.isNotEmpty())) {
             vm.sendQueuedFiles(endpointId)
+            ads.onTaskCompleted(ctx as Activity, adFree)
             nav.popBackStack()
         }
     }
@@ -610,6 +611,7 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
                 Button(onClick = {
                     confirmGroupSend = false
                     vm.sendQueuedFilesToAll()
+                    ads.onTaskCompleted(ctx as Activity, adFree)
                     nav.popBackStack()
                 }) { Text("Send to all") }
             },
