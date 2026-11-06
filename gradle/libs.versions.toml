@@ -1,9 +1,10 @@
 [versions]
-agp = "8.8.2"
+agp = "8.10.1"
 kotlin = "2.1.10"
 ksp = "2.1.10-1.0.31"
 coreKtx = "1.15.0"
 lifecycle = "2.8.7"
+lifecycleCompose = "2.8.7"
 activity = "1.10.0"
 composeBom = "2025.02.00"
 navigation = "2.8.7"
@@ -30,6 +31,7 @@ detekt = "1.23.8"
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-runtime = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycleCompose" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity" }
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 androidx-ui = { module = "androidx.compose.ui:ui" }
