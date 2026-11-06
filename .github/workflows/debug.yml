@@ -1,8 +1,5 @@
 name: Debug APK
 on:
-  push:
-    branches: [main, finish-1.2]
-  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
