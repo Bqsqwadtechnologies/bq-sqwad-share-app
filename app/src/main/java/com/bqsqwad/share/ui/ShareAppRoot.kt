@@ -93,8 +93,8 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
             Scaffold(bottomBar = { BannerSlot(enabled = !adFree && ads.canRequestAds, modifier = Modifier.navigationBarsPadding()) }) { adPadding ->
             NavHost(nav, startDestination = "home", modifier = Modifier.padding(adPadding)) {
                 composable("home") { Home(nav, vm, ads, adFree) }
-                composable("send") { Send(nav, vm) }
-                composable("receive") { Receive(vm) }
+                composable("send") { SendQrScreen(nav, vm) }
+                composable("receive") { ReceiveQrScreen(vm) }
                 composable("picker") { Picker(nav, vm, ads, adFree) }
                 composable("history") { History(vm, ads, adFree) }
                 composable("library/{section}") { entry -> LibraryPage(entry.arguments?.getString("section").orEmpty(), vm, ads, adFree) }
