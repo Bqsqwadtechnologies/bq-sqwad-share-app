@@ -531,6 +531,7 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
     val queuedLocal by vm.pendingLocalFiles.collectAsState()
     val autoSend by vm.autoSendPending.collectAsState()
     val connected by vm.nearby.connected.collectAsState()
+    var confirmGroupSend by remember { mutableStateOf(false) }
     LaunchedEffect(connected, queued, queuedLocal, autoSend) {
         val endpointId = connected.firstOrNull()
         if (autoSend && endpointId != null && (queued.isNotEmpty() || queuedLocal.isNotEmpty())) {
@@ -587,6 +588,35 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
                 Toast.makeText(ctx, "Choose at least one file to send.", Toast.LENGTH_SHORT).show()
             }
         }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text(stringResource(R.string.send_selected)) }
+        if (connected.size > 1) {
+            OutlinedButton(
+                onClick = {
+                    if (picked.value.isNotEmpty()) vm.queueFiles(picked.value)
+                    if (queued.isNotEmpty() || queuedLocal.isNotEmpty() || picked.value.isNotEmpty()) {
+                        confirmGroupSend = true
+                    } else {
+                        Toast.makeText(ctx, "Choose at least one file to send.", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Send to all ${connected.size} connected devices") }
+        }
+    }
+    if (confirmGroupSend) {
+        AlertDialog(
+            onDismissRequest = { confirmGroupSend = false },
+            title = { Text("Send to multiple devices?") },
+            text = { Text("The selected files will be sent separately to each of the ${connected.size} connected devices. This may use more data and storage.") },
+            confirmButton = {
+                Button(onClick = {
+                    confirmGroupSend = false
+                    vm.sendQueuedFilesToAll()
+                    ads.onTaskCompleted(ctx as Activity, adFree)
+                    nav.popBackStack()
+                }) { Text("Send to all") }
+            },
+            dismissButton = { TextButton(onClick = { confirmGroupSend = false }) { Text("Cancel") } },
+        )
     }
 }
 
