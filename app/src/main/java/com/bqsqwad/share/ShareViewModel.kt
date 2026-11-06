@@ -47,6 +47,7 @@ class ShareViewModel @Inject constructor(
         private set
     val receiveExpiresAt = MutableStateFlow(0L)
     val pendingUris = MutableStateFlow<List<Uri>>(emptyList())
+    val scannedReceiveCode = MutableStateFlow("")
     val verification = SessionCrypto.fingerprint(sessionKey)
     val keyText = SessionCrypto.keyToString(sessionKey)
 
@@ -161,6 +162,8 @@ class ShareViewModel @Inject constructor(
     fun stopWeb() { web?.stop(); web = null }
 
     fun peers(): List<Peer> = nearby.peers.value
+
+    fun setScannedReceiveCode(code: String) { scannedReceiveCode.value = code.filter(Char::isDigit).take(6) }
 
     fun queueFiles(uris: List<Uri>) {
         pendingUris.value = (pendingUris.value + uris).distinct()
