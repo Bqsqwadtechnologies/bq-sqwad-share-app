@@ -335,6 +335,28 @@ class ShareViewModel @Inject constructor(
         autoSendPending.value = false
     }
 
+    fun retryTransfer(item: TransferEntity) = viewModelScope.launch {
+        if (!item.direction.equals("SEND", ignoreCase = true)) return@launch
+        val endpointId = item.peerName
+        if (endpointId !in nearby.connected.value) {
+            dao.update(item.copy(status = "WAITING_FOR_DEVICE", bytesDone = 0L))
+            return@launch
+        }
+        val source = item.localPath?.let(::File)
+        if (source == null || !source.isFile || !source.canRead()) {
+            dao.update(item.copy(status = "FAILED_SOURCE_MISSING", bytesDone = 0L))
+            return@launch
+        }
+        try {
+            val payloadId = nearby.sendFile(endpointId, source)
+            val retryRow = item.copy(status = "SENDING", bytesDone = 0L, createdAt = System.currentTimeMillis())
+            dao.update(retryRow)
+            outgoingPayloadRecords[payloadId] = retryRow
+        } catch (_: Exception) {
+            dao.update(item.copy(status = "FAILED", bytesDone = 0L))
+        }
+    }
+
     fun sendText(endpointId: String, text: String) {
         val secret = SessionCrypto.encrypt(sessionKey, text.toByteArray())
         nearby.sendBytes(endpointId, secret)
