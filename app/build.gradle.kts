@@ -70,6 +70,17 @@ tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.co
         if (real == testAppId && !project.hasProperty("allowTestAds")) {
             throw GradleException("Release blocked: set a real AdMob App ID in config/ads.properties or pass -PallowTestAds=true for a trial build.")
         }
+        val requiredAdUnits = listOf(
+            "HOME_BANNER", "HOME_NATIVE", "HISTORY_NATIVE", "SETTINGS_BANNER",
+            "TABLET_SIDE_BANNER", "HELP_NATIVE", "TRANSFER_COMPLETE_INTERSTITIAL",
+            "APP_OPEN", "OPTIONAL_REWARDED"
+        )
+        if (!project.hasProperty("allowTestAds")) {
+            val missing = requiredAdUnits.filter { adValue(it, "").isBlank() }
+            if (missing.isNotEmpty()) {
+                throw GradleException("Release blocked: missing AdMob unit IDs in config/ads.properties: ${missing.joinToString()}")
+            }
+        }
         val signing = android.signingConfigs.getByName("release")
         if (signing.storeFile == null || !signing.storeFile!!.exists() ||
             signing.storePassword.isNullOrBlank() || signing.keyAlias.isNullOrBlank() || signing.keyPassword.isNullOrBlank()) {
