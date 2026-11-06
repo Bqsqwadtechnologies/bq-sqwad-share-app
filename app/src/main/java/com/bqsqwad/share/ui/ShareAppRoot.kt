@@ -634,7 +634,7 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = { vm.toggleFavorite(item) }) { Text(stringResource(R.string.favorites)) }
                             if (item.direction.equals("SEND", true) &&
-                                (item.status == "FAILED" || item.status == "WAITING_FOR_DEVICE" || item.status == "FAILED_SOURCE_MISSING")
+                                (item.status == "FAILED" || item.status == "WAITING_FOR_DEVICE")
                             ) {
                                 TextButton(onClick = { vm.retryTransfer(item) }) { Text("Retry") }
                             }
