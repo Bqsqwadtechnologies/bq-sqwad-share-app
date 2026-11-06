@@ -882,6 +882,7 @@ private fun Cleaner(vm: ShareViewModel) {
     var cleaning by remember { mutableStateOf(false) }
     var showConfirm by remember { mutableStateOf(false) }
     var cleanedBytes by remember { mutableStateOf<Long?>(null) }
+    var storedFiles by remember { mutableStateOf(emptyList<File>()) }
     val scope = rememberCoroutineScope()
 
     suspend fun scanCache(): Long = withContext(Dispatchers.IO) {
@@ -893,9 +894,16 @@ private fun Cleaner(vm: ShareViewModel) {
         }
     }
 
+    suspend fun scanStoredFiles(): List<File> = withContext(Dispatchers.IO) {
+        val root = context.getExternalFilesDir(null)
+        if (root == null || !root.exists()) emptyList()
+        else root.walkTopDown().filter { it.isFile && it.canRead() }.toList()
+    }
+
     LaunchedEffect(cacheRoots) {
         scanning = true
         cacheBytes = scanCache()
+        storedFiles = scanStoredFiles()
         scanning = false
     }
 
@@ -921,6 +929,7 @@ private fun Cleaner(vm: ShareViewModel) {
                             scope.launch {
                                 scanning = true
                                 cacheBytes = scanCache()
+                                storedFiles = scanStoredFiles()
                                 scanning = false
                             }
                         },
@@ -943,6 +952,15 @@ private fun Cleaner(vm: ShareViewModel) {
         dupes.take(20).forEach { (name, rows) ->
             Text("• $name appears ${rows.size} times in transfer history")
         }
+        Text("Largest files stored by this app", style = MaterialTheme.typography.titleMedium)
+        if (storedFiles.isEmpty()) {
+            Text("No app-stored files found.")
+        } else {
+            storedFiles.sortedByDescending { it.length() }.take(10).forEach { file ->
+                Text("• ${file.name} · ${MediaRepository.formatBytes(file.length())}")
+            }
+        }
+        Text("These are review-only details. Deep Clean does not remove received files, archives or extracted content.")
         if (history.isEmpty()) Text("No transfer history to review.")
     }
 
