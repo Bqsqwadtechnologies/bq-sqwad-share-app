@@ -129,6 +129,8 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf(
                             Triple("Home", "home", Icons.Filled.Home),
+                            Triple("Send", "send", Icons.Filled.Send),
+                            Triple("Receive", "receive", Icons.Filled.QrCodeScanner),
                             Triple("Apps", "library/apps", Icons.Filled.Apps),
                             Triple("Photos", "library/pictures", Icons.Filled.PhotoLibrary),
                             Triple("Videos", "library/videos", Icons.Filled.VideoLibrary),
