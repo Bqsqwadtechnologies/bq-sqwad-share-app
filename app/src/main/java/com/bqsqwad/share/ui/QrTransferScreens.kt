@@ -263,7 +263,7 @@ private fun QrCameraPreview(
                         scanner.process(input)
                             .addOnSuccessListener { codes ->
                                 val value = codes.firstOrNull()?.rawValue
-                                if (!value.isNullOrBlank() && delivered.compareAndSet(false, true)) onQr(value)
+                                if (!value.isNullOrBlank() && value.startsWith("bqsqwad://share") && delivered.compareAndSet(false, true)) onQr(value)
                             }
                             .addOnCompleteListener { proxy.close() }
                     }
