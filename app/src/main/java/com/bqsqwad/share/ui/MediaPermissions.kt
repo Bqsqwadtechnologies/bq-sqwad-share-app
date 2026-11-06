@@ -18,17 +18,35 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 
 object MediaPermissions {
-    fun list(): Array<String> =
-        if (Build.VERSION.SDK_INT >= 33) arrayOf(
-            Manifest.permission.READ_MEDIA_IMAGES,
-            Manifest.permission.READ_MEDIA_VIDEO,
-            Manifest.permission.READ_MEDIA_AUDIO,
-        ) else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+    fun list(category: String = "all"): Array<String> =
+        if (Build.VERSION.SDK_INT >= 33) {
+            when (category.lowercase()) {
+                "photos" -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES).let { permissions ->
+                    if (Build.VERSION.SDK_INT >= 34) permissions + Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED else permissions
+                }
+                "videos" -> arrayOf(Manifest.permission.READ_MEDIA_VIDEO).let { permissions ->
+                    if (Build.VERSION.SDK_INT >= 34) permissions + Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED else permissions
+                }
+                "music" -> arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
+                else -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO)
+            }
+        } else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
 
-    fun hasMedia(ctx: Context): Boolean =
-        list().all { ContextCompat.checkSelfPermission(ctx, it) == PackageManager.PERMISSION_GRANTED }
+    fun hasMedia(ctx: Context, category: String = "all"): Boolean {
+        val required = when (category.lowercase()) {
+            "photos" -> listOf(Manifest.permission.READ_MEDIA_IMAGES)
+            "videos" -> listOf(Manifest.permission.READ_MEDIA_VIDEO)
+            "music" -> listOf(Manifest.permission.READ_MEDIA_AUDIO)
+            else -> list(category).toList()
+        }
+        if (Build.VERSION.SDK_INT < 33) return ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+        val granted = required.any { ContextCompat.checkSelfPermission(ctx, it) == PackageManager.PERMISSION_GRANTED }
+        val selectedVisual = Build.VERSION.SDK_INT >= 34 &&
+            category.lowercase() in listOf("photos", "videos") &&
+            ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED
+        return granted || selectedVisual
+    }
 
-    /** True when the app may read non-media files and scan shared storage. */
     fun hasFull(ctx: Context): Boolean =
         if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager() else hasMedia(ctx)
 
@@ -43,16 +61,16 @@ object MediaPermissions {
 }
 
 @Composable
-fun rememberMediaPermissionRequest(onGranted: () -> Unit): () -> Unit {
+fun rememberMediaPermissionRequest(category: String = "all", onGranted: () -> Unit): () -> Unit {
     val context = LocalContext.current
     val latestOnGranted by rememberUpdatedState(onGranted)
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        if (MediaPermissions.hasMedia(context)) latestOnGranted()
+        if (MediaPermissions.hasMedia(context, category)) latestOnGranted()
     }
     return remember {
         {
             if (MediaPermissions.hasMedia(context)) latestOnGranted()
-            else launcher.launch(MediaPermissions.list())
+            else launcher.launch(MediaPermissions.list(category))
         }
     }
 }
