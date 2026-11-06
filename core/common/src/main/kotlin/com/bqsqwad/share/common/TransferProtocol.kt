@@ -55,20 +55,23 @@ object TransferProtocol {
         val type = buf.get()
         val flags = buf.short
         val len = buf.int
-        require(len >= 0 && 12 + len <= frame.size) { "Bad length" }
+        require(len >= 0 && len == buf.remaining()) { "Bad length" }
         val body = ByteArray(len)
         buf.get(body)
         return ParsedFrame(type, flags, body)
     }
 
     fun offerBody(fileId: Int, name: String, size: Long, fileSha256: ByteArray): ByteArray {
+        require(fileId >= 0) { "Invalid file ID" }
+        require(size >= 0L) { "Invalid file size" }
         val nameBytes = name.toByteArray(Charsets.UTF_8)
+        require(nameBytes.size in 1..4096) { "Invalid file name length" }
+        require(fileSha256.size == 32) { "SHA-256 must be 32 bytes" }
         val buf = ByteBuffer.allocate(4 + 8 + 4 + nameBytes.size + 32).order(ByteOrder.LITTLE_ENDIAN)
         buf.putInt(fileId)
         buf.putLong(size)
         buf.putInt(nameBytes.size)
         buf.put(nameBytes)
-        require(fileSha256.size == 32)
         buf.put(fileSha256)
         return buf.array()
     }
@@ -76,18 +79,26 @@ object TransferProtocol {
     data class Offer(val fileId: Int, val size: Long, val name: String, val fileSha256: ByteArray)
 
     fun parseOffer(body: ByteArray): Offer {
+        require(body.size >= 49) { "Offer too short" }
         val buf = ByteBuffer.wrap(body).order(ByteOrder.LITTLE_ENDIAN)
         val fileId = buf.int
         val size = buf.long
         val nlen = buf.int
+        require(fileId >= 0) { "Invalid file ID" }
+        require(size >= 0L) { "Invalid file size" }
+        require(nlen in 1..4096 && nlen <= buf.remaining() - 32) { "Invalid file name length" }
         val nameBytes = ByteArray(nlen)
         buf.get(nameBytes)
+        require(buf.remaining() == 32) { "Invalid offer length" }
         val hash = ByteArray(32)
         buf.get(hash)
         return Offer(fileId, size, String(nameBytes, Charsets.UTF_8), hash)
     }
 
     fun chunkBody(fileId: Int, offset: Long, data: ByteArray): ByteArray {
+        require(fileId >= 0) { "Invalid file ID" }
+        require(offset >= 0L) { "Invalid chunk offset" }
+        require(data.size in 1..MAX_CHUNK) { "Invalid chunk size" }
         val hash = sha256(data)
         val buf = ByteBuffer.allocate(4 + 8 + 4 + 32 + data.size).order(ByteOrder.LITTLE_ENDIAN)
         buf.putInt(fileId)
@@ -101,10 +112,14 @@ object TransferProtocol {
     data class Chunk(val fileId: Int, val offset: Long, val data: ByteArray, val chunkSha256: ByteArray)
 
     fun parseChunk(body: ByteArray): Chunk {
+        require(body.size >= 49) { "Chunk too short" }
         val buf = ByteBuffer.wrap(body).order(ByteOrder.LITTLE_ENDIAN)
         val fileId = buf.int
         val offset = buf.long
         val len = buf.int
+        require(fileId >= 0) { "Invalid file ID" }
+        require(offset >= 0L) { "Invalid chunk offset" }
+        require(len in 1..MAX_CHUNK && len == buf.remaining() - 32) { "Invalid chunk length" }
         val hash = ByteArray(32)
         buf.get(hash)
         val data = ByteArray(len)
@@ -114,6 +129,8 @@ object TransferProtocol {
     }
 
     fun ackBody(fileId: Int, nextOffset: Long): ByteArray {
+        require(fileId >= 0) { "Invalid file ID" }
+        require(nextOffset >= 0L) { "Invalid acknowledgement offset" }
         val buf = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
         buf.putInt(fileId)
         buf.putLong(nextOffset)
@@ -123,8 +140,13 @@ object TransferProtocol {
     data class Ack(val fileId: Int, val nextOffset: Long)
 
     fun parseAck(body: ByteArray): Ack {
+        require(body.size == 12) { "Invalid acknowledgement length" }
         val buf = ByteBuffer.wrap(body).order(ByteOrder.LITTLE_ENDIAN)
-        return Ack(buf.int, buf.long)
+        val fileId = buf.int
+        val nextOffset = buf.long
+        require(fileId >= 0) { "Invalid file ID" }
+        require(nextOffset >= 0L) { "Invalid acknowledgement offset" }
+        return Ack(fileId, nextOffset)
     }
 
     fun encryptFrame(key: SecretKey, plainFrame: ByteArray): ByteArray =

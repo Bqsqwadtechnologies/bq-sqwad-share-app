@@ -67,6 +67,68 @@ class TransferProtocolTest {
     }
 
     @Test
+    fun rejectsMalformedFrameLengthsAndTrailingBytes() {
+        val valid = TransferProtocol.frame(TransferProtocol.TYPE_HELLO, byteArrayOf(1, 2))
+        val malformedFrames = listOf(valid.copyOf(valid.size - 1), valid + byteArrayOf(3))
+        malformedFrames.forEach { malformed ->
+            try {
+                TransferProtocol.parse(malformed)
+                throw AssertionError("Malformed frame should be rejected")
+            } catch (_: IllegalArgumentException) {
+                // Expected.
+            }
+        }
+    }
+
+    @Test
+    fun rejectsMalformedOfferChunkAndAckBodies() {
+        val validOffer = TransferProtocol.offerBody(1, "file.txt", 10L, ByteArray(32))
+        try {
+            TransferProtocol.parseOffer(validOffer.copyOf(validOffer.size - 1))
+            throw AssertionError("Truncated offer should be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+
+        val validChunk = TransferProtocol.chunkBody(1, 0L, byteArrayOf(1, 2, 3))
+        try {
+            TransferProtocol.parseChunk(validChunk + byteArrayOf(4))
+            throw AssertionError("Chunk with trailing data should be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+
+        try {
+            TransferProtocol.parseAck(ByteArray(13))
+            throw AssertionError("Ack with invalid length should be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
+    @Test
+    fun rejectsNegativeAndOversizedTransferMetadata() {
+        try {
+            TransferProtocol.offerBody(-1, "file.txt", 1L, ByteArray(32))
+            throw AssertionError("Negative file ID should be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+        try {
+            TransferProtocol.chunkBody(1, -1L, byteArrayOf(1))
+            throw AssertionError("Negative chunk offset should be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+        try {
+            TransferProtocol.ackBody(1, -1L)
+            throw AssertionError("Negative ack offset should be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
+    @Test
     fun encryptedFrames() {
         val key = SessionCrypto.newKey()
         val plain = TransferProtocol.frame(TransferProtocol.TYPE_COMPLETE, byteArrayOf(1, 2, 3))

@@ -1,4 +1,4 @@
-# BQ Sqwad Share — status (1 November 2026)
+# BQ Sqwad Share — status (6 November 2026)
 
 Package: `com.bqsqwad.share` · Target **1.1.0**
 
@@ -25,12 +25,13 @@ Package: `com.bqsqwad.share` · Target **1.1.0**
 
 ## Half-done (needs device proof)
 
-- Parallel multi-file queue with real pause/resume across process death
+- Parallel multi-file Nearby queue; interrupted transfers can be retried from the beginning, but byte-offset resume across process death is not implemented
 - CameraX + ML Kit QR scanner on send path
 - Full Photo/Video/Music/Document tab pickers via system pickers
 - In-app media players and organized receive folders end-to-end
 - Storage cleaner (SAF folders, on-disk duplicate hashing)
 - WorkManager tip notifications
+- TransferProtocol framing, metadata bounds checks, chunk checksums, and resume-offset helpers are unit-tested; these helpers are not yet wired into the Nearby file-payload path, so end-to-end receiver checksum verification and resumable Nearby transfers are not shipped
 - Baseline Profiles / Macrobenchmark
 - ktlint/detekt as failing CI gates
 - GitHub Pages enablement and Actions secrets (manual on the org)
