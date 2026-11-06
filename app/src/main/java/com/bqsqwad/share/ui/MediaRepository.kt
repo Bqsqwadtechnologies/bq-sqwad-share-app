@@ -44,10 +44,19 @@ object MediaRepository {
             "music" -> Triple(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, null, null)
             "documents" -> Triple(
                 MediaStore.Files.getContentUri("external"),
-                "${MediaStore.Files.FileColumns.MIME_TYPE} IN (?, ?, ?, ?, ?)",
-                arrayOf("application/pdf", "text/plain", "application/msword",
+                "${MediaStore.Files.FileColumns.MIME_TYPE} IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                arrayOf(
+                    "application/pdf",
+                    "text/plain",
+                    "text/csv",
+                    "application/json",
+                    "text/markdown",
+                    "application/msword",
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                    "application/vnd.ms-excel",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ),
             )
             "files" -> {
                 if (android.os.Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) return emptyList()
