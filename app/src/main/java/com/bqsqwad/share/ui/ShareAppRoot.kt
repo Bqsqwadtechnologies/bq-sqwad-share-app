@@ -595,10 +595,21 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
     val history by vm.history.collectAsState()
     Scaffold { pad ->
         LazyColumn(Modifier.padding(pad).padding(16.dp)) {
-            itemsIndexed(history, key = { _, it -> it.id }) { index, item ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("${item.displayName} · ${item.status}")
-                    TextButton(onClick = { vm.toggleFavorite(item) }) { Text(stringResource(R.string.favorites)) }
+            itemsIndexed(history, key = { _, it -> it.id }) { _, item ->
+                Card(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(item.displayName, style = MaterialTheme.typography.titleSmall)
+                        Text("${item.status} · ${MediaRepository.formatBytes(item.bytesDone)} / ${MediaRepository.formatBytes(item.bytes)}")
+                        Text("Device: ${item.peerName}", style = MaterialTheme.typography.bodySmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = { vm.toggleFavorite(item) }) { Text(stringResource(R.string.favorites)) }
+                            if (item.direction.equals("SEND", true) &&
+                                (item.status == "FAILED" || item.status == "WAITING_FOR_DEVICE" || item.status == "FAILED_SOURCE_MISSING")
+                            ) {
+                                TextButton(onClick = { vm.retryTransfer(item) }) { Text("Retry") }
+                            }
+                        }
+                    }
                 }
             }
         }
