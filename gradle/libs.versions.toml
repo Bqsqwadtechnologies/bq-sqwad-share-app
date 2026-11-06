@@ -64,6 +64,7 @@ review = { module = "com.google.android.play:review-ktx", version.ref = "review"
 app-update = { module = "com.google.android.play:app-update-ktx", version.ref = "appUpdate" }
 splash = { module = "androidx.core:core-splashscreen", version.ref = "splash" }
 coil = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
+coil-video = { module = "io.coil-kt:coil-video", version.ref = "coil" }
 zxing = { module = "com.google.zxing:core", version.ref = "zxing" }
 junit = { module = "junit:junit", version.ref = "junit" }
 
