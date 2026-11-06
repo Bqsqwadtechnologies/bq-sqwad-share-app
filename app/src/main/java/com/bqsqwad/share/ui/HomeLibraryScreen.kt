@@ -34,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -96,6 +97,7 @@ fun HomeLibraryScreen(nav: NavHostController, vm: ShareViewModel, ads: AdManager
     var permissionGranted by remember { mutableStateOf(false) }
     var permissionMessage by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf(setOf<Uri>()) }
+    var selectedApps by remember { mutableStateOf(setOf<String>()) }
     val apps = remember { vm.installedApps() }
     val history by vm.history.collectAsState()
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -155,11 +157,11 @@ fun HomeLibraryScreen(nav: NavHostController, vm: ShareViewModel, ads: AdManager
                                 File(info.sourceDir).length()
                             }.getOrDefault(0L)
                         }
-                        Card(Modifier.padding(4.dp).clickable { selected = if (app.second.hashCode().toString() in selected.map { it.toString() }) selected else selected }) {
+                        Card(Modifier.padding(4.dp).clickable { selectedApps = if (app.second in selectedApps) selectedApps - app.second else selectedApps + app.second }) {
                             Column(Modifier.fillMaxWidth().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 if (icon != null) Image(icon, contentDescription = app.first, modifier = Modifier.size(42.dp))
                                 Text(app.first, style = MaterialTheme.typography.labelSmall, maxLines = 2, minLines = 2)
-                                Text(if (apkSize > 0) "${apkSize / 1_048_576} MB" else "App", style = MaterialTheme.typography.labelSmall)
+                                Text(if (apkSize > 0) "${apkSize / 1_048_576} MB" else "App", style = MaterialTheme.typography.labelSmall)\n                                if (app.second in selectedApps) Text("Selected", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
