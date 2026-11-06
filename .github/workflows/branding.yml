@@ -1,10 +1,6 @@
 name: Branding
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - branding/logo/logo.png
-      - scripts/generate_branding.py
 jobs:
   icons:
     runs-on: ubuntu-latest
