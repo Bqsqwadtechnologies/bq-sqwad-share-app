@@ -28,6 +28,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -78,8 +79,14 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
     var appInfo by remember { mutableStateOf<ShareAppItem?>(null) }
     var archiving by remember { mutableStateOf(false) }
     var extracting by remember { mutableStateOf(false) }
+    var searchText by remember { mutableStateOf("") }
+    var sortBySize by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val requestMedia = rememberMediaPermissionRequest(tab) { refresh++ }
+    val visibleMedia = remember(media, searchText, sortBySize) {
+        media.filter { it.name.contains(searchText.trim(), ignoreCase = true) }
+            .let { rows -> if (sortBySize) rows.sortedByDescending { it.sizeBytes } else rows.sortedBy { it.name.lowercase() } }
+    }
     val received = when (tab) {
         "Received" -> history.filter { it.direction.equals("RECEIVE", true) && it.status != "DELETED" }
         "Sent" -> history.filter { it.direction.equals("SEND", true) && it.status != "DELETED" }
@@ -132,6 +139,26 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                         }
                         androidx.compose.material3.Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
                     },
+                )
+            }
+        }
+        if (tab != "Received" && tab != "Sent") {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = searchText,
+                    onValueChange = { searchText = it },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    label = { Text("Search ${tab.lowercase()}") },
+                )
+                FilterChip(
+                    selected = sortBySize,
+                    onClick = { sortBySize = !sortBySize },
+                    label = { Text(if (sortBySize) "Largest" else "A–Z") },
                 )
             }
         }
@@ -218,7 +245,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                         }
                     }
                 } else {
-                    items(media, key = { it.key }) { item ->
+                    items(visibleMedia, key = { it.key }) { item ->
                         val isSelected = selected.containsKey(item.key)
                         Card(Modifier.fillMaxWidth().padding(vertical = 3.dp).combinedClickable(
                             onClick = {
@@ -269,7 +296,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                             }
                         }
                     }
-                    if (media.isEmpty()) item { Text("No items found in $tab.", Modifier.padding(16.dp)) }
+                    if (visibleMedia.isEmpty()) item { Text(if (searchText.isBlank()) "No items found in $tab." else "No matches for your search.", Modifier.padding(16.dp)) }
                 }
             }
         }
