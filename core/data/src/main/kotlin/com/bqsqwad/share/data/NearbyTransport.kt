@@ -49,6 +49,9 @@ class NearbyTransport @Inject constructor(@ApplicationContext context: Context) 
 
     var lastError: String? = null
         private set
+    @Volatile private var expectedReceiveCode: String = ""
+
+    fun setExpectedReceiveCode(code: String) { expectedReceiveCode = code.filter(Char::isDigit).take(6) }
 
     private val discoveryCallback = object : EndpointDiscoveryCallback() {
         override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
@@ -61,7 +64,13 @@ class NearbyTransport @Inject constructor(@ApplicationContext context: Context) 
 
     private val connectionCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
-            _incoming.value = IncomingRequest(endpointId, info.endpointName, info.authenticationDigits)
+            val expected = expectedReceiveCode
+            if (expected.length == 6 && info.endpointName.contains(expected)) {
+                client.acceptConnection(endpointId, payloadCallback)
+                _incoming.value = null
+            } else {
+                _incoming.value = IncomingRequest(endpointId, info.endpointName, info.authenticationDigits)
+            }
         }
         override fun onConnectionResult(endpointId: String, resolution: ConnectionResolution) {
             if (resolution.status.statusCode == ConnectionsStatusCodes.STATUS_OK) {
