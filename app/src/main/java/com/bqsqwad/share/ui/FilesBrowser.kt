@@ -11,6 +11,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -46,17 +48,18 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.core.graphics.drawable.toBitmap
 import com.bqsqwad.share.ShareViewModel
+import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
+fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String = "apps") {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val history by vm.history.collectAsState()
     val tabs = listOf("Apps", "Photos", "Videos", "Music", "Documents", "Files", "Received", "Sent")
-    var tab by remember { mutableStateOf("Apps") }
+    var tab by remember { mutableStateOf(initialTab.lowercase().let { key -> when (key) { "photos", "pictures" -> "Photos"; "videos" -> "Videos"; "music" -> "Music"; "documents" -> "Documents"; "files" -> "Files"; "received" -> "Received"; "sent" -> "Sent"; else -> "Apps" } }) }
     var systemApps by remember { mutableStateOf(false) }
     var refresh by remember { mutableStateOf(0) }
     var media by remember { mutableStateOf(emptyList<ShareMediaItem>()) }
@@ -65,6 +68,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
     val selectedUris = remember { mutableStateMapOf<String, Uri>() }
     val selectedFiles = remember { mutableStateMapOf<String, List<File>>() }
     var shareDialog by remember { mutableStateOf(false) }
+    var previewItem by remember { mutableStateOf<ShareMediaItem?>(null) }
     val requestMedia = rememberMediaPermissionRequest(tab) { refresh++ }
     val received = when (tab) {
         "Received" -> history.filter { it.direction.equals("RECEIVE", true) && it.status != "DELETED" }
@@ -101,7 +105,13 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            tabs.forEach { label -> FilterChip(selected = tab == label, onClick = { tab = label }, label = { Text(label) }) }
+            tabs.forEach { label ->
+                FilterChip(
+                    selected = tab == label,
+                    onClick = { tab = label; selected.clear(); selectedUris.clear(); selectedFiles.clear() },
+                    label = { Text(label) },
+                )
+            }
         }
         if (tab == "Apps") {
             Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -167,19 +177,39 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
                                     val wasSelected = selected.containsKey(item.key)
                                     select(item.key, item.sizeBytes)
                                     if (wasSelected) selectedUris.remove(item.key) else selectedUris[item.key] = item.uri
+                                } else if (tab == "Photos") {
+                                    previewItem = item
                                 } else runCatching {
                                     context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(item.uri, item.mimeType)
                                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
-                                }.onFailure { Toast.makeText(context, "Unable to open this item", Toast.LENGTH_SHORT).show() }
+                                }.onFailure { Toast.makeText(context, "No compatible app could open this item.", Toast.LENGTH_SHORT).show() }
                             },
                             onLongClick = { if (!isSelected) { select(item.key, item.sizeBytes); selectedUris[item.key] = item.uri } },
                         )) {
-                            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(item.name, style = MaterialTheme.typography.titleSmall)
-                                    Text(MediaRepository.formatBytes(item.sizeBytes) + " · " + item.mimeType, style = MaterialTheme.typography.bodySmall)
+                            Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                if (tab == "Photos") {
+                                    AsyncImage(
+                                        model = item.uri,
+                                        contentDescription = item.name,
+                                        modifier = Modifier.size(68.dp),
+                                        contentScale = ContentScale.Crop,
+                                    )
+                                } else {
+                                    androidx.compose.material3.Icon(
+                                        imageVector = when (tab) {
+                                            "Videos" -> androidx.compose.material.icons.Icons.Filled.VideoLibrary
+                                            "Music" -> androidx.compose.material.icons.Icons.Filled.MusicNote
+                                            else -> androidx.compose.material.icons.Icons.Filled.FolderOpen
+                                        },
+                                        contentDescription = null,
+                                        modifier = Modifier.size(42.dp),
+                                    )
                                 }
-                                if (isSelected) Text("✓")
+                                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                                    Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 2)
+                                    Text(MediaRepository.formatBytes(item.sizeBytes) + " · " + item.mimeType, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                                }
+                                if (isSelected) Text("✓", color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -201,6 +231,31 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
         }
     }
 
+    if (previewItem != null) {
+        AlertDialog(
+            onDismissRequest = { previewItem = null },
+            title = { Text(previewItem?.name.orEmpty()) },
+            text = {
+                AsyncImage(
+                    model = previewItem?.uri,
+                    contentDescription = previewItem?.name,
+                    modifier = Modifier.fillMaxWidth().height(380.dp),
+                    contentScale = ContentScale.Fit,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    previewItem?.let { item ->
+                        select(item.key, item.sizeBytes)
+                        selectedUris[item.key] = item.uri
+                    }
+                    previewItem = null
+                }) { Text("Select photo") }
+            },
+            dismissButton = { TextButton(onClick = { previewItem = null }) { Text("Close") } },
+        )
+    }
+
     if (shareDialog) {
         AlertDialog(
             onDismissRequest = { shareDialog = false },
@@ -208,9 +263,12 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
             text = { Text("Choose where to continue with ${selected.size} selected item(s).") },
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { vm.queueFiles(selectedUris.values.toList(), autoSend = true); vm.queueLocalFiles(selectedFiles.values.flatten(), autoSend = true); shareDialog = false; nav.navigate("send") }) { Text("Send") }
-                    TextButton(onClick = { shareDialog = false; nav.navigate("receive") }) { Text("Receive") }
-                    TextButton(onClick = { shareDialog = false; nav.navigate("computer") }) { Text("Computer/iPhone") }
+                    Button(onClick = {
+                        vm.queueFiles(selectedUris.values.toList(), autoSend = true)
+                        vm.queueLocalFiles(selectedFiles.values.flatten(), autoSend = true)
+                        shareDialog = false
+                        nav.navigate("send")
+                    }) { Text("Send selected") }
                 }
             },
             dismissButton = { TextButton(onClick = { shareDialog = false }) { Text("Cancel") } },
