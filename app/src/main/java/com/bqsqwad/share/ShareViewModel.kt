@@ -33,6 +33,8 @@ import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
+private data class OutgoingShareFile(val file: File, val mime: String, val bytes: Long, val displayName: String)
+
 class ShareViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dao: TransferDao,
@@ -75,7 +77,7 @@ class ShareViewModel @Inject constructor(
                 val endpointId = event?.endpointId ?: return@collect
                 val payload = event.payload
                 if (payload.type == Payload.Type.FILE) {
-                    val incomingFile = runCatching { payload.asFile().asJavaFile() }.getOrNull() ?: return@collect
+                    val incomingFile = runCatching { payload.asFile()?.asJavaFile() }.getOrNull() ?: return@collect
                     withContext(Dispatchers.IO) {
                         runCatching {
                             val name = incomingFile.name.ifBlank { "received-file" }
@@ -237,10 +239,10 @@ class ShareViewModel @Inject constructor(
                     val target = File(context.cacheDir, "outgoing-${System.currentTimeMillis()}-${name.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
                     resolver.openInputStream(uri)?.use { input -> target.outputStream().use(input::copyTo) }
                         ?: error("Unable to read selected file")
-                    Triple(target, mime, size.takeIf { it > 0L } ?: target.length(), name)
+                    OutgoingShareFile(target, mime, size.takeIf { it > 0L } ?: target.length(), name)
                 }.getOrNull()
             } + pendingLocalFiles.value.filter { it.isFile }.map { file ->
-                Triple(file, MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase()) ?: "application/octet-stream", file.length(), file.name)
+                OutgoingShareFile(file, MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase()) ?: "application/octet-stream", file.length(), file.name)
             }
         }
         if (outgoing.isEmpty()) return@launch
