@@ -167,6 +167,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                 composable("more") { More() }
                 composable("debug") { Debug(ads) }
             }
+            }
         }
     }
 }
