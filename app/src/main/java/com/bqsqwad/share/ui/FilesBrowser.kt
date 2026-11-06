@@ -62,7 +62,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
     val selected = remember { mutableStateMapOf<String, Long>() }
     val selectedUris = remember { mutableStateMapOf<String, Uri>() }
     var shareDialog by remember { mutableStateOf(false) }
-    val requestMedia = rememberMediaPermissionRequest { refresh++ }
+    val requestMedia = rememberMediaPermissionRequest(tab) { refresh++ }
     val received = when (tab) {
         "Received" -> history.filter { it.direction.equals("RECEIVE", true) && it.status != "DELETED" }
         "Sent" -> history.filter { it.direction.equals("SEND", true) && it.status != "DELETED" }
@@ -84,8 +84,8 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
 
     BackHandler(enabled = selected.isNotEmpty()) { selected.clear(); selectedUris.clear() }
 
-    val mediaPermissionNeeded = tab in listOf("Photos", "Videos", "Music", "Documents") && !MediaPermissions.hasMedia(context)
-    val allFilesNeeded = tab == "Files" && !MediaPermissions.hasFull(context)
+    val mediaPermissionNeeded = tab in listOf("Photos", "Videos", "Music") && !MediaPermissions.hasMedia(context, tab)
+    val allFilesNeeded = tab in listOf("Files", "Documents") && !MediaPermissions.hasFull(context)
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -106,7 +106,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
                 Button(onClick = requestMedia) { Text("Grant access") }
             }
             allFilesNeeded -> Column(Modifier.padding(20.dp)) {
-                Text("Full Files browsing needs broader storage access. Photos, Videos, Music, Apps, Received and Sent remain available without it.")
+                Text("Documents and full Files browsing need broader storage access. Photos, Videos, Music, Apps, Received and Sent remain available without it.")
                 Button(onClick = { MediaPermissions.openAllFilesSettings(context) }) { Text("Open storage access settings") }
             }
             else -> LazyColumn(
