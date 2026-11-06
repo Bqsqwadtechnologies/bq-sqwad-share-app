@@ -1,0 +1,278 @@
+package com.bqsqwad.share.ui
+
+import android.Manifest
+import android.content.ComponentName
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import androidx.media3.ui.PlayerView
+import com.bqsqwad.share.media.SharePlaybackService
+import com.google.common.util.concurrent.MoreExecutors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+@Composable
+fun MediaLibraryScreen(initialKind: String = "music") {
+    val context = LocalContext.current
+    var kind by remember { mutableStateOf(if (initialKind == "videos") "videos" else "music") }
+    var media by remember { mutableStateOf<List<ShareMediaItem>>(emptyList()) }
+    var loading by remember { mutableStateOf(false) }
+    var permissionGranted by remember { mutableStateOf(false) }
+    var controller by remember { mutableStateOf<MediaController?>(null) }
+    var isPlaying by remember { mutableStateOf(false) }
+    var currentIndex by remember { mutableStateOf(-1) }
+    var shuffle by remember { mutableStateOf(false) }
+    var repeatMode by remember { mutableStateOf(Player.REPEAT_MODE_OFF) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        permissionGranted = grants.values.any { it }
+    }
+
+    fun requestMediaPermissions() {
+        val permissions = if (Build.VERSION.SDK_INT >= 33) {
+            arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.READ_MEDIA_VIDEO)
+        } else {
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        val missing = permissions.filter {
+            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isEmpty()) permissionGranted = true else permissionLauncher.launch(missing.toTypedArray())
+    }
+
+    LaunchedEffect(Unit) { requestMediaPermissions() }
+
+    LaunchedEffect(permissionGranted, kind) {
+        if (permissionGranted) {
+            loading = true
+            media = withContext(Dispatchers.IO) { MediaRepository.load(context, kind) }
+            loading = false
+        }
+    }
+
+    val controllerFuture = remember(context) {
+        val token = SessionToken(context, ComponentName(context, SharePlaybackService::class.java))
+        MediaController.Builder(context, token).buildAsync()
+    }
+    DisposableEffect(controllerFuture) {
+        controllerFuture.addListener(
+            { controller = runCatching { controllerFuture.get() }.getOrNull() },
+            MoreExecutors.directExecutor(),
+        )
+        onDispose {
+            controller = null
+            MediaController.releaseFuture(controllerFuture)
+        }
+    }
+
+    DisposableEffect(controller) {
+        val player = controller
+        if (player == null) return@DisposableEffect onDispose { }
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                currentIndex = player.currentMediaItemIndex
+            }
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                shuffle = shuffleModeEnabled
+            }
+            override fun onRepeatModeChanged(repeatModeValue: Int) {
+                repeatMode = repeatModeValue
+            }
+        }
+        player.addListener(listener)
+        isPlaying = player.isPlaying
+        currentIndex = player.currentMediaItemIndex
+        onDispose { player.removeListener(listener) }
+    }
+
+    fun playFrom(index: Int, shuffleAll: Boolean = false) {
+        val player = controller ?: return
+        if (media.isEmpty()) return
+        val queue = media.map { item ->
+            MediaItem.Builder()
+                .setUri(item.uri)
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(item.name)
+                        .setArtist("BQ Sqwad Share")
+                        .build(),
+                )
+                .build()
+        }
+        player.setMediaItems(queue, index.coerceIn(0, queue.lastIndex), 0L)
+        player.shuffleModeEnabled = shuffleAll
+        player.repeatMode = Player.REPEAT_MODE_OFF
+        player.prepare()
+        player.play()
+    }
+
+    Column(
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("Your media", style = MaterialTheme.typography.headlineMedium)
+        Text("Enjoy your music and videos while file transfers continue in the background.")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = kind == "music",
+                onClick = { kind = "music" },
+                label = { Text("Music") },
+                leadingIcon = { androidx.compose.material3.Icon(Icons.Filled.MusicNote, null) },
+            )
+            FilterChip(
+                selected = kind == "videos",
+                onClick = { kind = "videos" },
+                label = { Text("Videos") },
+                leadingIcon = { androidx.compose.material3.Icon(Icons.Filled.VideoLibrary, null) },
+            )
+        }
+
+        if (!permissionGranted) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Allow access to the media you want to play.")
+                    Button(onClick = { requestMediaPermissions() }) { Text("Grant media access") }
+                }
+            }
+        } else if (loading) {
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+        } else if (media.isEmpty()) {
+            Text(if (kind == "music") "No music was found on this device." else "No videos were found on this device.")
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { playFrom(0) }, enabled = controller != null) {
+                    androidx.compose.material3.Icon(Icons.Filled.PlayArrow, null)
+                    Text("Play all")
+                }
+                OutlinedButton(onClick = { playFrom(0, true) }, enabled = controller != null) {
+                    androidx.compose.material3.Icon(Icons.Filled.Shuffle, null)
+                    Text("Shuffle")
+                }
+            }
+        }
+
+        val activePlayer = controller
+        if (activePlayer != null && kind == "videos") {
+            AndroidView(
+                modifier = Modifier.fillMaxWidth().height(220.dp),
+                factory = { viewContext ->
+                    PlayerView(viewContext).apply {
+                        player = activePlayer
+                        useController = true
+                        setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    }
+                },
+                update = { it.player = activePlayer },
+            )
+        } else if (activePlayer != null && kind == "music") {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        activePlayer.currentMediaItem?.mediaMetadata?.title?.toString() ?: "BQ Sqwad Music Player",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedButton(onClick = { activePlayer.seekToPreviousMediaItem() }) { Text("Previous") }
+                        Button(onClick = { if (activePlayer.isPlaying) activePlayer.pause() else activePlayer.play() }) {
+                            Text(if (isPlaying) "Pause" else "Play")
+                        }
+                        OutlinedButton(onClick = { activePlayer.seekToNextMediaItem() }) { Text("Next") }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        FilterChip(
+                            selected = shuffle,
+                            onClick = { activePlayer.shuffleModeEnabled = !activePlayer.shuffleModeEnabled },
+                            label = { Text("Shuffle") },
+                        )
+                        FilterChip(
+                            selected = repeatMode != Player.REPEAT_MODE_OFF,
+                            onClick = {
+                                activePlayer.repeatMode = when (activePlayer.repeatMode) {
+                                    Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                                    Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                                    else -> Player.REPEAT_MODE_OFF
+                                }
+                            },
+                            label = { Text(when (repeatMode) {
+                                Player.REPEAT_MODE_ALL -> "Repeat all"
+                                Player.REPEAT_MODE_ONE -> "Repeat one"
+                                else -> "Repeat off"
+                            }) },
+                        )
+                    }
+                }
+            }
+        }
+
+        if (permissionGranted && media.isNotEmpty()) {
+            Text("${media.size} ${if (kind == "music") "songs" else "videos"}", style = MaterialTheme.typography.titleMedium)
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                itemsIndexed(media, key = { _, item -> item.key }) { index, item ->
+                    Card(
+                        Modifier.fillMaxWidth().clickable { playFrom(index) },
+                    ) {
+                        Row(
+                            Modifier.padding(12.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 2)
+                                Text(MediaRepository.formatBytes(item.sizeBytes), style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text(if (index == currentIndex) "Playing" else "Play", color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
