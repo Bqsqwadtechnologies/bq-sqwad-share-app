@@ -354,8 +354,9 @@ class ShareViewModel @Inject constructor(
 
     fun retryTransfer(item: TransferEntity) = viewModelScope.launch {
         if (!item.direction.equals("SEND", ignoreCase = true)) return@launch
-        val endpointId = item.peerName
-        if (endpointId !in nearby.connected.value) {
+        val connected = nearby.connected.value
+        val endpointId = item.peerName.takeIf { it in connected } ?: connected.firstOrNull()
+        if (endpointId == null) {
             dao.update(item.copy(status = "WAITING_FOR_DEVICE", bytesDone = 0L))
             return@launch
         }
