@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -6,22 +8,26 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-import java.util.Properties
+val adProps = Properties().apply {
+    rootProject.file("config/ads.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+fun adValue(key: String, test: String): String =
+    (System.getenv("ADMOB_" + key) ?: adProps.getProperty(key))?.trim().takeUnless { it.isNullOrEmpty() } ?: test
+val testAppId = "ca-app-pub-3940256099942544~3347511713"
 
 android {
     namespace = "com.bqsqwad.share"
     compileSdk = 36
-
     defaultConfig {
         applicationId = "com.bqsqwad.share"
         minSdk = 26
         targetSdk = 36
         versionCode = (System.getenv("VERSION_CODE") ?: "2").toInt()
-        versionName = System.getenv("VERSION_NAME") ?: "1.1.0"
+        versionName = System.getenv("VERSION_NAME") ?: "1.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+        manifestPlaceholders["admobAppId"] = testAppId
     }
-
     signingConfigs {
         create("release") {
             val envFile = System.getenv("KEYSTORE_FILE")
@@ -37,23 +43,19 @@ android {
             }
         }
     }
-
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
-            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
-                ?: signingConfigs.getByName("debug")
+            manifestPlaceholders["admobAppId"] = adValue("APP_ID", testAppId)
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isMinifyEnabled = false
+            manifestPlaceholders["admobAppId"] = testAppId
         }
     }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -62,8 +64,32 @@ android {
     buildFeatures { compose = true; buildConfig = true }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
-
+tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
+    doFirst {
+        val real = adValue("APP_ID", testAppId)
+        if (real == testAppId && !project.hasProperty("allowTestAds")) {
+            throw GradleException("Release blocked: set a real AdMob App ID in config/ads.properties or pass -PallowTestAds=true for a trial build.")
+        }
+        val requiredAdUnits = listOf(
+            "HOME_BANNER", "HOME_NATIVE", "HISTORY_NATIVE", "SETTINGS_BANNER",
+            "TABLET_SIDE_BANNER", "HELP_NATIVE", "TRANSFER_COMPLETE_INTERSTITIAL",
+            "APP_OPEN", "OPTIONAL_REWARDED"
+        )
+        if (!project.hasProperty("allowTestAds")) {
+            val missing = requiredAdUnits.filter { adValue(it, "").isBlank() }
+            if (missing.isNotEmpty()) {
+                throw GradleException("Release blocked: missing AdMob unit IDs in config/ads.properties: ${missing.joinToString()}")
+            }
+        }
+        val signing = android.signingConfigs.getByName("release")
+        if (signing.storeFile == null || !signing.storeFile!!.exists() ||
+            signing.storePassword.isNullOrBlank() || signing.keyAlias.isNullOrBlank() || signing.keyPassword.isNullOrBlank()) {
+            throw GradleException("Release blocked: configure a complete release keystore.")
+        }
+    }
+}
 dependencies {
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(project(":core:common"))
     implementation(project(":core:domain"))
     implementation(project(":core:data"))

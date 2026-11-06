@@ -7,6 +7,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -91,9 +92,9 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
             val adFree = settings.adFreeUntil > System.currentTimeMillis()
             Scaffold(bottomBar = { BannerSlot(enabled = !adFree && ads.canRequestAds, modifier = Modifier.navigationBarsPadding()) }) { adPadding ->
             NavHost(nav, startDestination = "home", modifier = Modifier.padding(adPadding)) {
-                composable("home") { Home(nav, vm, ads, adFree) }
-                composable("send") { Send(nav, vm) }
-                composable("receive") { Receive(vm) }
+                composable("home") { HomeLibraryScreen(nav, vm, ads, adFree) }
+                composable("send") { SendQrScreen(nav, vm) }
+                composable("receive") { ReceiveQrScreen(vm) }
                 composable("picker") { Picker(nav, vm, ads, adFree) }
                 composable("history") { History(vm, ads, adFree) }
                 composable("library/{section}") { entry -> LibraryPage(entry.arguments?.getString("section").orEmpty(), vm, ads, adFree) }
@@ -317,6 +318,7 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
     val history by vm.history.collectAsState()
@@ -334,6 +336,7 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
 }
 
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
     val history by vm.history.collectAsState()

@@ -19,12 +19,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.platform.LocalContext
 
 object AdUnits {
-    const val BANNER = "ca-app-pub-3940256099942544/9214589741"
-    const val NATIVE = "ca-app-pub-3940256099942544/2247696110"
-    const val INTERSTITIAL = "ca-app-pub-3940256099942544/1033173712"
-    const val REWARDED = "ca-app-pub-3940256099942544/5224354917"
-    const val APP_OPEN = "ca-app-pub-3940256099942544/9257395921"
-    const val APP_ID = "ca-app-pub-3940256099942544~3347511713"
+    const val BANNER = BuildConfig.AD_BANNER
+    const val NATIVE = BuildConfig.AD_NATIVE
+    const val INTERSTITIAL = BuildConfig.AD_INTERSTITIAL
+    const val REWARDED = BuildConfig.AD_REWARDED
+    const val APP_OPEN = BuildConfig.AD_APP_OPEN
 }
 
 @Composable
@@ -48,23 +47,13 @@ fun BannerSlot(enabled: Boolean, modifier: Modifier = Modifier) {
 fun NativeSlot(enabled: Boolean) {
     if (!enabled) return
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text(
-            text = "Ad",
-            modifier = Modifier.padding(12.dp),
-            style = MaterialTheme.typography.labelLarge,
-        )
+        Text(text = "Ad", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.labelLarge)
         AndroidView(
             modifier = Modifier.fillMaxWidth().height(80.dp),
-            factory = { ctx ->
-                NativeAdView(ctx).apply {
-                    contentDescription = "Ad"
-                }
-            },
+            factory = { ctx -> NativeAdView(ctx).apply { contentDescription = "Ad" } },
         )
     }
 }
 
 @Suppress("unused")
-fun bindNative(view: NativeAdView, ad: NativeAd) {
-    view.setNativeAd(ad)
-}
+fun bindNative(view: NativeAdView, ad: NativeAd) { view.setNativeAd(ad) }
