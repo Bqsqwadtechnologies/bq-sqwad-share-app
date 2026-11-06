@@ -114,8 +114,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
                 Button(onClick = requestMedia) { Text("Grant access") }
             }
             allFilesNeeded -> Column(Modifier.padding(20.dp)) {
-                Text("Documents and full Files browsing need broader storage access. Photos, Videos, Music, Apps, Received and Sent remain available without it.")
-                Button(onClick = { MediaPermissions.openAllFilesSettings(context) }) { Text("Open storage access settings") }
+                Text("Documents and full Files browsing are not enabled because this version uses scoped storage. Photos, Videos, Music, Apps, Received and Sent remain available.")
             }
             else -> LazyColumn(
                 Modifier.weight(1f),
