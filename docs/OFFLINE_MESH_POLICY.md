@@ -1,5 +1,7 @@
 # BQ Sqwad Share — Offline Mesh Relay Policy
 
+**Product scope: offline/local transfers only.** Do not add internet long-distance transfer, WebRTC, TURN/STUN services, remote signaling, cloud file storage, or external transfer APIs.
+
 Status: required architecture and acceptance contract. This document does not claim that multi-hop relay is already implemented.
 
 ## Product behaviour
@@ -39,7 +41,3 @@ Status: required architecture and acceptance contract. This document does not cl
 - Withdrawal prevents new relay acceptance; expiry and quota cleanup do not delete sender originals or recipient files.
 - Battery, thermal and storage constraints pause relay safely and resume when eligible.
 - Verify required Android runtime permissions, background limits, and foreground-service notifications on supported API levels.
-
-## Online transfer is separate
-
-Online long-distance transfer must be a distinct mode. Its data necessarily traverses the internet. Prefer a direct WebRTC data channel when peer connectivity succeeds; use a TURN relay only when direct connectivity fails and only with an explicitly disclosed network/data path. Signaling exchanges connection metadata only and must not carry file bytes. Never describe online file delivery as zero-data or as avoiding all upload/download: the bytes must be transmitted by the sender and received by the recipient.
