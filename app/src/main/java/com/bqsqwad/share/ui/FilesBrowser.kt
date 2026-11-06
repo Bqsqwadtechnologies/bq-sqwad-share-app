@@ -36,6 +36,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -48,11 +49,13 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.core.graphics.drawable.toBitmap
 import com.bqsqwad.share.ShareViewModel
+import com.bqsqwad.share.files.FileUtilities
 import coil.ImageLoader
 import coil.decode.VideoFrameDecoder
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -73,6 +76,8 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
     var shareDialog by remember { mutableStateOf(false) }
     var previewItem by remember { mutableStateOf<ShareMediaItem?>(null) }
     var appInfo by remember { mutableStateOf<ShareAppItem?>(null) }
+    var archiving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val requestMedia = rememberMediaPermissionRequest(tab) { refresh++ }
     val received = when (tab) {
         "Received" -> history.filter { it.direction.equals("RECEIVE", true) && it.status != "DELETED" }
@@ -274,6 +279,50 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                         Text("${selected.size} selected", style = MaterialTheme.typography.titleSmall)
                         Text(MediaRepository.formatBytes(selected.values.sum()), style = MaterialTheme.typography.bodySmall)
                     }
+                    TextButton(
+                        enabled = !archiving,
+                        onClick = {
+                            scope.launch {
+                                archiving = true
+                                val staged = mutableListOf<File>()
+                                try {
+                                    val inputs = withContext(Dispatchers.IO) {
+                                        val local = selectedFiles.values.flatten().filter { it.isFile }
+                                        val copied = selectedUris.values.mapIndexedNotNull { index, uri ->
+                                            runCatching {
+                                                val name = (uri.lastPathSegment?.substringAfterLast('/') ?: "shared-$index")
+                                                    .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                                                val target = File(context.cacheDir, "archive-source-${System.currentTimeMillis()}-$index-$name")
+                                                context.contentResolver.openInputStream(uri)?.use { input ->
+                                                    target.outputStream().use { output -> input.copyTo(output) }
+                                                } ?: error("Unable to read selected item")
+                                                staged += target
+                                                target
+                                            }.getOrNull()
+                                        }
+                                        (local + copied).distinctBy { it.absolutePath }
+                                    }
+                                    if (inputs.isEmpty()) error("No selected files could be read.")
+                                    val archiveDirectory = File(context.getExternalFilesDir(null), "Archives")
+                                    val archive = FileUtilities.createZip(
+                                        inputs,
+                                        File(archiveDirectory, "BQ-Share-${System.currentTimeMillis()}.zip"),
+                                    )
+                                    selected.clear()
+                                    selectedUris.clear()
+                                    selectedFiles.clear()
+                                    selected[archive.absolutePath] = archive.length()
+                                    selectedFiles[archive.absolutePath] = listOf(archive)
+                                    Toast.makeText(context, "Archive created. Tap Send to share it.", Toast.LENGTH_LONG).show()
+                                } catch (error: Exception) {
+                                    Toast.makeText(context, error.message ?: "Could not create archive.", Toast.LENGTH_LONG).show()
+                                } finally {
+                                    withContext(Dispatchers.IO) { staged.forEach { runCatching { it.delete() } } }
+                                    archiving = false
+                                }
+                            }
+                        },
+                    ) { Text(if (archiving) "Creating…" else "ZIP") }
                     TextButton(onClick = { selected.clear(); selectedUris.clear(); selectedFiles.clear() }) { Text("Clear") }
                     Button(onClick = { shareDialog = true }) { Text("Send") }
                 }
