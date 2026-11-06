@@ -57,11 +57,15 @@ object MediaRepository {
         }
 
         val result = mutableListOf<ShareMediaItem>()
-        resolver.query(collection, projection, selection, args, "${MediaStore.MediaColumns.DATE_ADDED} DESC")?.use { cursor ->
-            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
-            val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
-            val mimeColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)
-            val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
+        val cursorResult = runCatching {
+            resolver.query(collection, projection, selection, args, "${MediaStore.MediaColumns.DATE_ADDED} DESC")
+        }.getOrNull()
+        cursorResult?.use { cursor ->
+            val idColumn = cursor.getColumnIndex(MediaStore.MediaColumns._ID)
+            val nameColumn = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)
+            val mimeColumn = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
+            val sizeColumn = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE)
+            if (idColumn < 0 || nameColumn < 0 || mimeColumn < 0 || sizeColumn < 0) return@use
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val name = cursor.getString(nameColumn) ?: "Unnamed file"
