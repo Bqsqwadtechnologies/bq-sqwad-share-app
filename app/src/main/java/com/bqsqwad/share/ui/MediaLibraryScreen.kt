@@ -320,8 +320,6 @@ fun MediaLibraryScreen(initialKind: String = "music") {
             }
         } else if (permissionGranted && media.isNotEmpty() && visibleMedia.isEmpty()) {
             Text("No media matches your search.")
-        } else if (permissionGranted && media.isNotEmpty() && visibleMedia.isEmpty()) {
-            Text("No media matches your search.")
         }
     }
 }
