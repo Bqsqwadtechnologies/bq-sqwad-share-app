@@ -2,6 +2,7 @@ package com.bqsqwad.share.ui
 
 import android.content.Intent
 import android.net.Uri
+import java.io.File
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
@@ -61,6 +62,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
     var apps by remember { mutableStateOf(emptyList<ShareAppItem>()) }
     val selected = remember { mutableStateMapOf<String, Long>() }
     val selectedUris = remember { mutableStateMapOf<String, Uri>() }
+    val selectedFiles = remember { mutableStateMapOf<String, List<File>>() }
     var shareDialog by remember { mutableStateOf(false) }
     val requestMedia = rememberMediaPermissionRequest(tab) { refresh++ }
     val received = when (tab) {
@@ -82,7 +84,13 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
     }
 
-    BackHandler(enabled = selected.isNotEmpty()) { selected.clear(); selectedUris.clear() }
+    fun selectLocal(key: String, files: List<File>, size: Long) {
+        val wasSelected = selected.containsKey(key)
+        select(key, size)
+        if (wasSelected) selectedFiles.remove(key) else selectedFiles[key] = files.filter { it.isFile }
+    }
+
+    BackHandler(enabled = selected.isNotEmpty()) { selected.clear(); selectedUris.clear(); selectedFiles.clear() }
 
     val mediaPermissionNeeded = tab in listOf("Photos", "Videos", "Music") && !MediaPermissions.hasMedia(context, tab)
     val allFilesNeeded = tab in listOf("Files", "Documents") && !MediaPermissions.hasFull(context)
@@ -120,8 +128,8 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
                             runCatching { context.packageManager.getApplicationIcon(app.packageName).toBitmap().asImageBitmap() }.getOrNull()
                         }
                         Card(Modifier.fillMaxWidth().padding(vertical = 3.dp).combinedClickable(
-                            onClick = { select(app.packageName, 0L) },
-                            onLongClick = { if (!isSelected) select(app.packageName, 0L) },
+                            onClick = { selectLocal(app.packageName, app.apkPaths.map(::File), app.apkPaths.sumOf { runCatching { File(it).length() }.getOrDefault(0L) }) },
+                            onLongClick = { if (!isSelected) selectLocal(app.packageName, app.apkPaths.map(::File), app.apkPaths.sumOf { runCatching { File(it).length() }.getOrDefault(0L) }) },
                         )) {
                             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 if (appIcon != null) Image(appIcon, contentDescription = app.label, modifier = Modifier.size(40.dp))
@@ -138,8 +146,8 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
                         val key = "transfer:${item.id}"
                         val isSelected = selected.containsKey(key)
                         Card(Modifier.fillMaxWidth().padding(vertical = 3.dp).combinedClickable(
-                            onClick = { select(key, item.bytes) },
-                            onLongClick = { if (!isSelected) select(key, item.bytes) },
+                            onClick = { selectLocal(key, listOfNotNull(item.localPath?.let(::File)), item.bytes) },
+                            onLongClick = { if (!isSelected) selectLocal(key, listOfNotNull(item.localPath?.let(::File)), item.bytes) },
                         )) {
                             Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
@@ -186,7 +194,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
                         Text("${selected.size} selected", style = MaterialTheme.typography.titleSmall)
                         Text(MediaRepository.formatBytes(selected.values.sum()), style = MaterialTheme.typography.bodySmall)
                     }
-                    TextButton(onClick = { selected.clear(); selectedUris.clear() }) { Text("Clear") }
+                    TextButton(onClick = { selected.clear(); selectedUris.clear(); selectedFiles.clear() }) { Text("Clear") }
                     Button(onClick = { shareDialog = true }) { Text("Share") }
                 }
             }
@@ -200,7 +208,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
             text = { Text("Choose where to continue with ${selected.size} selected item(s).") },
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { vm.queueFiles(selectedUris.values.toList()); shareDialog = false; nav.navigate("send") }) { Text("Send") }
+                    TextButton(onClick = { vm.queueFiles(selectedUris.values.toList()); vm.queueLocalFiles(selectedFiles.values.flatten()); shareDialog = false; nav.navigate("send") }) { Text("Send") }
                     TextButton(onClick = { shareDialog = false; nav.navigate("receive") }) { Text("Receive") }
                     TextButton(onClick = { shareDialog = false; nav.navigate("computer") }) { Text("Computer/iPhone") }
                 }
