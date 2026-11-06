@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
@@ -137,7 +138,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                             Triple("Music", "library/music", Icons.Filled.MusicNote),
                             Triple("Files", "files", Icons.Filled.FolderOpen),
                             Triple("Transfers", "history", Icons.Filled.History),
-                            Triple("Clean", "cleaner", Icons.Filled.Apps),
+                            Triple("Clean", "cleaner", Icons.Filled.DeleteSweep),
                             Triple("Settings", "settings", Icons.Filled.Settings),
                             Triple("About", "more", Icons.Filled.Info),
                         ).forEach { (label, route, icon) ->
