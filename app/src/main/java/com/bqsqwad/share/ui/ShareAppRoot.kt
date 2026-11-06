@@ -12,6 +12,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -254,7 +255,6 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            BrandHeader()
             Card(Modifier.fillMaxWidth().height(220.dp).clickable { nav.navigate("files") }) {
                 Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                     Image(painter = painterResource(R.drawable.brand_logo), contentDescription = "BQ Sqwad Share", modifier = Modifier.size(88.dp))
@@ -762,7 +762,7 @@ private fun Chat(vm: ShareViewModel) {
 @Composable
 private fun More() {
     val context = LocalContext.current
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         BrandHeader()
         Text("About BQ Sqwad Share", style = MaterialTheme.typography.headlineSmall)
         Text("Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
