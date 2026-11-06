@@ -50,6 +50,7 @@ class ShareViewModel @Inject constructor(
     val receiveExpiresAt = MutableStateFlow(0L)
     val pendingUris = MutableStateFlow<List<Uri>>(emptyList())
     val pendingLocalFiles = MutableStateFlow<List<File>>(emptyList())
+    val autoSendPending = MutableStateFlow(false)
     val scannedReceiveCode = MutableStateFlow("")
     val verification = SessionCrypto.fingerprint(sessionKey)
     val keyText = SessionCrypto.keyToString(sessionKey)
@@ -201,18 +202,21 @@ class ShareViewModel @Inject constructor(
 
     fun setScannedReceiveCode(code: String) { scannedReceiveCode.value = code.filter(Char::isDigit).take(6) }
 
-    fun queueFiles(uris: List<Uri>) {
+    fun queueFiles(uris: List<Uri>, autoSend: Boolean = false) {
         pendingUris.value = (pendingUris.value + uris).distinct()
+        if (autoSend) autoSendPending.value = true
     }
 
-    fun queueLocalFiles(files: List<File>) {
+    fun queueLocalFiles(files: List<File>, autoSend: Boolean = false) {
         pendingLocalFiles.value = (pendingLocalFiles.value + files.filter { it.isFile }).distinctBy { it.absolutePath }
+        if (autoSend) autoSendPending.value = true
     }
 
-    fun clearQueuedFiles() { pendingUris.value = emptyList(); pendingLocalFiles.value = emptyList() }
+    fun clearQueuedFiles() { pendingUris.value = emptyList(); pendingLocalFiles.value = emptyList(); autoSendPending.value = false }
 
     /** Copies picked content URIs into app-private cache, then sends real Nearby file payloads. */
     fun sendQueuedFiles(endpointId: String) = viewModelScope.launch {
+        autoSendPending.value = false
         val queued = pendingUris.value
         if (queued.isEmpty() && pendingLocalFiles.value.isEmpty()) return@launch
         val outgoing = withContext(Dispatchers.IO) {
@@ -246,6 +250,7 @@ class ShareViewModel @Inject constructor(
         }
         pendingUris.value = emptyList()
         pendingLocalFiles.value = emptyList()
+        autoSendPending.value = false
     }
 
     fun sendText(endpointId: String, text: String) {
