@@ -54,3 +54,15 @@ Keystore stays out of git. Secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY
 - `docs/store/PLAY_LISTING.md`
 
 Enable GitHub Pages from `/docs` on `main`.
+
+
+## Offline relay policy (mandatory)
+
+- Offline relay is a separate, opt-in capability accepted explicitly during onboarding. After acceptance, eligible relay handoffs may happen automatically without per-package prompts.
+- Relay traffic is local-link only. The relay transport MUST NOT use cellular/mobile data, metered internet, cloud storage, or an internet fallback. If no permitted local peer link is available, queue locally and wait.
+- Relay devices store and forward recipient-encrypted opaque chunks only. They must never receive the content-decryption key, render previews, index file contents, or expose package contents to the relay user.
+- Enforce storage quotas, package expiry, duplicate suppression, authenticated routing metadata, integrity checks, and deletion only after a verified next-hop/recipient acknowledgement or safe expiry policy.
+- Do not promise zero battery use: discovery and radio activity consume power. Use bounded, opportunistic discovery and pause under OS restrictions or critical battery/storage conditions.
+- Android background execution and foreground-service notification requirements must be respected; do not hide required system notifications.
+
+See [docs/OFFLINE_MESH_POLICY.md](docs/OFFLINE_MESH_POLICY.md) for the implementation contract.
