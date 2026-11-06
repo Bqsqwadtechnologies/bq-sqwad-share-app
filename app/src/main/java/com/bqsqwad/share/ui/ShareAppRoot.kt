@@ -420,7 +420,7 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
     val scannedCode by vm.scannedReceiveCode.collectAsState()
     var receiveCode by remember { mutableStateOf(scannedCode) }
     LaunchedEffect(scannedCode) { if (scannedCode.isNotBlank()) receiveCode = scannedCode }
-    val matchingPeers = if (receiveCode.length == 6) peers.filter { it.name.contains(receiveCode) } else peers
+    val matchingPeers = peers
     val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted.values.all { it }) vm.nearby.startDiscovery()
     }
