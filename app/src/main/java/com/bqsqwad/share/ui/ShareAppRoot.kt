@@ -444,10 +444,13 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (matchingPeers.isEmpty()) Text(if (receiveCode.length == 6) "No nearby device is advertising this code." else stringResource(R.string.not_found), modifier = Modifier.padding(vertical = 12.dp))
+        if (matchingPeers.isEmpty()) Text("No nearby devices found. Keep both devices close and try again.", modifier = Modifier.padding(vertical = 12.dp))
+        if (receiveCode.length != 6) {
+            Text("Enter or scan the receiver’s six-digit code before connecting.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
+        }
         matchingPeers.forEach { peer ->
-            Card(Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable {
-                val displayName = if (receiveCode.length == 6) "BQ Sqwad Share code $receiveCode" else "BQ Sqwad Share"
+            Card(Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable(enabled = receiveCode.length == 6) {
+                val displayName = "BQ Sqwad Share code $receiveCode"
                 vm.nearby.requestConnection(peer.endpointId, displayName)
                 nav.navigate("picker")
             }) { Text(peer.name, modifier = Modifier.padding(16.dp)) }
