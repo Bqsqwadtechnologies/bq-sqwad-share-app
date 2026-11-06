@@ -89,7 +89,7 @@ tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.co
     }
 }
 dependencies {
-    implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(project(":core:common"))
     implementation(project(":core:domain"))
     implementation(project(":core:data"))
