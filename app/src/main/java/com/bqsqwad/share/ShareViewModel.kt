@@ -57,6 +57,7 @@ class ShareViewModel @Inject constructor(
     val verification = SessionCrypto.fingerprint(sessionKey)
     val keyText = SessionCrypto.keyToString(sessionKey)
     private val outgoingPayloadRecords = java.util.concurrent.ConcurrentHashMap<Long, TransferEntity>()
+    private val outgoingPayloadIds = java.util.concurrent.ConcurrentHashMap<Long, Long>()
 
     init {
         val activePayloadIds = mutableSetOf<Long>()
@@ -77,7 +78,7 @@ class ShareViewModel @Inject constructor(
                 } else {
                     activePayloadIds.remove(progress.payloadId)
                     val outgoing = outgoingPayloadRecords.remove(progress.payloadId)
-                    if (outgoing != null) {
+                    if (outgoing != null) {\n                        outgoingPayloadIds.remove(outgoing.id)\n
                         val succeeded = progress.status == 1
                         viewModelScope.launch {
                             dao.update(
@@ -329,6 +330,7 @@ class ShareViewModel @Inject constructor(
                 return@forEach
             }
             outgoingPayloadRecords[payloadId] = row.copy(id = rowId)
+            outgoingPayloadIds[rowId] = payloadId
         }
         pendingUris.value = emptyList()
         pendingLocalFiles.value = emptyList()
@@ -352,6 +354,13 @@ class ShareViewModel @Inject constructor(
         autoSendPending.value = false
     }
 
+    fun cancelTransfer(item: TransferEntity) = viewModelScope.launch {
+        val payloadId = outgoingPayloadIds.remove(item.id) ?: return@launch
+        outgoingPayloadRecords.remove(payloadId)
+        nearby.cancelPayload(payloadId)
+        dao.update(item.copy(status = "CANCELLED"))
+    }
+
     fun retryTransfer(item: TransferEntity) = viewModelScope.launch {
         if (!item.direction.equals("SEND", ignoreCase = true)) return@launch
         val connected = nearby.connected.value
@@ -370,6 +379,7 @@ class ShareViewModel @Inject constructor(
             val retryRow = item.copy(status = "SENDING", bytesDone = 0L, createdAt = System.currentTimeMillis())
             dao.update(retryRow)
             outgoingPayloadRecords[payloadId] = retryRow
+            outgoingPayloadIds[item.id] = payloadId
         } catch (_: Exception) {
             dao.update(item.copy(status = "FAILED", bytesDone = 0L))
         }
