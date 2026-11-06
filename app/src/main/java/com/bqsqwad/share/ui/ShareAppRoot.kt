@@ -329,13 +329,14 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
         if (granted.values.all { it }) vm.nearby.startDiscovery()
     }
     LaunchedEffect(Unit) {
-        perms.launch(arrayOf(
-            android.Manifest.permission.BLUETOOTH_SCAN,
-            android.Manifest.permission.BLUETOOTH_CONNECT,
-            android.Manifest.permission.BLUETOOTH_ADVERTISE,
-            android.Manifest.permission.NEARBY_WIFI_DEVICES,
-            android.Manifest.permission.ACCESS_FINE_LOCATION,
-        ))
+        val requiredPermissions = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.NEARBY_WIFI_DEVICES)
+        } else if (android.os.Build.VERSION.SDK_INT >= 31) {
+            arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_ADVERTISE)
+        } else {
+            arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        perms.launch(requiredPermissions)
     }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text(stringResource(R.string.looking), style = MaterialTheme.typography.titleLarge)
