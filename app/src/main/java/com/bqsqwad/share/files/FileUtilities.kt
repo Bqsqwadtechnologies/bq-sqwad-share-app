@@ -55,7 +55,7 @@ object FileUtilities {
 
     /** Removes path components, control characters and filesystem-reserved characters. */
     fun safeFileName(input: String): String {
-        val leaf = input.replace('\\\\', '/').substringAfterLast('/')
+        val leaf = input.replace(92.toChar(), '/').substringAfterLast('/')
         val cleaned = leaf
             .filter { it.code >= 32 && it.code != 127 && it !in "<>:\"|?*" }
             .trim()
