@@ -83,6 +83,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
     var sortBySize by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val requestMedia = rememberMediaPermissionRequest(tab) { refresh++ }
+    val visibleApps = remember(apps, searchText) { apps.filter { it.label.contains(searchText.trim(), true) || it.packageName.contains(searchText.trim(), true) } }
     val visibleMedia = remember(media, searchText, sortBySize) {
         media.filter { it.name.contains(searchText.trim(), ignoreCase = true) }
             .let { rows -> if (sortBySize) rows.sortedByDescending { it.sizeBytes } else rows.sortedBy { it.name.lowercase() } }
@@ -188,8 +189,38 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                 Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             ) {
+                if (tab !in listOf("Received", "Sent") && (visibleMedia.isNotEmpty() || visibleApps.isNotEmpty())) {
+                    item(key = "bulk-selection") {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                selected.size.toString() + " selected · " + MediaRepository.formatBytes(selected.values.sum()),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            TextButton(onClick = {
+                                if (tab == "Apps") {
+                                    visibleApps.forEach { app ->
+                                        val files = app.apkPaths.map(::File).filter { it.isFile }
+                                        selected[app.packageName] = files.sumOf { it.length() }
+                                        selectedFiles[app.packageName] = files
+                                    }
+                                } else {
+                                    visibleMedia.forEach { item ->
+                                        selected[item.key] = item.sizeBytes
+                                        selectedUris[item.key] = item.uri
+                                    }
+                                }
+                            }) { Text("Select all") }
+                            TextButton(onClick = { selected.clear(); selectedUris.clear(); selectedFiles.clear() }) { Text("Clear") }
+                        }
+                    }
+                }
                 if (tab == "Apps") {
-                    items(apps, key = { it.packageName }) { app ->
+                    items(visibleApps, key = { it.packageName }) { app ->
                         val isSelected = selected.containsKey(app.packageName)
                         val appIcon = remember(app.packageName) {
                             runCatching { context.packageManager.getApplicationIcon(app.packageName).toBitmap().asImageBitmap() }.getOrNull()
