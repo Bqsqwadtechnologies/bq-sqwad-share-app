@@ -69,7 +69,7 @@ fun rememberMediaPermissionRequest(category: String = "all", onGranted: () -> Un
     }
     return remember(category) {
         {
-            if (MediaPermissions.hasMedia(context)) latestOnGranted()
+            if (MediaPermissions.hasMedia(context, category)) latestOnGranted()
             else launcher.launch(MediaPermissions.list(category))
         }
     }
