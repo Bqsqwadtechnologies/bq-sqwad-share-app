@@ -114,7 +114,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
             }) { adPadding ->
             NavHost(nav, startDestination = "home", modifier = Modifier.padding(adPadding)) {
                 composable("home") { Home(nav, vm, ads, adFree) }
-                composable("files") { LibraryPage("files", vm, ads, adFree) }
+                composable("files") { FilesBrowser(nav, vm) }
                 composable("send") { Send(nav, vm) }
                 composable("receive") { Receive(vm) }
                 composable("picker") { Picker(nav, vm, ads, adFree) }
