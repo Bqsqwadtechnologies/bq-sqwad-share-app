@@ -402,7 +402,7 @@ private fun Receive(vm: ShareViewModel) {
             Image(
                 bitmap = qrBitmap(payload).asImageBitmap(),
                 contentDescription = stringResource(R.string.show_qr),
-                modifier = Modifier.size(QR_SIZE).padding(8.dp),
+                modifier = Modifier.size(QR_SIZE),
             )
             Text(stringResource(R.string.qr_help))
             Text("${stringResource(R.string.manual_code)}: $code", style = MaterialTheme.typography.headlineSmall)
