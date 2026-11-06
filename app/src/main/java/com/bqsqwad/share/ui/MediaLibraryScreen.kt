@@ -297,8 +297,8 @@ fun MediaLibraryScreen(initialKind: String = "music") {
             }
         }
 
-        if (permissionGranted && media.isNotEmpty()) {
-            Text("${media.size} ${if (kind == "music") "songs" else "videos"}", style = MaterialTheme.typography.titleMedium)
+        if (permissionGranted && visibleMedia.isNotEmpty()) {
+            Text("${visibleMedia.size} ${if (kind == "music") "songs" else "videos"}", style = MaterialTheme.typography.titleMedium)
             LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 itemsIndexed(visibleMedia, key = { _, item -> item.key }) { index, item ->
                     Card(
@@ -318,6 +318,8 @@ fun MediaLibraryScreen(initialKind: String = "music") {
                     }
                 }
             }
+        } else if (permissionGranted && media.isNotEmpty() && visibleMedia.isEmpty()) {
+            Text("No media matches your search.")
         } else if (permissionGranted && media.isNotEmpty() && visibleMedia.isEmpty()) {
             Text("No media matches your search.")
         }
