@@ -633,6 +633,9 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
                         Text("Device: ${item.peerName}", style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = { vm.toggleFavorite(item) }) { Text(stringResource(R.string.favorites)) }
+                            if (item.direction.equals("SEND", true) && item.status == "SENDING") {
+                                TextButton(onClick = { vm.cancelTransfer(item) }) { Text("Cancel transfer") }
+                            }
                             if (item.direction.equals("SEND", true) &&
                                 (item.status == "FAILED" || item.status == "WAITING_FOR_DEVICE")
                             ) {
