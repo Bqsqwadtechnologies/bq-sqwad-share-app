@@ -57,13 +57,14 @@ class ShareViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             nearby.progress.collect { event ->
-                val complete = event.status != 2 // Nearby PayloadTransferUpdate.Status.IN_PROGRESS
+                val progress = event ?: return@collect
+                val complete = progress.status != 2 // Nearby PayloadTransferUpdate.Status.IN_PROGRESS
                 val text = if (complete) {
-                    if (event.status == 1) "Transfer completed" else "Transfer ended"
+                    if (progress.status == 1) "Transfer completed" else "Transfer ended"
                 } else {
-                    "Transferring ${event.bytes} of ${event.total} bytes"
+                    "Transferring ${progress.bytes} of ${progress.total} bytes"
                 }
-                TransferService.update(context, text, event.bytes, event.total, complete)
+                TransferService.update(context, text, progress.bytes, progress.total, complete)
             }
         }
         viewModelScope.launch {
