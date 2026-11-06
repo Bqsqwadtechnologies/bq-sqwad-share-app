@@ -92,7 +92,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
             val adFree = settings.adFreeUntil > System.currentTimeMillis()
             Scaffold(bottomBar = { BannerSlot(enabled = !adFree && ads.canRequestAds, modifier = Modifier.navigationBarsPadding()) }) { adPadding ->
             NavHost(nav, startDestination = "home", modifier = Modifier.padding(adPadding)) {
-                composable("home") { Home(nav, vm, ads, adFree) }
+                composable("home") { HomeLibraryScreen(nav, vm, ads, adFree) }
                 composable("send") { SendQrScreen(nav, vm) }
                 composable("receive") { ReceiveQrScreen(vm) }
                 composable("picker") { Picker(nav, vm, ads, adFree) }
