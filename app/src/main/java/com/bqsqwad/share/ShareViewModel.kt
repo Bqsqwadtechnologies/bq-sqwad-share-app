@@ -335,6 +335,23 @@ class ShareViewModel @Inject constructor(
         autoSendPending.value = false
     }
 
+    fun sendQueuedFilesToAll() = viewModelScope.launch {
+        val endpoints = nearby.connected.value.toList()
+        if (endpoints.isEmpty()) return@launch
+        val uris = pendingUris.value
+        val files = pendingLocalFiles.value
+        if (uris.isEmpty() && files.isEmpty()) return@launch
+        autoSendPending.value = false
+        endpoints.forEach { endpointId ->
+            pendingUris.value = uris
+            pendingLocalFiles.value = files
+            sendQueuedFiles(endpointId).join()
+        }
+        pendingUris.value = emptyList()
+        pendingLocalFiles.value = emptyList()
+        autoSendPending.value = false
+    }
+
     fun retryTransfer(item: TransferEntity) = viewModelScope.launch {
         if (!item.direction.equals("SEND", ignoreCase = true)) return@launch
         val endpointId = item.peerName
