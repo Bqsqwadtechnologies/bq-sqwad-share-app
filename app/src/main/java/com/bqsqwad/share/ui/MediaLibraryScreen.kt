@@ -65,12 +65,6 @@ fun MediaLibraryScreen(initialKind: String = "music") {
     var shuffle by remember { mutableStateOf(false) }
     var repeatMode by remember { mutableStateOf(Player.REPEAT_MODE_OFF) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) { grants ->
-        permissionGranted = grants[requiredMediaPermission()] == true || hasMediaPermission()
-    }
-
     fun requiredMediaPermission(): String =
         if (Build.VERSION.SDK_INT >= 33) {
             if (kind == "music") Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_MEDIA_VIDEO
@@ -80,6 +74,12 @@ fun MediaLibraryScreen(initialKind: String = "music") {
 
     fun hasMediaPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, requiredMediaPermission()) == PackageManager.PERMISSION_GRANTED
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        permissionGranted = grants[requiredMediaPermission()] == true || hasMediaPermission()
+    }
 
     fun requestMediaPermissions() {
         if (hasMediaPermission()) {
