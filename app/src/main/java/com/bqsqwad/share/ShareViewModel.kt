@@ -379,9 +379,9 @@ class ShareViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 while (outgoingPayloadRecords.size < maxConcurrentPayloads) {
-                    val next = pendingOutgoingQueue.peek() ?: break
-                    if (next.peerName !in nearby.connected.value) break
-                    pendingOutgoingQueue.poll() ?: continue
+                    val connectedNow = nearby.connected.value
+                    val next = pendingOutgoingQueue.firstOrNull { it.peerName in connectedNow } ?: break
+                    if (!pendingOutgoingQueue.remove(next)) continue
                     val source = next.localPath?.let(::File)
                     if (source == null || !source.isFile || !source.canRead()) {
                         dao.update(next.copy(status = "FAILED_SOURCE_MISSING", bytesDone = 0L))
@@ -401,7 +401,7 @@ class ShareViewModel @Inject constructor(
             } finally {
                 pumpingQueue.set(false)
                 if (outgoingPayloadRecords.size < maxConcurrentPayloads &&
-                    pendingOutgoingQueue.peek()?.let { it.peerName in nearby.connected.value } == true
+                    pendingOutgoingQueue.any { it.peerName in nearby.connected.value }
                 ) {
                     pumpOutgoingQueue()
                 }
