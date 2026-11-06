@@ -2,6 +2,7 @@ package com.bqsqwad.share.ui
 
 import android.content.Intent
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +33,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -39,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import android.graphics.drawable.toBitmap
 import com.bqsqwad.share.ShareViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -108,13 +111,20 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
                 if (tab == "Apps") {
                     items(apps, key = { it.packageName }) { app ->
                         val isSelected = selected.containsKey(app.packageName)
+                        val appIcon = remember(app.packageName) {
+                            runCatching { context.packageManager.getApplicationIcon(app.packageName).toBitmap().asImageBitmap() }.getOrNull()
+                        }
                         Card(Modifier.fillMaxWidth().padding(vertical = 3.dp).combinedClickable(
                             onClick = { select(app.packageName, 0L) },
                             onLongClick = { if (!isSelected) select(app.packageName, 0L) },
                         )) {
                             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(app.label, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-                                Text(if (isSelected) "✓" else app.packageName, style = MaterialTheme.typography.bodySmall)
+                                if (appIcon != null) Image(appIcon, contentDescription = app.label, modifier = Modifier.size(40.dp))
+                                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                                    Text(app.label, style = MaterialTheme.typography.titleSmall)
+                                    Text(app.packageName, style = MaterialTheme.typography.bodySmall)
+                                }
+                                if (isSelected) Text("✓", color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
