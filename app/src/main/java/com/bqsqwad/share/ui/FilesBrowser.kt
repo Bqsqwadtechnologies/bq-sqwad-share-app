@@ -5,9 +5,6 @@ import android.net.Uri
 import java.io.File
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import android.provider.OpenableColumns
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -85,22 +82,6 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
     var searchText by remember { mutableStateOf("") }
     var sortBySize by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val pickDeviceFiles = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        uris.forEach { uri ->
-            val key = uri.toString()
-            var size = 0L
-            runCatching {
-                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val sizeColumn = cursor.getColumnIndex(OpenableColumns.SIZE)
-                        if (sizeColumn >= 0 && !cursor.isNull(sizeColumn)) size = cursor.getLong(sizeColumn)
-                    }
-                }
-            }
-            selected[key] = size
-            selectedUris[key] = uri
-        }
-    }
     val requestMedia = rememberMediaPermissionRequest(tab) { refresh++ }
     val visibleApps = remember(apps, searchText) { apps.filter { it.label.contains(searchText.trim(), true) || it.packageName.contains(searchText.trim(), true) } }
     val visibleMedia = remember(media, searchText, sortBySize) {
