@@ -32,6 +32,12 @@ import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -156,26 +162,30 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                 },
             ) {
             Scaffold(topBar = {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { scope.launch { drawerState.open() } }) { Text("☰ Menu") }
-                    Spacer(Modifier.weight(1f))
-                    Text("BQ Sqwad Share", style = MaterialTheme.typography.titleMedium)
-                }
-            }, bottomBar = {
-                Column {
-                    BannerSlot(enabled = !adFree && ads.canRequestAds, modifier = Modifier.navigationBarsPadding())
-                    NavigationBar {
-                        listOf("home" to "Home", "files" to "Files", "history" to "Transfers", "cleaner" to "Clean", "settings" to "Settings").forEach { (route, label) ->
-                            NavigationBarItem(selected = currentRoute == route, onClick = {
-                                nav.navigate(route) {
-                                    popUpTo(nav.graph.startDestinationId) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }, icon = {}, label = { Text(label) })
+                Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(painterResource(R.drawable.brand_logo), contentDescription = "BQ Sqwad Share logo", modifier = Modifier.size(42.dp))
+                        Column(Modifier.padding(start = 10.dp)) {
+                            Text("BQ Sqwad Share", style = MaterialTheme.typography.titleMedium)
+                            Text("BQ Sqwad Technologies", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { nav.navigate("more") }) { Text("About") }
+                    }
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(
+                            Triple("Home", "home", Icons.Filled.Home),
+                            Triple("Files", "files", Icons.Filled.FolderOpen),
+                            Triple("Transfers", "history", Icons.Filled.History),
+                            Triple("Clean", "cleaner", Icons.Filled.Apps),
+                            Triple("Settings", "settings", Icons.Filled.Settings),
+                        ).forEach { (label, route, icon) ->
+                            FilterChip(selected = currentRoute == route, onClick = { nav.navigate(route) { launchSingleTop = true } }, label = { Text(label) }, leadingIcon = { androidx.compose.material3.Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp)) })
                         }
                     }
                 }
+            }, bottomBar = {
+                BannerSlot(enabled = !adFree && ads.canRequestAds, modifier = Modifier.navigationBarsPadding())
             }) { adPadding ->
             NavHost(nav, startDestination = "home", modifier = Modifier.padding(adPadding)) {
                 composable("home") { Home(nav, vm, ads, adFree) }
@@ -185,7 +195,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                 composable("receive") { Receive(vm) }
                 composable("picker") { Picker(nav, vm, ads, adFree) }
                 composable("history") { History(vm, ads, adFree) }
-                composable("library/{section}") { entry -> LibraryPage(entry.arguments?.getString("section").orEmpty(), vm, ads, adFree) }
+                composable("library/{section}") { entry -> FilesBrowser(nav, vm, initialTab = entry.arguments?.getString("section").orEmpty()) }
                 composable("settings") { Settings(nav, vm, ads, activity) }
                 composable("clone") { Gated(settings, ads, activity, vm, "clone") { Clone(vm) } }
                 composable("computer") { Gated(settings, ads, activity, vm, "computer") { Computer(vm) } }
@@ -232,88 +242,73 @@ private fun BrandHeader() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
     val history by vm.history.collectAsState()
     val (free, total) = vm.storage()
-    val ctx = LocalContext.current
-    Scaffold { pad ->
-        LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(16.dp)) {
-            item {
-                BrandHeader()
-                GradientHero {
-                    Text(stringResource(R.string.tagline), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(14.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = { nav.navigate("send") }, modifier = Modifier.weight(1f).height(56.dp)) { Text(stringResource(R.string.send)) }
-                        OutlinedButton(onClick = { nav.navigate("receive") }, modifier = Modifier.weight(1f).height(56.dp)) { Text(stringResource(R.string.receive)) }
-                    }
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            BrandHeader()
+            Card(Modifier.fillMaxWidth().height(220.dp).clickable { nav.navigate("files") }) {
+                Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                    Image(painter = painterResource(R.drawable.brand_logo), contentDescription = "BQ Sqwad Share", modifier = Modifier.size(88.dp))
+                    Spacer(Modifier.height(8.dp))
+                    Text("BQ SQWAD SHARE", style = MaterialTheme.typography.headlineSmall)
+                    Text("Tap to browse and share files", style = MaterialTheme.typography.bodyMedium)
                 }
-                Spacer(Modifier.height(14.dp))
-                SectionTitle("Quick actions")
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ActionTile(Icons.Filled.QrCodeScanner, "Scan QR", "Connect by QR", { nav.navigate("scan") }, Modifier.weight(1f))
-                    ActionTile(Icons.Filled.Computer, "Computer/iPhone", "Transfer on browser", { nav.navigate("computer") }, Modifier.weight(1f))
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ActionTile(Icons.Filled.PhoneAndroid, "Phone Clone", "Move phone data", { nav.navigate("clone") }, Modifier.weight(1f))
-                    ActionTile(Icons.Filled.Apps, "Apps", "Browse installed apps", { nav.navigate("library/apps") }, Modifier.weight(1f))
-                }
-                Spacer(Modifier.height(16.dp))
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(stringResource(R.string.storage), style = MaterialTheme.typography.titleLarge)
-                        Text("${free / 1_048_576} MB free of ${total / 1_048_576} MB")
-                        if (free < 200L * 1_048_576) Text(stringResource(R.string.low_storage))
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                NativeSlot(!adFree && ads.canRequestAds)
-                Text(stringResource(R.string.recent), style = MaterialTheme.typography.titleLarge)
             }
-            if (history.isEmpty()) item { Text(stringResource(R.string.empty_recent), modifier = Modifier.padding(vertical = 8.dp)) }
-            itemsIndexed(history.take(8), key = { _, it -> it.id }) { index, item ->
-                Text("${item.direction} · ${item.displayName}", modifier = Modifier.padding(vertical = 8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { nav.navigate("send") }, modifier = Modifier.weight(1f).height(54.dp)) {
+                    androidx.compose.material3.Icon(Icons.Filled.Send, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Send")
+                }
+                OutlinedButton(onClick = { nav.navigate("receive") }, modifier = Modifier.weight(1f).height(54.dp)) { Text("Receive") }
             }
-            item {
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { nav.navigate("history") }) { Text(stringResource(R.string.history)) }
-                    TextButton(onClick = { nav.navigate("settings") }) { Text(stringResource(R.string.settings)) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { nav.navigate("clone") }) { Text(stringResource(R.string.clone)) }
-                    TextButton(onClick = { nav.navigate("computer") }) { Text(stringResource(R.string.computer)) }
-                }
-                Text("Your files", style = MaterialTheme.typography.titleLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("music", "pictures", "videos", "apps").forEach { section ->
-                        TextButton(onClick = { nav.navigate("library/$section") }) { Text(section.replaceFirstChar { it.uppercase() }) }
+            Text("Browse your phone", style = MaterialTheme.typography.titleLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf(Triple("Apps", "apps", Icons.Filled.Apps), Triple("Photos", "photos", Icons.Filled.PhotoLibrary)).forEach { (label, section, icon) ->
+                    Card(Modifier.weight(1f).clickable { nav.navigate("library/$section") }) {
+                        Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            androidx.compose.material3.Icon(icon, contentDescription = null, modifier = Modifier.size(30.dp))
+                            Text(label)
+                        }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("received", "sent", "deleted", "memory").forEach { section ->
-                        TextButton(onClick = { nav.navigate("library/$section") }) { Text(section.replaceFirstChar { it.uppercase() }) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf(Triple("Videos", "videos", Icons.Filled.VideoLibrary), Triple("Music", "music", Icons.Filled.MusicNote)).forEach { (label, section, icon) ->
+                    Card(Modifier.weight(1f).clickable { nav.navigate("library/$section") }) {
+                        Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            androidx.compose.material3.Icon(icon, contentDescription = null, modifier = Modifier.size(30.dp))
+                            Text(label)
+                        }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { nav.navigate("cleaner") }) { Text(stringResource(R.string.cleaner)) }
-                    TextButton(onClick = { nav.navigate("favorites") }) { Text(stringResource(R.string.favorites)) }
-                    TextButton(onClick = { nav.navigate("chat") }) { Text(stringResource(R.string.chat)) }
+            }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp)) {
+                    Text("Phone storage", style = MaterialTheme.typography.titleMedium)
+                    Text("${free / 1_048_576} MB free of ${total / 1_048_576} MB")
+                    if (free < 200L * 1_048_576) Text(stringResource(R.string.low_storage))
                 }
-                Card(Modifier.fillMaxWidth().clickable { nav.navigate("more") }) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(stringResource(R.string.ad_label), style = MaterialTheme.typography.labelLarge)
-                        Text(stringResource(R.string.home_cross))
+            }
+            Text(stringResource(R.string.recent), style = MaterialTheme.typography.titleLarge)
+        }
+        if (history.isEmpty()) item { Text(stringResource(R.string.empty_recent)) }
+        itemsIndexed(history.take(5), key = { _, item -> item.id }) { _, item ->
+            Card(Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.Icon(if (item.direction.equals("SEND", true)) Icons.Filled.Send else Icons.Filled.FolderOpen, contentDescription = null)
+                    Column(Modifier.padding(start = 10.dp)) {
+                        Text(item.displayName, style = MaterialTheme.typography.titleSmall)
+                        Text("${item.direction} · ${item.status}", style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                TextButton(onClick = {
-                    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "https://play.google.com/store/apps/details?id=com.bqsqwad.share")
-                    ctx.startActivity(Intent.createChooser(send, ctx.getString(R.string.invite)))
-                }) { Text(stringResource(R.string.invite)) }
             }
         }
     }
@@ -779,10 +774,18 @@ private fun Chat(vm: ShareViewModel) {
 
 @Composable
 private fun More() {
-    Column(Modifier.padding(16.dp)) {
-        Text(stringResource(R.string.more_apps), style = MaterialTheme.typography.titleLarge)
-        Text(stringResource(R.string.ad_label))
-        Text("Edit config/more_apps.json to list sister apps under BQ Sqwad AI. Each card opens the Play listing by package name.")
+    val context = LocalContext.current
+    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        BrandHeader()
+        Text("About BQ Sqwad Share", style = MaterialTheme.typography.headlineSmall)
+        Text("Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+        Text("Built and published by BQ Sqwad Technologies.")
+        Text("Share photos, videos, music, documents and apps with nearby devices.")
+        Text("Our signature: BQ Sqwad Technologies")
+        Text("Open-source components: AndroidX, Kotlin, Hilt, ML Kit, Google Nearby Connections, ZXing and Google Mobile Ads.")
+        TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMS))) }) { Text("Terms of Service") }
+        TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY))) }) { Text("Privacy Policy") }
+        TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:hello@bqsqwadai.com"))) }) { Text("Contact BQ Sqwad Technologies") }
     }
 }
 
