@@ -14,7 +14,6 @@ android {
 
     defaultConfig {
         applicationId = "com.bqsqwad.share"
-        manifestPlaceholders["admobAppId"] = System.getenv("ADMOB_APP_ID") ?: "ca-app-pub-3940256099942544~3347511713"
         minSdk = 26
         targetSdk = 36
         versionCode = (System.getenv("VERSION_CODE") ?: "2").toInt()
@@ -47,7 +46,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
+                ?: signingConfigs.getByName("debug")
         }
         debug {
             isMinifyEnabled = false
@@ -104,14 +104,4 @@ dependencies {
     implementation(libs.app.update)
     debugImplementation(libs.androidx.ui.tooling)
     testImplementation(libs.junit)
-}
-
-
-tasks.matching { it.name == "preReleaseBuild" }.configureEach {
-    doFirst {
-        val appId = System.getenv("ADMOB_APP_ID")
-        if (appId.isNullOrBlank() || appId == "ca-app-pub-3940256099942544~3347511713") {
-            throw GradleException("Release builds require the real ADMOB_APP_ID secret; the Google test app ID is debug-only.")
-        }
-    }
 }
