@@ -311,7 +311,12 @@ class ShareViewModel @Inject constructor(
                 favorite = false,
             )
             val rowId = dao.insert(row)
-            val payloadId = nearby.sendFile(endpointId, file)
+            val payloadId = try {
+                nearby.sendFile(endpointId, file)
+            } catch (_: Exception) {
+                dao.update(row.copy(id = rowId, status = "FAILED"))
+                return@forEach
+            }
             outgoingPayloadRecords[payloadId] = row.copy(id = rowId)
         }
         pendingUris.value = emptyList()
