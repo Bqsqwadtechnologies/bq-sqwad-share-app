@@ -361,7 +361,7 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                     Triple("Videos", "media/videos", Icons.Filled.VideoLibrary),
                     Triple("Music", "media/music", Icons.Filled.MusicNote),
                 ).forEach { (label, section, icon) ->
-                    Card(Modifier.weight(1f).clickable { nav.navigate("library/$section") }) {
+                    Card(Modifier.weight(1f).clickable { if (section.startsWith("media/")) nav.navigate(section) else nav.navigate("library/$section") }) {
                         Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             androidx.compose.material3.Icon(icon, contentDescription = "$label", modifier = Modifier.size(34.dp))
                             Spacer(Modifier.height(6.dp))
