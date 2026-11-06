@@ -1,6 +1,7 @@
 package com.bqsqwad.share.ui
 
 import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
@@ -58,6 +59,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
     var media by remember { mutableStateOf(emptyList<ShareMediaItem>()) }
     var apps by remember { mutableStateOf(emptyList<ShareAppItem>()) }
     val selected = remember { mutableStateMapOf<String, Long>() }
+    val selectedUris = remember { mutableStateMapOf<String, Uri>() }
     var shareDialog by remember { mutableStateOf(false) }
     val requestMedia = rememberMediaPermissionRequest { refresh++ }
     val received = when (tab) {
@@ -150,13 +152,16 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
                         val isSelected = selected.containsKey(item.key)
                         Card(Modifier.fillMaxWidth().padding(vertical = 3.dp).combinedClickable(
                             onClick = {
-                                if (selected.isNotEmpty()) select(item.key, item.sizeBytes)
-                                else runCatching {
+                                if (selected.isNotEmpty() || selected.containsKey(item.key)) {
+                                    val wasSelected = selected.containsKey(item.key)
+                                    select(item.key, item.sizeBytes)
+                                    if (wasSelected) selectedUris.remove(item.key) else selectedUris[item.key] = item.uri
+                                } else runCatching {
                                     context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(item.uri, item.mimeType)
                                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
                                 }.onFailure { Toast.makeText(context, "Unable to open this item", Toast.LENGTH_SHORT).show() }
                             },
-                            onLongClick = { if (!isSelected) select(item.key, item.sizeBytes) },
+                            onLongClick = { if (!isSelected) { select(item.key, item.sizeBytes); selectedUris[item.key] = item.uri } },
                         )) {
                             Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
@@ -178,7 +183,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
                         Text("${selected.size} selected", style = MaterialTheme.typography.titleSmall)
                         Text(MediaRepository.formatBytes(selected.values.sum()), style = MaterialTheme.typography.bodySmall)
                     }
-                    TextButton(onClick = { selected.clear() }) { Text("Clear") }
+                    TextButton(onClick = { selected.clear(); selectedUris.clear() }) { Text("Clear") }
                     Button(onClick = { shareDialog = true }) { Text("Share") }
                 }
             }
@@ -192,7 +197,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
             text = { Text("Choose where to continue with ${selected.size} selected item(s).") },
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { shareDialog = false; nav.navigate("send") }) { Text("Send") }
+                    TextButton(onClick = { vm.queueFiles(selectedUris.values.toList()); shareDialog = false; nav.navigate("send") }) { Text("Send") }
                     TextButton(onClick = { shareDialog = false; nav.navigate("receive") }) { Text("Receive") }
                     TextButton(onClick = { shareDialog = false; nav.navigate("computer") }) { Text("Computer/iPhone") }
                 }
