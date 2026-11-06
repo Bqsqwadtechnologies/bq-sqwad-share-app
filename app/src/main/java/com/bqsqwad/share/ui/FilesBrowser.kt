@@ -207,7 +207,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel) {
             text = { Text("Choose where to continue with ${selected.size} selected item(s).") },
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { vm.queueFiles(selectedUris.values.toList()); vm.queueLocalFiles(selectedFiles.values.flatten()); shareDialog = false; nav.navigate("send") }) { Text("Send") }
+                    TextButton(onClick = { vm.queueFiles(selectedUris.values.toList(), autoSend = true); vm.queueLocalFiles(selectedFiles.values.flatten(), autoSend = true); shareDialog = false; nav.navigate("send") }) { Text("Send") }
                     TextButton(onClick = { shareDialog = false; nav.navigate("receive") }) { Text("Receive") }
                     TextButton(onClick = { shareDialog = false; nav.navigate("computer") }) { Text("Computer/iPhone") }
                 }
