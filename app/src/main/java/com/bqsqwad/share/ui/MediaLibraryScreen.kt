@@ -141,6 +141,8 @@ fun MediaLibraryScreen(initialKind: String = "music") {
         onDispose { player.removeListener(listener) }
     }
 
+    val visibleMedia = media.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
+
     fun playFrom(index: Int, shuffleAll: Boolean = false) {
         val player = controller ?: return
         if (visibleMedia.isEmpty()) return
@@ -161,8 +163,6 @@ fun MediaLibraryScreen(initialKind: String = "music") {
         player.prepare()
         player.play()
     }
-
-    val visibleMedia = media.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
 
     Column(
         Modifier.fillMaxSize().padding(16.dp),
