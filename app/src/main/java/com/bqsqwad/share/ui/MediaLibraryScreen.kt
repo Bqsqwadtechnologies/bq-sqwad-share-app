@@ -27,6 +27,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -64,6 +65,8 @@ fun MediaLibraryScreen(initialKind: String = "music") {
     var currentIndex by remember { mutableStateOf(-1) }
     var shuffle by remember { mutableStateOf(false) }
     var repeatMode by remember { mutableStateOf(Player.REPEAT_MODE_OFF) }
+    var searchQuery by remember { mutableStateOf("") }
+    var playbackSpeed by remember { mutableStateOf(1f) }
 
     fun requiredMediaPermission(): String =
         if (Build.VERSION.SDK_INT >= 33) {
@@ -159,12 +162,21 @@ fun MediaLibraryScreen(initialKind: String = "music") {
         player.play()
     }
 
+    val visibleMedia = media.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
+
     Column(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Your media", style = MaterialTheme.typography.headlineMedium)
         Text("Enjoy your music and videos while file transfers continue in the background.")
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text(if (kind == "music") "Search music" else "Search videos") },
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = kind == "music",
@@ -257,6 +269,18 @@ fun MediaLibraryScreen(initialKind: String = "music") {
                             }) },
                         )
                     }
+                    OutlinedButton(
+                        onClick = {
+                            playbackSpeed = when (playbackSpeed) {
+                                1f -> 1.25f
+                                1.25f -> 1.5f
+                                1.5f -> 2f
+                                else -> 1f
+                            }
+                            activePlayer.setPlaybackSpeed(playbackSpeed)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Playback speed · ${playbackSpeed}×") }
                 }
             }
         }
@@ -264,7 +288,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
         if (permissionGranted && media.isNotEmpty()) {
             Text("${media.size} ${if (kind == "music") "songs" else "videos"}", style = MaterialTheme.typography.titleMedium)
             LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                itemsIndexed(media, key = { _, item -> item.key }) { index, item ->
+                itemsIndexed(visibleMedia, key = { _, item -> item.key }) { index, item ->
                     Card(
                         Modifier.fillMaxWidth().clickable { playFrom(index) },
                     ) {
