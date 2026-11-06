@@ -77,6 +77,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
     var previewItem by remember { mutableStateOf<ShareMediaItem?>(null) }
     var appInfo by remember { mutableStateOf<ShareAppItem?>(null) }
     var archiving by remember { mutableStateOf(false) }
+    var extracting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val requestMedia = rememberMediaPermissionRequest(tab) { refresh++ }
     val received = when (tab) {
@@ -279,8 +280,39 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                         Text("${selected.size} selected", style = MaterialTheme.typography.titleSmall)
                         Text(MediaRepository.formatBytes(selected.values.sum()), style = MaterialTheme.typography.bodySmall)
                     }
+                    val selectedZip = selectedFiles.values.flatten().singleOrNull()?.takeIf {
+                        it.isFile && it.extension.equals("zip", ignoreCase = true)
+                    }
+                    if (selectedZip != null) {
+                        TextButton(
+                            enabled = !extracting,
+                            onClick = {
+                                scope.launch {
+                                    extracting = true
+                                    try {
+                                        val extracted = withContext(Dispatchers.IO) {
+                                            val destination = File(
+                                                File(context.getExternalFilesDir(null), "Extracted"),
+                                                "${selectedZip.nameWithoutExtension}-${System.currentTimeMillis()}",
+                                            )
+                                            FileUtilities.extractZip(selectedZip, destination)
+                                        }
+                                        Toast.makeText(
+                                            context,
+                                            "Extracted ${extracted.size} file(s) to the app's Extracted folder.",
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                    } catch (error: Exception) {
+                                        Toast.makeText(context, error.message ?: "Could not extract archive.", Toast.LENGTH_LONG).show()
+                                    } finally {
+                                        extracting = false
+                                    }
+                                }
+                            },
+                        ) { Text(if (extracting) "Extracting…" else "Unzip") }
+                    }
                     TextButton(
-                        enabled = !archiving,
+                        enabled = !archiving && !extracting,
                         onClick = {
                             scope.launch {
                                 archiving = true
