@@ -83,7 +83,7 @@ class NearbyTransport @Inject constructor(
                     return@launch
                 }
                 val expected = expectedReceiveCode
-                if (expected.length == 6 && info.endpointName.contains(expected)) {
+                if (expected.length == 6 && info.endpointName == "BQ Sqwad Share code $expected") {
                     client.acceptConnection(endpointId, payloadCallback)
                     _incoming.value = null
                 } else {
