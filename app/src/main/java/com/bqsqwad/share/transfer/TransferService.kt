@@ -63,7 +63,7 @@ class TransferService : Service() {
                 .putExtra(EXTRA_MAX, max)
                 .putExtra(EXTRA_PROGRESS, progress)
                 .putExtra(EXTRA_COMPLETE, complete)
-            if (Build.VERSION.SDK_INT >= 26 && !complete) ContextCompat.startForegroundService(context, intent)
+            if (Build.VERSION.SDK_INT >= 26) ContextCompat.startForegroundService(context, intent)
             else context.startService(intent)
         }
     }
