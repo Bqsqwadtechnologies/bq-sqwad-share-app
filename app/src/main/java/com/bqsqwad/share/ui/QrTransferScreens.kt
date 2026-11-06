@@ -166,21 +166,23 @@ fun ReceiveQrScreen(vm: ShareViewModel) {
     }
     var scanResult by remember { mutableStateOf<String?>(null) }
     var permissionMessage by remember { mutableStateOf<String?>(null) }
-    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        cameraGranted = granted
-        if (granted && !nearbyGranted) nearbyPermissionLauncherRef?.invoke()
-        else if (!granted) permissionMessage = context.getString(R.string.permission_denied)
-    }
     val nearbyPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         nearbyGranted = nearbyPermissions().all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
         if (!nearbyGranted) permissionMessage = context.getString(R.string.permission_denied)
     }
-    nearbyPermissionLauncherRef = { nearbyPermissionLauncher.launch(nearbyPermissions()) }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        cameraGranted = granted
+        if (granted && !nearbyGranted) nearbyPermissionLauncher.launch(nearbyPermissions())
+        else if (!granted) permissionMessage = context.getString(R.string.permission_denied)
+    }
     LaunchedEffect(Unit) {
         if (!cameraGranted) cameraPermission.launch(Manifest.permission.CAMERA)
         else if (!nearbyGranted) nearbyPermissionLauncher.launch(nearbyPermissions())
     }
     val peers by vm.nearby.peers.collectAsState()
+    LaunchedEffect(scanResult, nearbyGranted) {
+        if (scanResult != null && nearbyGranted) vm.nearby.startDiscovery()
+    }
     Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Receive files", style = MaterialTheme.typography.headlineMedium)
         Text("Point your camera at the QR code shown on the sender's phone.")
@@ -206,7 +208,6 @@ fun ReceiveQrScreen(vm: ShareViewModel) {
             Text("QR code scanned", style = MaterialTheme.typography.titleLarge)
             Text("Searching for the sender nearby…")
             Text("Session: ${runCatching { android.net.Uri.parse(scanResult).getQueryParameter("code") }.getOrNull() ?: "verified"}")
-            if (nearbyGranted) vm.nearby.startDiscovery()
             peers.forEach { peer ->
                 Card(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                     Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -225,8 +226,6 @@ fun ReceiveQrScreen(vm: ShareViewModel) {
     }
 }
 
-private var nearbyPermissionLauncherRef: (() -> Unit)? = null
-
 @Composable
 private fun QrCameraPreview(
     modifier: Modifier,
@@ -235,13 +234,14 @@ private fun QrCameraPreview(
 ) {
     val context = LocalContext.current
     val delivered = remember { AtomicBoolean(false) }
+    val cameraExecutor = remember { java.util.concurrent.Executors.newSingleThreadExecutor() }
     val scanner = remember {
         BarcodeScanning.getClient(
             BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
         )
     }
     DisposableEffect(Unit) {
-        onDispose { scanner.close() }
+        onDispose { scanner.close(); cameraExecutor.shutdown() }
     }
     AndroidView(
         modifier = modifier,
@@ -254,7 +254,7 @@ private fun QrCameraPreview(
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
-                analysis.setAnalyzer(ContextCompat.getMainExecutor(ctx)) { proxy ->
+                analysis.setAnalyzer(cameraExecutor) { proxy ->
                     val image = proxy.image
                     if (image == null || delivered.get()) {
                         proxy.close()
