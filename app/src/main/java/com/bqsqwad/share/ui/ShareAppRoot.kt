@@ -320,6 +320,8 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
 @Composable
 private fun Send(nav: NavHostController, vm: ShareViewModel) {
     val peers by vm.nearby.peers.collectAsState()
+    var receiveCode by remember { mutableStateOf("") }
+    val matchingPeers = if (receiveCode.length == 6) peers.filter { it.name.contains(receiveCode) } else peers
     val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted.values.all { it }) vm.nearby.startDiscovery()
     }
@@ -335,10 +337,18 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text(stringResource(R.string.looking), style = MaterialTheme.typography.titleLarge)
         Text(stringResource(R.string.privacy_note))
-        if (peers.isEmpty()) Text(stringResource(R.string.not_found), modifier = Modifier.padding(vertical = 12.dp))
-        peers.forEach { peer ->
+        androidx.compose.material3.OutlinedTextField(
+            value = receiveCode,
+            onValueChange = { receiveCode = it.filter(Char::isDigit).take(6) },
+            label = { Text("Enter 6-digit receive code") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (matchingPeers.isEmpty()) Text(if (receiveCode.length == 6) "No nearby device is advertising this code." else stringResource(R.string.not_found), modifier = Modifier.padding(vertical = 12.dp))
+        matchingPeers.forEach { peer ->
             Card(Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable {
-                vm.nearby.requestConnection(peer.endpointId, "BQ Sqwad Share")
+                val displayName = if (receiveCode.length == 6) "BQ Sqwad Share code $receiveCode" else "BQ Sqwad Share"
+                vm.nearby.requestConnection(peer.endpointId, displayName)
                 nav.navigate("picker")
             }) { Text(peer.name, modifier = Modifier.padding(16.dp)) }
         }
