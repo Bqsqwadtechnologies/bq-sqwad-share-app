@@ -7,6 +7,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -512,6 +513,7 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
 }
 
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
     val history by vm.history.collectAsState()
