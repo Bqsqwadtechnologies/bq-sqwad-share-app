@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="send" android:enabled="true" android:shortcutShortLabel="@string/send" android:shortcutLongLabel="@string/send">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="com.bqsqwad.share" android:targetClass="com.bqsqwad.share.MainActivity"><extra android:name="route" android:value="send" /></intent>
+    </shortcut>
+    <shortcut android:shortcutId="receive" android:enabled="true" android:shortcutShortLabel="@string/receive" android:shortcutLongLabel="@string/receive">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="com.bqsqwad.share" android:targetClass="com.bqsqwad.share.MainActivity"><extra android:name="route" android:value="receive" /></intent>
+    </shortcut>
+    <shortcut android:shortcutId="scan" android:enabled="true" android:shortcutShortLabel="@string/scan_qr" android:shortcutLongLabel="@string/scan_qr">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="com.bqsqwad.share" android:targetClass="com.bqsqwad.share.MainActivity"><extra android:name="route" android:value="scan" /></intent>
+    </shortcut>
+</shortcuts>
