@@ -58,8 +58,14 @@ class ShareViewModel @Inject constructor(
     val keyText = SessionCrypto.keyToString(sessionKey)
     private val outgoingPayloadRecords = java.util.concurrent.ConcurrentHashMap<Long, TransferEntity>()
     private val outgoingPayloadIds = java.util.concurrent.ConcurrentHashMap<Long, Long>()
+    private val pendingOutgoingQueue = java.util.concurrent.ConcurrentLinkedQueue<TransferEntity>()
+    private val pumpingQueue = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val maxConcurrentPayloads = 3
 
     init {
+        viewModelScope.launch {
+            nearby.connected.collect { pumpOutgoingQueue() }
+        }
         val activePayloadIds = mutableSetOf<Long>()
         viewModelScope.launch {
             nearby.progress.collect { progress ->
@@ -97,6 +103,7 @@ class ShareViewModel @Inject constructor(
                             }
                         }
                     }
+                    pumpOutgoingQueue()
                 }
                 val complete = progress.status != 2 && activePayloadIds.isEmpty()
                 val text = if (complete) {
@@ -317,23 +324,16 @@ class ShareViewModel @Inject constructor(
                 mime = mime,
                 bytes = bytes,
                 bytesDone = 0L,
-                status = "SENDING",
+                status = "QUEUED",
                 peerName = endpointId,
                 localPath = file.absolutePath,
                 createdAt = System.currentTimeMillis(),
                 favorite = false,
             )
             val rowId = dao.insert(row)
-            val payloadId = try {
-                nearby.sendFile(endpointId, file)
-            } catch (_: Exception) {
-                dao.update(row.copy(id = rowId, status = "FAILED"))
-                if (file.name.startsWith("outgoing-")) runCatching { file.delete() }
-                return@forEach
-            }
-            outgoingPayloadRecords[payloadId] = row.copy(id = rowId)
-            outgoingPayloadIds[rowId] = payloadId
+            pendingOutgoingQueue.add(row.copy(id = rowId))
         }
+        pumpOutgoingQueue()
         pendingUris.value = emptyList()
         pendingLocalFiles.value = emptyList()
         autoSendPending.value = false
@@ -356,11 +356,60 @@ class ShareViewModel @Inject constructor(
         autoSendPending.value = false
     }
 
+    /**
+     * Keeps a small number of Nearby file payloads active at once. This allows
+     * multi-select batches to progress concurrently without flooding the
+     * connection with hundreds of simultaneous payloads.
+     */
+    private fun pumpOutgoingQueue() {
+        if (!pumpingQueue.compareAndSet(false, true)) return
+        viewModelScope.launch {
+            try {
+                while (outgoingPayloadRecords.size < maxConcurrentPayloads) {
+                    val next = pendingOutgoingQueue.peek() ?: break
+                    if (next.peerName !in nearby.connected.value) break
+                    pendingOutgoingQueue.poll() ?: continue
+                    val source = next.localPath?.let(::File)
+                    if (source == null || !source.isFile || !source.canRead()) {
+                        dao.update(next.copy(status = "FAILED_SOURCE_MISSING", bytesDone = 0L))
+                        continue
+                    }
+                    try {
+                        val payloadId = nearby.sendFile(next.peerName, source)
+                        val sending = next.copy(status = "SENDING", bytesDone = 0L)
+                        outgoingPayloadRecords[payloadId] = sending
+                        outgoingPayloadIds[next.id] = payloadId
+                        dao.update(sending)
+                    } catch (_: Exception) {
+                        dao.update(next.copy(status = "FAILED", bytesDone = 0L))
+                        if (source.name.startsWith("outgoing-")) runCatching { source.delete() }
+                    }
+                }
+            } finally {
+                pumpingQueue.set(false)
+                if (outgoingPayloadRecords.size < maxConcurrentPayloads &&
+                    pendingOutgoingQueue.peek()?.peerName in nearby.connected.value
+                ) {
+                    pumpOutgoingQueue()
+                }
+            }
+        }
+    }
+
     fun cancelTransfer(item: TransferEntity) = viewModelScope.launch {
-        val payloadId = outgoingPayloadIds.remove(item.id) ?: return@launch
-        outgoingPayloadRecords.remove(payloadId)
-        nearby.cancelPayload(payloadId)
-        dao.update(item.copy(status = "CANCELLED"))
+        val payloadId = outgoingPayloadIds.remove(item.id)
+        if (payloadId != null) {
+            outgoingPayloadRecords.remove(payloadId)
+            nearby.cancelPayload(payloadId)
+            dao.update(item.copy(status = "CANCELLED"))
+        } else if (pendingOutgoingQueue.removeIf { it.id == item.id }) {
+            dao.update(item.copy(status = "CANCELLED"))
+            item.localPath?.let { path ->
+                val file = File(path)
+                if (file.name.startsWith("outgoing-")) runCatching { file.delete() }
+            }
+        }
+        pumpOutgoingQueue()
     }
 
     fun retryTransfer(item: TransferEntity) = viewModelScope.launch {
