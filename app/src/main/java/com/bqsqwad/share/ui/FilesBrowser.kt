@@ -271,7 +271,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                         Text(MediaRepository.formatBytes(selected.values.sum()), style = MaterialTheme.typography.bodySmall)
                     }
                     TextButton(onClick = { selected.clear(); selectedUris.clear(); selectedFiles.clear() }) { Text("Clear") }
-                    Button(onClick = { shareDialog = true }) { Text("Share") }
+                    Button(onClick = { shareDialog = true }) { Text("Send") }
                 }
             }
         }
@@ -328,8 +328,8 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
     if (shareDialog) {
         AlertDialog(
             onDismissRequest = { shareDialog = false },
-            title = { Text("Share selected items") },
-            text = { Text("Choose where to continue with ${selected.size} selected item(s).") },
+            title = { Text("Send selected items") },
+            text = { Text("Continue to nearby devices with ${selected.size} selected item(s).") },
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Button(onClick = {
