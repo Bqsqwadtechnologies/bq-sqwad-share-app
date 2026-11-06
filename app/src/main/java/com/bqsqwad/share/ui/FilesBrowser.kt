@@ -69,6 +69,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
     val selectedFiles = remember { mutableStateMapOf<String, List<File>>() }
     var shareDialog by remember { mutableStateOf(false) }
     var previewItem by remember { mutableStateOf<ShareMediaItem?>(null) }
+    var appInfo by remember { mutableStateOf<ShareAppItem?>(null) }
     val requestMedia = rememberMediaPermissionRequest(tab) { refresh++ }
     val received = when (tab) {
         "Received" -> history.filter { it.direction.equals("RECEIVE", true) && it.status != "DELETED" }
@@ -126,9 +127,17 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
             }
         }
         if (tab == "Apps") {
-            Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !systemApps, onClick = { systemApps = false }, label = { Text("Installed") })
-                FilterChip(selected = systemApps, onClick = { systemApps = true }, label = { Text("System") })
+            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = !systemApps, onClick = { systemApps = false; selected.clear(); selectedFiles.clear() }, label = { Text("Installed apps") })
+                    FilterChip(selected = systemApps, onClick = { systemApps = true; selected.clear(); selectedFiles.clear() }, label = { Text("System apps") })
+                }
+                Text(
+                    if (selected.isEmpty()) "Hold an app to select it. Then tap other apps to add them."
+                    else "Tap more apps to select them, then choose Send below.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
         }
         when {
@@ -150,11 +159,30 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                             runCatching { context.packageManager.getApplicationIcon(app.packageName).toBitmap().asImageBitmap() }.getOrNull()
                         }
                         Card(Modifier.fillMaxWidth().padding(vertical = 3.dp).combinedClickable(
-                            onClick = { selectLocal(app.packageName, app.apkPaths.map(::File), app.apkPaths.sumOf { runCatching { File(it).length() }.getOrDefault(0L) }) },
-                            onLongClick = { if (!isSelected) selectLocal(app.packageName, app.apkPaths.map(::File), app.apkPaths.sumOf { runCatching { File(it).length() }.getOrDefault(0L) }) },
+                            onClick = {
+                                val appFiles = app.apkPaths.map(::File)
+                                val appSize = app.apkPaths.sumOf { runCatching { File(it).length() }.getOrDefault(0L) }
+                                if (selected.isNotEmpty()) selectLocal(app.packageName, appFiles, appSize)
+                                else appInfo = app
+                            },
+                            onLongClick = {
+                                if (!isSelected) selectLocal(
+                                    app.packageName,
+                                    app.apkPaths.map(::File),
+                                    app.apkPaths.sumOf { runCatching { File(it).length() }.getOrDefault(0L) },
+                                )
+                            },
                         )) {
                             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                if (appIcon != null) Image(appIcon, contentDescription = app.label, modifier = Modifier.size(40.dp))
+                                if (appIcon != null) {
+                                    Image(appIcon, contentDescription = app.label, modifier = Modifier.size(48.dp))
+                                } else {
+                                    androidx.compose.material3.Icon(
+                                        androidx.compose.material.icons.Icons.Filled.Apps,
+                                        contentDescription = "App icon",
+                                        modifier = Modifier.size(48.dp),
+                                    )
+                                }
                                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                                     Text(app.label, style = MaterialTheme.typography.titleSmall)
                                     Text(app.packageName, style = MaterialTheme.typography.bodySmall)
@@ -203,13 +231,19 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                                     AsyncImage(
                                         model = item.uri,
                                         contentDescription = item.name,
-                                        modifier = Modifier.size(68.dp),
+                                        modifier = Modifier.size(88.dp),
+                                        contentScale = ContentScale.Crop,
+                                    )
+                                } else if (tab == "Videos") {
+                                    AsyncImage(
+                                        model = item.uri,
+                                        contentDescription = item.name,
+                                        modifier = Modifier.size(88.dp),
                                         contentScale = ContentScale.Crop,
                                     )
                                 } else {
                                     androidx.compose.material3.Icon(
                                         imageVector = when (tab) {
-                                            "Videos" -> androidx.compose.material.icons.Icons.Filled.VideoLibrary
                                             "Music" -> androidx.compose.material.icons.Icons.Filled.MusicNote
                                             else -> androidx.compose.material.icons.Icons.Filled.FolderOpen
                                         },
@@ -241,6 +275,29 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                 }
             }
         }
+    }
+
+    if (appInfo != null) {
+        AlertDialog(
+            onDismissRequest = { appInfo = null },
+            title = { Text(appInfo?.label.orEmpty()) },
+            text = {
+                Text("Hold this app in the list to select it. You can select several installed apps and send their app files to another nearby phone. This does not open the Play Store.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    appInfo?.let { app ->
+                        selectLocal(
+                            app.packageName,
+                            app.apkPaths.map(::File),
+                            app.apkPaths.sumOf { runCatching { File(it).length() }.getOrDefault(0L) },
+                        )
+                    }
+                    appInfo = null
+                }) { Text("Select app") }
+            },
+            dismissButton = { TextButton(onClick = { appInfo = null }) { Text("Close") } },
+        )
     }
 
     if (previewItem != null) {
