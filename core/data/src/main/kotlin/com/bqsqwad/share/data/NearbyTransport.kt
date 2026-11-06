@@ -16,7 +16,9 @@ import com.google.android.gms.nearby.connection.PayloadCallback
 import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import com.google.android.gms.nearby.connection.Strategy
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 import javax.inject.Inject
@@ -41,11 +43,11 @@ class NearbyTransport @Inject constructor(@ApplicationContext context: Context) 
     private val _connected = MutableStateFlow<Set<String>>(emptySet())
     val connected: StateFlow<Set<String>> = _connected
 
-    private val _payloads = MutableStateFlow<PayloadEvent?>(null)
-    val payloads: StateFlow<PayloadEvent?> = _payloads
+    private val _payloads = MutableSharedFlow<PayloadEvent>(extraBufferCapacity = 64)
+    val payloads: SharedFlow<PayloadEvent> = _payloads
 
-    private val _progress = MutableStateFlow<ProgressEvent?>(null)
-    val progress: StateFlow<ProgressEvent?> = _progress
+    private val _progress = MutableSharedFlow<ProgressEvent>(extraBufferCapacity = 128)
+    val progress: SharedFlow<ProgressEvent> = _progress
 
     var lastError: String? = null
         private set
@@ -87,10 +89,10 @@ class NearbyTransport @Inject constructor(@ApplicationContext context: Context) 
 
     private val payloadCallback = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
-            _payloads.value = PayloadEvent(endpointId, payload)
+            _payloads.tryEmit(PayloadEvent(endpointId, payload))
         }
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
-            _progress.value = ProgressEvent(endpointId, update.payloadId, update.bytesTransferred, update.totalBytes, update.status)
+            _progress.tryEmit(ProgressEvent(endpointId, update.payloadId, update.bytesTransferred, update.totalBytes, update.status))
         }
     }
 
