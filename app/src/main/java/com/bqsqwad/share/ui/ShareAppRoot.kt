@@ -29,6 +29,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -51,6 +53,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.bqsqwad.share.BuildConfig
@@ -91,9 +94,27 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
         } else {
             val nav = rememberNavController()
             val adFree = settings.adFreeUntil > System.currentTimeMillis()
-            Scaffold(bottomBar = { BannerSlot(enabled = !adFree && ads.canRequestAds, modifier = Modifier.navigationBarsPadding()) }) { adPadding ->
+            val backStackEntry by nav.currentBackStackEntryAsState()
+            val currentRoute = backStackEntry?.destination?.route
+            Scaffold(bottomBar = {
+                Column {
+                    BannerSlot(enabled = !adFree && ads.canRequestAds, modifier = Modifier.navigationBarsPadding())
+                    NavigationBar {
+                        listOf("home" to "Home", "files" to "Files", "history" to "Transfers", "cleaner" to "Clean", "settings" to "Settings").forEach { (route, label) ->
+                            NavigationBarItem(selected = currentRoute == route, onClick = {
+                                nav.navigate(route) {
+                                    popUpTo(nav.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }, icon = {}, label = { Text(label) })
+                        }
+                    }
+                }
+            }) { adPadding ->
             NavHost(nav, startDestination = "home", modifier = Modifier.padding(adPadding)) {
                 composable("home") { Home(nav, vm, ads, adFree) }
+                composable("files") { LibraryPage("files", vm, ads, adFree) }
                 composable("send") { Send(nav, vm) }
                 composable("receive") { Receive(vm) }
                 composable("picker") { Picker(nav, vm, ads, adFree) }
