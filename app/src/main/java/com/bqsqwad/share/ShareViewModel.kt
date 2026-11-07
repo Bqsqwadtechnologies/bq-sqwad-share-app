@@ -53,6 +53,7 @@ class ShareViewModel @Inject constructor(
     var sessionCode: String = SessionCrypto.sixDigitCode()
         private set
     val receiveExpiresAt = MutableStateFlow(0L)
+    val incomingTransferMessage = MutableStateFlow("")
     val pendingUris = MutableStateFlow<List<Uri>>(emptyList())
     val pendingLocalFiles = MutableStateFlow<List<File>>(emptyList())
     val autoSendPending = MutableStateFlow(false)
@@ -137,7 +138,7 @@ class ShareViewModel @Inject constructor(
             val (endpointId, incomingFile) = pending
             viewModelScope.launch {
                 try {
-                    withContext(Dispatchers.IO) {
+                    val receivedName = withContext(Dispatchers.IO) {
                         val name = FileUtilities.safeFileName(incomingFile.name)
                         val extension = name.substringAfterLast('.', "").lowercase()
                         val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
@@ -145,7 +146,11 @@ class ShareViewModel @Inject constructor(
                         val directory = File(context.getExternalFilesDir(null), folderFor(kind))
                         val destination = FileUtilities.copyToUniqueDestination(incomingFile, directory, name)
                         record(destination.name, mime, destination.length(), "RECEIVE", endpointId, destination.absolutePath)
+                        destination.name
                     }
+                    incomingTransferMessage.value = "Received: $receivedName"
+                } catch (_: Exception) {
+                    incomingTransferMessage.value = "The transfer finished, but this file could not be saved. Check available storage and try again."
                 } finally {
                     // Nearby's temporary payload file is no longer needed after the app-owned copy.
                     withContext(Dispatchers.IO) { runCatching { incomingFile.delete() } }
@@ -186,7 +191,12 @@ class ShareViewModel @Inject constructor(
         private set
 
     /** Creates a fresh receive code each time the Receive screen is opened or regenerated. */
+    fun dismissIncomingTransferMessage() {
+        incomingTransferMessage.value = ""
+    }
+
     fun startReceiveSession() {
+        incomingTransferMessage.value = ""
         val previous = sessionCode
         var next = SessionCrypto.sixDigitCode()
         while (next == previous) next = SessionCrypto.sixDigitCode()

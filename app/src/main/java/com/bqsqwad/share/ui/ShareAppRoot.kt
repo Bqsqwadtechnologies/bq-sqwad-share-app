@@ -463,6 +463,7 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
 private fun Receive(vm: ShareViewModel) {
     val context = LocalContext.current
     val incoming by vm.nearby.incoming.collectAsState()
+    val incomingMessage by vm.incomingTransferMessage.collectAsState()
     val expiresAt by vm.receiveExpiresAt.collectAsState()
     var remainingSeconds by remember { mutableStateOf(0L) }
     val receivePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -497,6 +498,18 @@ private fun Receive(vm: ShareViewModel) {
     val payload = if (code.isNotBlank()) "bqsqwad://share?code=$code&expires=$expiresAt&key=${vm.keyText}&v=${vm.verification}" else ""
     Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(stringResource(R.string.show_qr), style = MaterialTheme.typography.titleLarge)
+        if (incomingMessage.isNotBlank()) {
+            Card(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(incomingMessage, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { vm.dismissIncomingTransferMessage() }) { Text("Dismiss") }
+                }
+            }
+        }
         if (code.isNotBlank()) {
             Image(
                 bitmap = qrBitmap(payload).asImageBitmap(),
