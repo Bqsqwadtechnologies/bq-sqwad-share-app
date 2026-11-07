@@ -47,7 +47,7 @@ android {
                 "proguard-rules.pro",
             )
             // Sign only with the configured private release keystore.
-            // If no keystore is configured, leave the release artifact unsigned.
+            // Release packaging fails closed if any signing credential is missing.
             signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
         }
         debug {
