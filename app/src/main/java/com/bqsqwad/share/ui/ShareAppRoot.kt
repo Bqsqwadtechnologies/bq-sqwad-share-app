@@ -683,9 +683,11 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
             Text("${connected.size} device(s) connected", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
         }
         if (matchingPeers.isEmpty()) Text("Searching for nearby devices… Keep both devices close and Bluetooth/Wi-Fi enabled.", modifier = Modifier.padding(vertical = 12.dp))
-        if (receiveCode.length != 6) {
-            Text("Enter or scan the receiver’s six-digit code before connecting.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
-        }
+        Text(
+            "The session code selects a nearby receiver; nearby devices may see it, so it is not proof of identity. Compare the Nearby verification digits on both phones before accepting.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(vertical = 8.dp),
+        )
         matchingPeers.forEach { peer ->
             val isConnected = peer.endpointId in connected
             val isConnecting = peer.endpointId in connecting
