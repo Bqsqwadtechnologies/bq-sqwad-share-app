@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="received_photos_internal" path="Photos/" />
+    <files-path name="received_videos_internal" path="Videos/" />
+    <files-path name="received_music_internal" path="Music/" />
+    <files-path name="received_documents_internal" path="Documents/" />
+    <files-path name="received_apps_internal" path="Apps/" />
+    <files-path name="received_clipboard_internal" path="Clipboard/" />
+    <files-path name="received_folders_internal" path="Folders/" />
+    <files-path name="received_files_internal" path="Files/" />
+    <files-path name="computer_uploads_internal" path="FromComputer/" />
+    <external-files-path name="received_photos" path="Photos/" />
+    <external-files-path name="received_videos" path="Videos/" />
+    <external-files-path name="received_music" path="Music/" />
+    <external-files-path name="received_documents" path="Documents/" />
+    <external-files-path name="received_apps" path="Apps/" />
+    <external-files-path name="received_clipboard" path="Clipboard/" />
+    <external-files-path name="received_folders" path="Folders/" />
+    <external-files-path name="received_files" path="Files/" />
+    <external-files-path name="computer_uploads" path="FromComputer/" />
+</paths>
