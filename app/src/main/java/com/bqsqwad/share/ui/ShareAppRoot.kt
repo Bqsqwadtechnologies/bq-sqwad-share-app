@@ -268,9 +268,12 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         }
                         composable("send") { Send(nav, vm) }
                         composable("scan") {
-                            QrScanner { code ->
-                                vm.setScannedReceiveCode(code)
-                                nav.navigate("send") { popUpTo("scan") { inclusive = true } }
+                            QrScanner { payload ->
+                                if (vm.setScannedReceiveCode(payload)) {
+                                    nav.navigate("send") { popUpTo("scan") { inclusive = true } }
+                                } else {
+                                    Toast.makeText(activity, "This receive QR code is invalid or expired.", Toast.LENGTH_LONG).show()
+                                }
                             }
                         }
                         composable("receive") { Receive(vm) }
@@ -613,7 +616,11 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
         }
         androidx.compose.material3.OutlinedTextField(
             value = receiveCode,
-            onValueChange = { receiveCode = it.filter(Char::isDigit).take(6) },
+            onValueChange = {
+                val cleaned = it.filter(Char::isDigit).take(6)
+                receiveCode = cleaned
+                if (cleaned != scannedCode) vm.clearScannedChatSession()
+            },
             label = { Text("Enter 6-digit receive code") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
@@ -648,6 +655,7 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
                     enabled = receiveCode.length == 6 && !isConnected && !isConnecting,
                 ) {
                     val displayName = "BQ Sqwad Share code $receiveCode"
+                    vm.nearby.setExpectedReceiveCode(receiveCode)
                     vm.nearby.requestConnection(peer.endpointId, displayName)
                 },
             ) {
@@ -1411,14 +1419,43 @@ private fun Favorites(vm: ShareViewModel) {
 private fun Chat(vm: ShareViewModel) {
     var text by remember { mutableStateOf("") }
     val connected by vm.nearby.connected.collectAsState()
-    Column(Modifier.padding(16.dp)) {
+    val chatReady by vm.chatReadyEndpoints.collectAsState()
+    val messages by vm.chatMessages.collectAsState()
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         Text(stringResource(R.string.chat), style = MaterialTheme.typography.titleLarge)
-        Text(if (connected.isEmpty()) stringResource(R.string.not_found) else connected.joinToString())
-        androidx.compose.material3.OutlinedTextField(value = text, onValueChange = { text = it }, modifier = Modifier.fillMaxWidth())
-        Button(onClick = {
-            connected.forEach { vm.sendText(it, text) }
-            text = ""
-        }) { Text(stringResource(R.string.group_send)) }
+        Text(if (connected.isEmpty()) stringResource(R.string.not_found) else "${connected.size} nearby device(s) connected.")
+        Text(
+            if (chatReady.isEmpty()) {
+                "Scan the receiver's QR code before connecting to establish the encrypted chat session. Entering only the six-digit code is enough for file transfer, but not chat."
+            } else {
+                "Encrypted chat ready with ${chatReady.size} device(s)."
+            },
+            style = MaterialTheme.typography.bodySmall,
+        )
+        messages.forEach { message ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(if (message.outgoing) "You" else message.peer, style = MaterialTheme.typography.labelMedium)
+                    Text(message.text)
+                }
+            }
+        }
+        androidx.compose.material3.OutlinedTextField(
+            value = text,
+            onValueChange = { text = it.take(2000) },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Message") },
+        )
+        Button(
+            enabled = chatReady.isNotEmpty() && text.isNotBlank(),
+            onClick = {
+                if (vm.sendTextToConnected(text)) text = ""
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(stringResource(R.string.group_send)) }
     }
 }
 
