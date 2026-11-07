@@ -39,7 +39,7 @@ public partial class MainWindow : Window
         _pin = PinBox.Password.Trim();
         if (string.IsNullOrWhiteSpace(_pin) && pinFromAddress is { Length: 2 })
             _pin = Uri.UnescapeDataString(pinFromAddress[1]);
-        if (!Regex.IsMatch(_pin, @"^\\d{6}$"))
+        if (!Regex.IsMatch(_pin, @"^\d{6}$"))
         {
             StatusText.Text = "Enter the six-digit PIN shown by the phone, or paste the complete QR link.";
             return false;
