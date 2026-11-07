@@ -18,6 +18,7 @@ import com.bqsqwad.share.common.folderFor
 import com.bqsqwad.share.common.kindForMime
 import com.bqsqwad.share.data.NearbyTransport
 import com.bqsqwad.share.data.SettingsStore
+import com.bqsqwad.share.data.UserSettings
 import com.bqsqwad.share.data.TransferDao
 import com.bqsqwad.share.files.FileUtilities
 import com.bqsqwad.share.data.TransferEntity
@@ -66,7 +67,27 @@ class ShareViewModel @Inject constructor(
     private val store: SettingsStore,
     val nearby: NearbyTransport,
 ) : ViewModel() {
-    val settings = store.settings
+    val settings = store.settings.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        UserSettings(
+            ageConfirmed = false,
+            themeMode = "light",
+            accent = "royal",
+            haptics = true,
+            reduceMotion = false,
+            notifications = true,
+            reminderMinutes = 9 * 60,
+            adFreeUntil = 0L,
+            adFreeRewardCount = 0,
+            premiumUntil = 0L,
+            blocked = emptySet(),
+            nicknames = emptyMap(),
+            lastBackgroundAt = 0L,
+            trustedDevices = emptyMap(),
+            relayParticipationEnabled = false,
+        ),
+    )
     private val notificationsEnabled = MutableStateFlow(true)
     val history = dao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val favorites = dao.observeFavorites().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
