@@ -455,7 +455,9 @@ class ShareViewModel @Inject constructor(
                         continue
                     }
                     try {
-                        val digest = withContext(Dispatchers.IO) { FileUtilities.sha256(source) }
+                        val digest = withContext(Dispatchers.IO) {
+                            FileUtilities.sha256(source).chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+                        }
                         val payloadId = nearby.sendFileWithMetadata(
                             endpointId = next.peerName,
                             file = source,
