@@ -94,6 +94,7 @@ class ShareViewModel @Inject constructor(
     private val maxConcurrentPayloads = 3
     private val activeResumableTransfers = java.util.concurrent.ConcurrentHashMap<Long, Job>()
     private val incomingTransferMimes = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val incomingTransferEndpoints = java.util.concurrent.ConcurrentHashMap<String, String>()
     private val activeNearbyPayloadIds = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
     private val transferServiceActive = java.util.concurrent.atomic.AtomicBoolean(false)
     private val resumableReceiver by lazy { ResumableFileReceiver(File(context.filesDir, "resumable-incoming")) }
@@ -115,9 +116,20 @@ class ShareViewModel @Inject constructor(
             var previousConnected = emptySet<String>()
             nearby.connected.collect { connected ->
                 val newlyConnected = connected - previousConnected
+                val disconnected = previousConnected - connected
                 chatReadyEndpoints.value = chatReadyEndpoints.value.intersect(connected)
                 if (chatSessionReady.value) newlyConnected.forEach(::sendChatHello)
+                disconnected.forEach { endpointId ->
+                    incomingTransferEndpoints.entries
+                        .filter { it.value == endpointId }
+                        .map { it.key }
+                        .forEach { transferId ->
+                            incomingTransferEndpoints.remove(transferId)
+                            incomingTransferMimes.remove(transferId)
+                        }
+                }
                 previousConnected = connected
+                updateTransferServiceIfIdle()
                 if (connected.isNotEmpty()) {
                     val waiting = dao.observeAll().first().filter {
                         it.direction.equals("SEND", true) && it.status == "WAITING_FOR_DEVICE" && it.peerName in connected
@@ -848,6 +860,7 @@ class ShareViewModel @Inject constructor(
                         return true
                     }
                     incomingTransferMimes[offer.transferId] = offer.mime
+                    incomingTransferEndpoints[offer.transferId] = endpointId
                     val offset = try {
                         withContext(Dispatchers.IO) {
                             resumableReceiver.begin(ResumableFileReceiver.Offer(
@@ -861,6 +874,7 @@ class ShareViewModel @Inject constructor(
                         throw cancelled
                     } catch (failure: Exception) {
                         incomingTransferMimes.remove(offer.transferId)
+                        incomingTransferEndpoints.remove(offer.transferId)
                         incomingTransferMessage.value = failure.message?.take(120) ?: "Could not prepare the receive file."
                         nearby.sendBytes(endpointId, TransferProtocol.frame(
                             TransferProtocol.TYPE_CANCEL,
@@ -890,7 +904,7 @@ class ShareViewModel @Inject constructor(
                     val completed = withContext(Dispatchers.IO) { resumableReceiver.complete(transferId) }
                     try {
                         val name = FileUtilities.safeFileName(completed.name)
-                        val mime = incomingTransferMimes.remove(transferId)
+                        val mime = incomingTransferMimes[transferId]
                             ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(completed.extension.lowercase())
                             ?: "application/octet-stream"
                         val kind = kindForMime(mime, name)
@@ -904,6 +918,8 @@ class ShareViewModel @Inject constructor(
                             TransferProtocol.TYPE_ACK,
                             TransferProtocol.transferOffsetBody(transferId, completed.length()),
                         ))
+                        incomingTransferMimes.remove(transferId)
+                        incomingTransferEndpoints.remove(transferId)
                         updateTransferServiceIfIdle()
                     } finally {
                         withContext(Dispatchers.IO) { completed.delete() }
@@ -914,12 +930,21 @@ class ShareViewModel @Inject constructor(
                     val transferId = TransferProtocol.parseTransferId(frame.body)
                     withContext(Dispatchers.IO) { resumableReceiver.discard(transferId) }
                     incomingTransferMimes.remove(transferId)
+                    incomingTransferEndpoints.remove(transferId)
                     updateTransferServiceIfIdle()
                     true
                 }
                 else -> false
             }
         } catch (failure: Exception) {
+            if (frame.type == TransferProtocol.TYPE_COMPLETE) {
+                val failedId = runCatching { TransferProtocol.parseTransferId(frame.body) }.getOrNull()
+                if (failedId != null) {
+                    incomingTransferMimes.remove(failedId)
+                    incomingTransferEndpoints.remove(failedId)
+                }
+                updateTransferServiceIfIdle()
+            }
             incomingTransferMessage.value = failure.message?.take(120) ?: "Could not process resumable transfer."
             true
         }
