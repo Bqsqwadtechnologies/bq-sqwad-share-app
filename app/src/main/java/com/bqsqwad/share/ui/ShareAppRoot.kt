@@ -265,6 +265,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         composable("home") { Home(nav, vm, ads, adFree) { scope.launch { drawerState.open() } } }
                         composable("search") { SearchScreen(nav, vm) }
                         composable("clone-picker") { FilesBrowser(nav, vm, initialTab = "files", showCategoryTabs = false, showSearch = false) }
+                        composable("clone-app-picker") { FilesBrowser(nav, vm, initialTab = "apps", showCategoryTabs = false, showSearch = false) }
                         composable("files") {
                             AdSupportedBrowsePage(!adFree && adsAllowed, AdUnits.FILES_NATIVE) {
                                 FilesBrowser(nav, vm)
@@ -1328,8 +1329,11 @@ private fun Clone(nav: NavHostController) {
         Text("Move selected photos, videos, music, documents, folders and APK installers to another nearby Android phone.")
         Text("This is a file migration tool, not a full phone backup. Android does not allow this app to copy another app's private data, account credentials or system settings.")
         Text("Choose the items first, then connect to the receiving phone. Transfers remain local and require both devices to be nearby.")
+        Button(onClick = { nav.navigate("clone-app-picker") }, modifier = Modifier.fillMaxWidth()) {
+            Text("Choose apps")
+        }
         Button(onClick = { nav.navigate("clone-picker") }, modifier = Modifier.fillMaxWidth()) {
-            Text("Choose files and apps")
+            Text("Choose files")
         }
         Button(onClick = { nav.navigate("send") }, modifier = Modifier.fillMaxWidth()) {
             Text("Find receiving phone")
