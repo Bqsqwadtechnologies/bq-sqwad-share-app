@@ -426,6 +426,9 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
     val scope = rememberCoroutineScope()
     var installedApps by remember { mutableStateOf<List<ShareAppItem>>(emptyList()) }
     val context = LocalContext.current
+    val transferHistory by vm.history.collectAsState()
+    val incomingCount by vm.incomingTransferCount.collectAsState()
+    val outgoingCount = transferHistory.count { it.direction.equals("SEND", true) && it.status in setOf("SENDING", "QUEUED", "WAITING_FOR_DEVICE") }
 
     LaunchedEffect(Unit) {
         installedApps = withContext(Dispatchers.IO) {
@@ -467,6 +470,10 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                         modifier = Modifier.size(20.dp),
                         tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    val transferCount = when (index) { 5 -> outgoingCount; 6 -> incomingCount; else -> 0 }
+                    if (transferCount > 0) {
+                        Text(transferCount.toString(), style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.error))
+                    }
                     Text(
                         label,
                         style = MaterialTheme.typography.labelSmall,
