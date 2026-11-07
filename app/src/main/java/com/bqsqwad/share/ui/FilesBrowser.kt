@@ -1,5 +1,6 @@
 package com.bqsqwad.share.ui
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -553,7 +554,47 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                         vm.queueLocalFiles(selectedFiles.values.flatten(), autoSend = true)
                         shareDialog = false
                         nav.navigate("send")
-                    }) { Text("Send selected") }
+                    }) { Text("Send nearby") }
+                    TextButton(
+                        enabled = !archiving && !extracting,
+                        onClick = {
+                            scope.launch {
+                                val shareUris = mutableListOf<Uri>()
+                                shareUris.addAll(selectedUris.values)
+                                val stagedFiles = withContext(Dispatchers.IO) {
+                                    selectedFiles.values.flatten().filter { it.isFile }.mapIndexedNotNull { index, file ->
+                                        runCatching {
+                                            val copy = File(context.cacheDir, "bluetooth-share-${System.currentTimeMillis()}-$index-${file.name}")
+                                            file.inputStream().use { input -> copy.outputStream().use { output -> input.copyTo(output) } }
+                                            copy
+                                        }.getOrNull()
+                                    }
+                                }
+                                stagedFiles.forEach { file ->
+                                    runCatching {
+                                        shareUris.add(FileProvider.getUriForFile(context, "${context.packageName}.files", file))
+                                    }
+                                }
+                                val distinctUris = shareUris.distinct()
+                                if (distinctUris.isNotEmpty()) {
+                                    val sendIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                                        type = "*/*"
+                                        putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(distinctUris))
+                                        clipData = ClipData.newUri(context.contentResolver, "BQ Sqwad Share files", distinctUris.first())
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    runCatching {
+                                        context.startActivity(Intent.createChooser(sendIntent, "Share with Bluetooth or another app"))
+                                    }.onFailure {
+                                        Toast.makeText(context, "No compatible Bluetooth or sharing app is available.", Toast.LENGTH_LONG).show()
+                                    }
+                                } else {
+                                    Toast.makeText(context, "No readable files were selected.", Toast.LENGTH_SHORT).show()
+                                }
+                                shareDialog = false
+                            }
+                        },
+                    ) { Text("Bluetooth / other apps") }
                 }
             },
             dismissButton = { TextButton(onClick = { shareDialog = false }) { Text("Cancel") } },
