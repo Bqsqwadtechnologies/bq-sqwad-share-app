@@ -554,7 +554,6 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
             dismissButton = { TextButton(onClick = { shareDialog = false }) { Text("Cancel") } },
         )
     }
-}
 
     deleteReceivedItem?.let { item ->
         AlertDialog(
