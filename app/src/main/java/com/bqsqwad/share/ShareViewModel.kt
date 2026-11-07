@@ -904,6 +904,7 @@ class ShareViewModel @Inject constructor(
                             TransferProtocol.TYPE_ACK,
                             TransferProtocol.transferOffsetBody(transferId, completed.length()),
                         ))
+                        updateTransferServiceIfIdle()
                     } finally {
                         withContext(Dispatchers.IO) { completed.delete() }
                     }
@@ -913,6 +914,7 @@ class ShareViewModel @Inject constructor(
                     val transferId = TransferProtocol.parseTransferId(frame.body)
                     withContext(Dispatchers.IO) { resumableReceiver.discard(transferId) }
                     incomingTransferMimes.remove(transferId)
+                    updateTransferServiceIfIdle()
                     true
                 }
                 else -> false
@@ -952,6 +954,7 @@ class ShareViewModel @Inject constructor(
             }
         }
         pumpOutgoingQueue()
+        updateTransferServiceIfIdle()
     }
 
     fun retryTransfer(item: TransferEntity) = retryTransfer(item, item.peerName)
