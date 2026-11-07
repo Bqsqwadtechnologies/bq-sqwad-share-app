@@ -316,9 +316,37 @@ class ShareViewModel @Inject constructor(
         autoSendPending.value = false
         val queued = pendingUris.value
         if (queued.isEmpty() && pendingLocalFiles.value.isEmpty()) return@launch
-        val outgoing = withContext(Dispatchers.IO) {
-            queued.mapNotNull { uri ->
-                runCatching {
+        val staging = withContext(Dispatchers.IO) {
+            val prepared = mutableListOf<Pair<Uri, OutgoingShareFile>>()
+            val failed = mutableListOf<Uri>()
+            queued.forEach { uri ->
+                val result = runCatching {
+                    val resolver = context.contentResolver
+                    var name = uri.lastPathSegment?.substringAfterLast('/') ?: "shared-file"
+                    var size = 0L
+                    resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                            if (nameIndex >= 0) name = cursor.getString(nameIndex) ?: name
+                            if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) size = cursor.getLong(sizeIndex)
+                        }
+                    }
+                    val mime = resolver.getType(uri) ?: "application/octet-stream"
+                    val target = File(context.cacheDir, "outgoing-${System.currentTimeMillis()}-${name.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
+                    resolver.openInputStream(uri)?.use { input -> target.outputStream().use(input::copyTo) }
+                        ?: error("Unable to read selected file")
+                    OutgoingShareFile(target, mime, size.takeIf { it > 0L } ?: target.length(), name)
+                }
+                result.onSuccess { prepared += uri to it }.onFailure { failed += uri }
+            }
+            Triple(prepared, failed, pendingLocalFiles.value.filter { it.isFile }.map { file ->
+                OutgoingShareFile(file, MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase()) ?: "application/octet-stream", file.length(), file.name)
+            })
+        }
+        val outgoing = staging.first.map { it.second } + staging.third
+        pendingUris.value = staging.second
+        if (outgoing.isEmpty()) return@launch
                     val resolver = context.contentResolver
                     var name = uri.lastPathSegment?.substringAfterLast('/') ?: "shared-file"
                     var size = 0L
@@ -336,11 +364,7 @@ class ShareViewModel @Inject constructor(
                         ?: error("Unable to read selected file")
                     OutgoingShareFile(target, mime, size.takeIf { it > 0L } ?: target.length(), name)
                 }.getOrNull()
-            } + pendingLocalFiles.value.filter { it.isFile }.map { file ->
-                OutgoingShareFile(file, MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase()) ?: "application/octet-stream", file.length(), file.name)
-            }
         }
-        if (outgoing.isEmpty()) return@launch
         outgoing.forEach { (file, mime, bytes, displayName) ->
             val row = TransferEntity(
                 direction = "SEND",
@@ -358,7 +382,6 @@ class ShareViewModel @Inject constructor(
             pendingOutgoingQueue.add(row.copy(id = rowId))
         }
         pumpOutgoingQueue()
-        pendingUris.value = emptyList()
         pendingLocalFiles.value = emptyList()
         autoSendPending.value = false
     }
