@@ -207,7 +207,7 @@ class ShareViewModel @Inject constructor(
                     lastTransferNotificationAt.set(now)
                     if (complete) {
                         if (transferServiceActive.compareAndSet(true, false)) {
-                            TransferService.update(context, "Transfers complete", 0L, 0L, true)
+                            TransferService.update(context, "Transfers complete", 0L, 0L, true, settings.value.notifications)
                         }
                     } else {
                         transferServiceActive.set(true)
@@ -741,7 +741,7 @@ class ShareViewModel @Inject constructor(
             receiveExpiresAt.value == 0L
         if (idle && transferServiceActive.compareAndSet(true, false)) {
             lastTransferNotificationAt.set(SystemClock.elapsedRealtime())
-            TransferService.update(context, "Transfers complete", 0L, 0L, complete = true)
+            TransferService.update(context, "Transfers complete", 0L, 0L, complete = true, showCompletionNotification = settings.value.notifications)
         }
     }
 
