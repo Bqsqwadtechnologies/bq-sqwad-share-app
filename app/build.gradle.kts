@@ -64,6 +64,21 @@ android {
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
+tasks.configureEach {
+    if (name == "packageRelease" || name == "bundleRelease") {
+        doFirst {
+            val releaseSigning = android.signingConfigs.getByName("release")
+            val signingReady = releaseSigning.storeFile?.isFile == true &&
+                !releaseSigning.storePassword.isNullOrBlank() &&
+                !releaseSigning.keyAlias.isNullOrBlank() &&
+                !releaseSigning.keyPassword.isNullOrBlank()
+            check(signingReady) {
+                "Release signing is required. Configure KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD before building a release APK or AAB."
+            }
+        }
+    }
+}
+
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:domain"))
