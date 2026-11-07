@@ -482,6 +482,9 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
+        if (!adFree && ads.canRequestAds) {
+            item { NativeSlot(true, AdUnits.HOME_NATIVE) }
+        }
         item {
             OutlinedTextField(
                 value = search,
