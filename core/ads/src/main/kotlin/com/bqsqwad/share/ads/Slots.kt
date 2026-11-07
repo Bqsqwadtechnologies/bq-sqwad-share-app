@@ -133,7 +133,7 @@ fun NativeSlot(enabled: Boolean, adUnitId: String, modifier: Modifier = Modifier
                     actionRow.addView(icon, LinearLayout.LayoutParams(48, 48))
                     actionRow.addView(cta)
                     column.addView(actionRow)
-                    addView(column, NativeAdView.LayoutParams(
+                    addView(column, ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT,
                     ))
