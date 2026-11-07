@@ -65,7 +65,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false) {
+fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, initialSearchQuery: String = "") {
     val context = LocalContext.current
     var kind by remember { mutableStateOf(initialKind.takeIf { it == "photos" || it == "videos" || it == "music" } ?: "music") }
     var selectedPhoto by remember { mutableStateOf<ShareMediaItem?>(null) }
@@ -78,7 +78,8 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false) 
     var currentIndex by remember { mutableStateOf(-1) }
     var shuffle by remember { mutableStateOf(false) }
     var repeatMode by remember { mutableStateOf(Player.REPEAT_MODE_OFF) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf(initialSearchQuery) }
+    LaunchedEffect(initialSearchQuery) { searchQuery = initialSearchQuery }
     var playbackSpeed by remember { mutableStateOf(1f) }
 
     fun hasMediaPermission(): Boolean = MediaPermissions.hasMedia(context, kind)
