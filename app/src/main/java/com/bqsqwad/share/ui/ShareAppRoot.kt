@@ -182,6 +182,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                             HorizontalDivider(Modifier.padding(vertical = 8.dp))
                             Text("TOOLS", style = MaterialTheme.typography.labelLarge)
                             listOf(
+                                "Storage Intelligence" to "storage-intelligence",
                                 "Clean" to "cleaner",
                                 "Favorites" to "favorites",
                                 "Chat" to "chat",
@@ -271,6 +272,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         composable("settings") { Settings(nav, vm, ads, activity) }
                         composable("clone") { Gated(settings, ads, activity, vm, "clone") { Clone(vm) } }
                         composable("computer") { Gated(settings, ads, activity, vm, "computer") { Computer(vm) } }
+                        composable("storage-intelligence") { StorageIntelligenceScreen { nav.navigate("cleaner") } }
                         composable("cleaner") { Cleaner(vm) }
                         composable("folder-transfer") { FolderTransferScreen(nav, vm) }
                         composable("device-hub") { DeviceHubScreen(nav, vm) }
