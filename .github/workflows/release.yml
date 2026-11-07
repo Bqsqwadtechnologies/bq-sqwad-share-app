@@ -29,7 +29,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          VERSION_CODE: ${{ github.run_number + 1 }}
+          VERSION_CODE: "3"
           VERSION_NAME: "1.1.0"
         run: ./gradlew :app:assembleRelease :app:bundleRelease --stacktrace
       - uses: actions/upload-artifact@v4
