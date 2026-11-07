@@ -334,7 +334,7 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, 
                             maxLines = 1,
                         )
                     }
-                    TextButton(onClick = { activePlayer.seekToPreviousMediaItem() }) { Text("‹") }
+                    TextButton(onClick = { activePlayer.seekToPreviousMediaItem() }, enabled = activePlayer.currentMediaItem?.mediaId?.startsWith("music:") == true) { Text("‹") }
                     Button(
                         onClick = {
                             if (activePlayer.currentMediaItem?.mediaId?.startsWith("music:") == true) {
@@ -344,7 +344,7 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, 
                         enabled = activePlayer.currentMediaItem?.mediaId?.startsWith("music:") == true,
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     ) { Text(if (isPlaying) "Pause" else "Play") }
-                    TextButton(onClick = { activePlayer.seekToNextMediaItem() }) { Text("›") }
+                    TextButton(onClick = { activePlayer.seekToNextMediaItem() }, enabled = activePlayer.currentMediaItem?.mediaId?.startsWith("music:") == true) { Text("›") }
                 }
             }
         }
