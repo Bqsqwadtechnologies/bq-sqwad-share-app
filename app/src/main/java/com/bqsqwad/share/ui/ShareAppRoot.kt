@@ -298,7 +298,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                             }
                         }
                         composable("settings") { Settings(nav, vm, ads, activity) }
-                        composable("clone") { Gated(settings, ads, activity, vm, "clone") { Clone(vm) } }
+                        composable("clone") { Gated(settings, ads, activity, vm, "clone") { Clone(nav, vm) } }
                         composable("computer") { Gated(settings, ads, activity, vm, "computer") { Computer(vm) } }
                         composable("storage-intelligence") { StorageIntelligenceScreen { nav.navigate("cleaner") } }
                         composable("cleaner") { Cleaner(vm) }
@@ -1208,12 +1208,21 @@ private fun Gated(settings: UserSettings, ads: AdManager, activity: Activity, vm
 }
 
 @Composable
-private fun Clone(vm: ShareViewModel) {
-    Column(Modifier.padding(16.dp)) {
+private fun Clone(nav: NavHostController, vm: ShareViewModel) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text(stringResource(R.string.clone), style = MaterialTheme.typography.titleLarge)
-        Text(stringResource(R.string.privacy_note))
-        Text("Photos, videos, music, documents and the app list move only after the other phone accepts. Verification ${vm.verification}.")
-        Button(onClick = { vm.nearby.startDiscovery() }) { Text(stringResource(R.string.looking)) }
+        Text("Move selected photos, videos, music, documents, folders and APK installers to another nearby Android phone.")
+        Text("This is a file migration tool, not a full phone backup. Android does not allow this app to copy another app's private data, account credentials or system settings.")
+        Text("Choose the items first, then connect to the receiving phone. Transfers remain local and require both devices to be nearby.")
+        Button(onClick = { nav.navigate("files") }, modifier = Modifier.fillMaxWidth()) {
+            Text("Choose files and apps")
+        }
+        Button(onClick = { nav.navigate("send") }, modifier = Modifier.fillMaxWidth()) {
+            Text("Find receiving phone")
+        }
     }
 }
 
