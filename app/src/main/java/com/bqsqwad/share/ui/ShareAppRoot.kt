@@ -1098,6 +1098,14 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
     val settings by vm.settings.collectAsState(initial = null)
     val s = settings ?: return
     val ctx = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        vm.notif(granted)
+        if (!granted) {
+            Toast.makeText(ctx, "Allow notifications in Android settings to receive completion alerts.", Toast.LENGTH_LONG).show()
+        }
+    }
+    val hasNotificationPermission = android.os.Build.VERSION.SDK_INT < 33 ||
+        ctx.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
     val (freeBytes, totalBytes) = vm.storage()
     val connectedDevices by vm.nearby.connected.collectAsState()
     val discoveredPeers by vm.nearby.peers.collectAsState()
@@ -1188,7 +1196,15 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
                 Column(Modifier.padding(16.dp)) {
                     Text("Transfer completion notifications", style = MaterialTheme.typography.titleMedium)
                     Text("Android still shows the required foreground status while a transfer or receive session is active. This setting controls the completion alert after it ends.", style = MaterialTheme.typography.bodySmall)
-                    SwitchRow("Show completion alert", s.notifications) { vm.notif(it) }
+                    SwitchRow("Show completion alert", s.notifications && hasNotificationPermission) { enabled ->
+                        if (!enabled) {
+                            vm.notif(false)
+                        } else if (android.os.Build.VERSION.SDK_INT >= 33 && !hasNotificationPermission) {
+                            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            vm.notif(true)
+                        }
+                    }
                 }
             }
         }
