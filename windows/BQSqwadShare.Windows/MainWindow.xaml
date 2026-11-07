@@ -1,0 +1,13 @@
+<Window x:Class="BQSqwadShare.Windows.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="BQ Sqwad Share" Height="620" Width="900" MinHeight="500" MinWidth="700" Background="#F4F7FF">
+  <Grid Margin="22"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <StackPanel><TextBlock Text="BQ Sqwad Share" FontSize="28" FontWeight="Bold" Foreground="#173B91"/><TextBlock Text="Local Wi-Fi companion · files stay on your local network" Margin="0,4,0,16" Foreground="#52627D"/></StackPanel>
+    <Grid Grid.Row="1" Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <TextBox x:Name="AddressBox" Grid.Column="0" Height="36" Margin="0,0,8,0" VerticalContentAlignment="Center" Text="http://192.168.1.2:8765"/>
+      <PasswordBox x:Name="PinBox" Grid.Column="1" Height="36" Margin="0,0,8,0" VerticalContentAlignment="Center"/>
+      <Button Grid.Column="2" Content="Connect" Padding="18,6" Margin="0,0,8,0" Click="Connect_Click"/>
+      <Button Grid.Column="3" Content="Refresh" Padding="18,6" Click="Refresh_Click"/>
+    </Grid>
+    <Border Grid.Row="2" Background="White" CornerRadius="12" Padding="14"><DockPanel><TextBlock DockPanel.Dock="Top" Text="Files available on the phone" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,10"/><ListView x:Name="FilesList" MouseDoubleClick="FilesList_DoubleClick"><ListView.View><GridView><GridViewColumn Header="File" DisplayMemberBinding="{Binding Name}" Width="440"/><GridViewColumn Header="Size" DisplayMemberBinding="{Binding SizeLabel}" Width="150"/></GridView></ListView.View></ListView></DockPanel></Border>
+    <DockPanel Grid.Row="3" Margin="0,14,0,0"><TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="#52627D" Text="Connect to the phone's local sharing address."/><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button Content="Download selected" Padding="16,8" Margin="8,0,0,0" Click="Download_Click"/><Button Content="Send files to phone" Padding="16,8" Margin="8,0,0,0" Click="Upload_Click"/></StackPanel></DockPanel>
+  </Grid>
+</Window>

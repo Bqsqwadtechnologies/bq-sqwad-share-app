@@ -894,6 +894,20 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Offline relay participation", style = MaterialTheme.typography.titleMedium)
+                    Text("Choose whether this phone may volunteer storage and connectivity to help forward encrypted transfer packages when the relay feature is available. Participation is off by default and can be withdrawn here.")
+                    SwitchRow("Allow this device to participate", s.relayParticipationEnabled) { vm.relayParticipation(it) }
+                    if (s.relayParticipationEnabled) {
+                        Text("Opt-in is saved on this device. Relay forwarding is not yet connected to Nearby transport; enabling this setting does not currently forward files.")
+                    } else {
+                        Text("This device will not volunteer for relay participation.")
+                    }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Connected devices · ${connectedDevices.size}", style = MaterialTheme.typography.titleMedium)
                     if (connectedDevices.isEmpty()) {
                         Text("No devices are connected.")

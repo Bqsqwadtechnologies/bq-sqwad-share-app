@@ -312,6 +312,7 @@ class ShareViewModel @Inject constructor(
     fun haptics(on: Boolean) = viewModelScope.launch { store.setHaptics(on) }
     fun motion(on: Boolean) = viewModelScope.launch { store.setReduceMotion(on) }
     fun notif(on: Boolean) = viewModelScope.launch { store.setNotifications(on) }
+    fun relayParticipation(on: Boolean) = viewModelScope.launch { store.setRelayParticipation(on) }
     fun rewardAdFreeProgress() = viewModelScope.launch {
         if (store.addAdFreeReward() >= 5) store.grantAdFree(System.currentTimeMillis() + 86_400_000L)
     }

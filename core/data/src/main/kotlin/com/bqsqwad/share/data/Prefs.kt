@@ -30,6 +30,7 @@ data class UserSettings(
     val nicknames: Map<String, String>,
     val lastBackgroundAt: Long,
     val trustedDevices: Map<String, String>,
+    val relayParticipationEnabled: Boolean,
 )
 
 @Singleton
@@ -49,6 +50,7 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
     private val bg = longPreferencesKey("bg")
     private val deviceId = stringPreferencesKey("stable_device_id")
     private val trusted = stringSetPreferencesKey("trusted_device_records")
+    private val relayParticipation = booleanPreferencesKey("relay_participation_enabled")
 
     val settings: Flow<UserSettings> = context.dataStore.data.map { p ->
         val nickRaw = p[nick].orEmpty()
@@ -74,6 +76,7 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
                 val split = record.indexOf('|')
                 if (split <= 0) null else record.substring(0, split) to record.substring(split + 1)
             }.toMap(),
+            relayParticipationEnabled = p[relayParticipation] == true,
         )
     }
 
@@ -83,6 +86,7 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
     suspend fun setHaptics(on: Boolean) = context.dataStore.edit { it[haptics] = on }
     suspend fun setReduceMotion(on: Boolean) = context.dataStore.edit { it[motion] = on }
     suspend fun setNotifications(on: Boolean) = context.dataStore.edit { it[notif] = on }
+    suspend fun setRelayParticipation(on: Boolean) = context.dataStore.edit { it[relayParticipation] = on }
     suspend fun setReminderMinutes(min: Int) = context.dataStore.edit { it[reminder] = min.toLong() }
     suspend fun grantAdFree(until: Long) = context.dataStore.edit { it[adFree] = until; it[adFreeRewards] = 0L }
     suspend fun addAdFreeReward(): Int {
