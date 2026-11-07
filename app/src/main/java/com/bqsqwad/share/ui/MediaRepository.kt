@@ -15,6 +15,7 @@ data class ShareMediaItem(
     val sizeBytes: Long,
     val uri: Uri,
     val category: String,
+    val durationMs: Long = 0L,
 )
 
 object MediaRepository {
@@ -34,6 +35,7 @@ object MediaRepository {
         MediaStore.MediaColumns.DISPLAY_NAME,
         MediaStore.MediaColumns.MIME_TYPE,
         MediaStore.MediaColumns.SIZE,
+        MediaStore.MediaColumns.DURATION,
     )
 
     fun load(context: Context, category: String): List<ShareMediaItem> {
@@ -74,17 +76,28 @@ object MediaRepository {
             val nameColumn = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)
             val mimeColumn = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
             val sizeColumn = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE)
+            val durationColumn = cursor.getColumnIndex(MediaStore.MediaColumns.DURATION)
             if (idColumn < 0 || nameColumn < 0 || mimeColumn < 0 || sizeColumn < 0) return@use
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val name = cursor.getString(nameColumn) ?: "Unnamed file"
                 val mime = cursor.getString(mimeColumn) ?: "application/octet-stream"
                 val size = cursor.getLong(sizeColumn).coerceAtLeast(0L)
+                val duration = if (durationColumn >= 0) cursor.getLong(durationColumn).coerceAtLeast(0L) else 0L
                 val uri = Uri.withAppendedPath(collection, id.toString())
-                result += ShareMediaItem(uri.toString(), name, mime, size, uri, category)
+                result += ShareMediaItem(uri.toString(), name, mime, size, uri, category, duration)
             }
         }
         return result
+    }
+
+    fun formatDuration(durationMs: Long): String {
+        val seconds = (durationMs / 1000L).coerceAtLeast(0L)
+        val hours = seconds / 3600L
+        val minutes = (seconds % 3600L) / 60L
+        val remainder = seconds % 60L
+        return if (hours > 0) String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, remainder)
+        else String.format(Locale.getDefault(), "%d:%02d", minutes, remainder)
     }
 
     fun formatBytes(bytes: Long): String {

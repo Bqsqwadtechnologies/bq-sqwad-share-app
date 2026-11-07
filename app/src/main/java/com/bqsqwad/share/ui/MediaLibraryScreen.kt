@@ -7,9 +7,12 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +31,8 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Dialog
+import androidx.compose.material3.DialogProperties
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -66,6 +71,8 @@ fun MediaLibraryScreen(initialKind: String = "music") {
     val context = LocalContext.current
     var kind by remember { mutableStateOf(initialKind.takeIf { it == "photos" || it == "videos" || it == "music" } ?: "music") }
     var selectedPhoto by remember { mutableStateOf<ShareMediaItem?>(null) }
+    var selectedVideo by remember { mutableStateOf<ShareMediaItem?>(null) }
+    var detailsItem by remember { mutableStateOf<ShareMediaItem?>(null) }
     var media by remember { mutableStateOf<List<ShareMediaItem>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var permissionGranted by remember { mutableStateOf(false) }
@@ -377,27 +384,64 @@ fun MediaLibraryScreen(initialKind: String = "music") {
 
         if (permissionGranted && visibleMedia.isNotEmpty()) {
             Text("${visibleMedia.size} ${when (kind) { "music" -> "songs"; "photos" -> "photos"; else -> "videos" }}", style = MaterialTheme.typography.titleMedium)
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                itemsIndexed(visibleMedia, key = { _, item -> item.key }) { index, item ->
-                    Card(
-                        Modifier.fillMaxWidth().clickable { if (kind == "photos") selectedPhoto = item else playFrom(index) },
-                    ) {
-                        Row(
-                            Modifier.padding(12.dp).fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            if (kind == "photos") AsyncImage(model = item.uri, contentDescription = item.name, modifier = Modifier.size(76.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+            if (kind == "photos") {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    itemsIndexed(visibleMedia.chunked(3), key = { _, row -> row.first().key }) { _, row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row.forEach { photo -> AsyncImage(model = photo.uri, contentDescription = photo.name, modifier = Modifier.weight(1f).height(112.dp).clickable { selectedPhoto = photo }) }
+                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    itemsIndexed(visibleMedia, key = { _, item -> item.key }) { index, item ->
+                        Card(Modifier.fillMaxWidth()) {
+                            Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                if (kind == "videos") AsyncImage(model = item.uri, contentDescription = item.name, modifier = Modifier.size(width = 104.dp, height = 64.dp).clickable { selectedVideo = item; playFrom(index) }) else BrandLogo(Modifier.size(42.dp), "Music artwork")
+                                Column(Modifier.weight(1f)) {
+                                    Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, modifier = Modifier.combinedClickable(onClick = { if (kind == "videos") { selectedVideo = item; playFrom(index) } else playFrom(index) }, onLongClick = { detailsItem = item }))
+                                    Text(if (kind == "videos") MediaRepository.formatDuration(item.durationMs) else "Audio", style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                                }
+                                TextButton(onClick = { detailsItem = item }) { Text("⋯") }
                             }
-                            Text(if (index == currentIndex) "Playing" else "Play", color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
             }
         } else if (permissionGranted && media.isNotEmpty() && visibleMedia.isEmpty()) {
             Text("No media matches your search.")
+        }
+        selectedPhoto?.let { photo ->
+            Dialog(onDismissRequest = { selectedPhoto = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+                Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.Center) {
+                    AsyncImage(model = photo.uri, contentDescription = photo.name, modifier = Modifier.fillMaxWidth().weight(1f))
+                    Text(photo.name, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                    Text(MediaRepository.formatBytes(photo.sizeBytes), style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick = { selectedPhoto = null }, modifier = Modifier.fillMaxWidth()) { Text("Close preview") }
+                }
+            }
+        }
+        selectedVideo?.let { video ->
+            Dialog(onDismissRequest = { selectedVideo = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+                Box(Modifier.fillMaxSize()) {
+                    AndroidView(modifier = Modifier.fillMaxSize(), factory = { viewContext -> PlayerView(viewContext).apply { player = controller; useController = true; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING) } }, update = { it.player = controller })
+                    OutlinedButton(onClick = { selectedVideo = null }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) { Text("Close") }
+                }
+            }
+        }
+        detailsItem?.let { item ->
+            Dialog(onDismissRequest = { detailsItem = null }) {
+                Card {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(item.name, style = MaterialTheme.typography.titleMedium)
+                        Text("Type · ${item.mimeType}")
+                        Text("Size · ${MediaRepository.formatBytes(item.sizeBytes)}")
+                        if (item.category == "videos") Text("Duration · ${MediaRepository.formatDuration(item.durationMs)}")
+                        OutlinedButton(onClick = { detailsItem = null }) { Text("Close") }
+                    }
+                }
+            }
         }
     }
 }
