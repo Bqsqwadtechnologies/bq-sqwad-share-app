@@ -108,6 +108,8 @@ dependencies {
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation)
     ksp(libs.hilt.compiler)
+    // Keep Hilt's metadata reader aligned with Kotlin 2.3 class metadata.
+    ksp(libs.kotlin.metadata.jvm)
     implementation(libs.datastore)
     implementation(libs.work)
     implementation(libs.camera.core)
