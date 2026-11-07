@@ -40,7 +40,11 @@ object MediaPermissions {
             else -> list(category).toList()
         }
         if (Build.VERSION.SDK_INT < 33) return ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-        val granted = required.any { ContextCompat.checkSelfPermission(ctx, it) == PackageManager.PERMISSION_GRANTED }
+        val granted = if (category.equals("all", ignoreCase = true)) {
+            required.all { ContextCompat.checkSelfPermission(ctx, it) == PackageManager.PERMISSION_GRANTED }
+        } else {
+            required.any { ContextCompat.checkSelfPermission(ctx, it) == PackageManager.PERMISSION_GRANTED }
+        }
         val selectedVisual = Build.VERSION.SDK_INT >= 34 &&
             category.lowercase() in listOf("photos", "videos") &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED

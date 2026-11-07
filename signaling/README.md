@@ -1,20 +1,19 @@
-# Signaling service (internet transfer)
+# Future internet-transfer experiment — not shipped
 
-Introduces sender and receiver for WebRTC data channels. **Does not see file contents.**
+**Status: NOT PART OF THE CURRENT BQ SQWAD SHARE RELEASE.**
 
-## Deploy
+BQ Sqwad Share's current product scope is offline, local file sharing between nearby devices and a PIN-protected browser session on the same local network or hotspot. The released app does not use this directory to provide internet-based long-distance transfer.
 
-```bash
-cd signaling
-npx wrangler deploy
-```
+This directory is retained only as an isolated historical/experimental design note. It is not a deployment guide and must not be deployed for the current release.
 
-Cloudflare free Worker tier usually covers connection setup only.
+## Explicit exclusions
 
-## TURN (optional, can cost money)
+- No WebRTC data-channel transfer.
+- No STUN/TURN service.
+- No Cloudflare Worker or remote signaling service.
+- No cloud file storage or internet fallback.
+- No remote transfer codes or internet rendezvous.
 
-STUN (`stun:stun.l.google.com:19302`) is free. TURN is only needed for strict NATs and is often billed per GB. **Do not enable paid TURN until you accept that cost.** Prefer a clear “try same Wi-Fi or hotspot” message first.
+Do not connect this experiment to the Android app or publish a deployment endpoint unless a future product decision explicitly changes the offline-only scope and a separate security, privacy, cost and compliance review has been completed.
 
-## Security
-
-Codes expire after 15 minutes. Sender approval lives in the app UI. Add rate limits before a public launch.
+The current offline transfer architecture is documented in `docs/OFFLINE_MESH_POLICY.md`. That document distinguishes direct two-device transfers from the future multi-hop relay roadmap.

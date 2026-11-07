@@ -26,7 +26,6 @@ class MainActivity : FragmentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             hide(WindowInsetsCompat.Type.statusBars())
         }
-        ads.startConsent(this) {}
         setContent {
             val vm: ShareViewModel = hiltViewModel()
             val settings by vm.settings.collectAsState(initial = null)

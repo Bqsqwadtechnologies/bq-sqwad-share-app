@@ -16,9 +16,17 @@ import com.google.android.ump.UserMessagingPlatform
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 @Singleton
 class AdManager @Inject constructor(@ApplicationContext private val context: Context) {
+    private val _canRequestAdsState = MutableStateFlow(false)
+    val canRequestAdsState: StateFlow<Boolean> = _canRequestAdsState.asStateFlow()
+
+    private var mobileAdsInitialized = false
+
     var consentResolved: Boolean = false
         private set
     var canRequestAds: Boolean = false
@@ -44,20 +52,46 @@ class AdManager @Inject constructor(@ApplicationContext private val context: Con
             UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) {
                 consentResolved = true
                 canRequestAds = consent.canRequestAds()
-                if (canRequestAds) MobileAds.initialize(context) {}
-                preload()
+                _canRequestAdsState.value = canRequestAds
+                if (canRequestAds) initializeAdsIfAllowed()
                 onDone()
             }
         }, {
             consentResolved = true
             canRequestAds = consent.canRequestAds()
-            if (canRequestAds) { MobileAds.initialize(context) {}; preload() }
+            _canRequestAdsState.value = canRequestAds
+            if (canRequestAds) initializeAdsIfAllowed()
             onDone()
         })
     }
 
     fun privacyOptions(activity: Activity) {
-        UserMessagingPlatform.showPrivacyOptionsForm(activity) {}
+        UserMessagingPlatform.showPrivacyOptionsForm(activity) {
+            val consent = UserMessagingPlatform.getConsentInformation(context)
+            canRequestAds = consent.canRequestAds()
+            _canRequestAdsState.value = canRequestAds
+            if (canRequestAds) {
+                initializeAdsIfAllowed()
+            } else {
+                interstitial = null
+                adFreeRewarded = null
+                premiumRewarded = null
+                appOpen = null
+                interstitialLoaded = false
+                rewardedLoaded = false
+                appOpenLoaded = false
+            }
+        }
+    }
+
+    @Synchronized
+    private fun initializeAdsIfAllowed() {
+        if (!canRequestAds) return
+        if (!mobileAdsInitialized) {
+            mobileAdsInitialized = true
+            MobileAds.initialize(context) {}
+        }
+        preload()
     }
 
     fun preload() {

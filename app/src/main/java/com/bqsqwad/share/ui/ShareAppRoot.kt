@@ -128,6 +128,10 @@ private const val PRIVACY = "https://bqsqwadtechnologies.github.io/bq-sqwad-shar
 
 @Composable
 fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?, ads: AdManager) {
+    val adsAllowed by adsAllowedState.collectAsState()
+    LaunchedEffect(settings?.ageConfirmed) {
+        if (settings?.ageConfirmed == true) ads.startConsent(activity) {}
+    }
     val dark = settings?.themeMode == "dark"
     ShareTheme(dark = dark, accent = settings?.accent ?: "royal") {
         if (settings == null) {
@@ -238,7 +242,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                                 "library/{section}", "media/{kind}",
                             )
                             BannerSlot(
-                                enabled = !adFree && ads.canRequestAds && currentRoute in adVisibleRoutes,
+                                enabled = !adFree && adsAllowed && currentRoute in adVisibleRoutes,
                                 adUnitId = when (currentRoute) {
                                     "home" -> AdUnits.HOME_BANNER
                                     "history" -> AdUnits.HISTORY_BANNER
@@ -258,7 +262,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                     ) {
                         composable("home") { Home(nav, vm, ads, adFree) { scope.launch { drawerState.open() } } }
                         composable("files") {
-                            AdSupportedBrowsePage(!adFree && ads.canRequestAds, AdUnits.FILES_NATIVE) {
+                            AdSupportedBrowsePage(!adFree && adsAllowed, AdUnits.FILES_NATIVE) {
                                 FilesBrowser(nav, vm)
                             }
                         }
@@ -275,7 +279,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         composable("library/{section}") { entry ->
                             val section = entry.arguments?.getString("section").orEmpty()
                             val unit = if (section == "apps") AdUnits.APPS_NATIVE else AdUnits.FILES_NATIVE
-                            AdSupportedBrowsePage(!adFree && ads.canRequestAds, unit) {
+                            AdSupportedBrowsePage(!adFree && adsAllowed, unit) {
                                 FilesBrowser(nav, vm, initialTab = section)
                             }
                         }
@@ -286,7 +290,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                                 "videos" -> AdUnits.VIDEOS_NATIVE
                                 else -> AdUnits.MUSIC_NATIVE
                             }
-                            AdSupportedBrowsePage(!adFree && ads.canRequestAds, unit) {
+                            AdSupportedBrowsePage(!adFree && adsAllowed, unit) {
                                 MediaLibraryScreen(initialKind = kind)
                             }
                         }
@@ -302,7 +306,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                             if (biometricActivity == null) Text("Private Vault requires a compatible Android activity.")
                             else PrivateVaultScreen(biometricActivity)
                         }
-                        composable("favorites") { AdSupportedBrowsePage(!adFree && ads.canRequestAds, AdUnits.FAVORITES_NATIVE) { Favorites(vm) } }
+                        composable("favorites") { AdSupportedBrowsePage(!adFree && adsAllowed, AdUnits.FAVORITES_NATIVE) { Favorites(vm) } }
                         composable("chat") { Chat(vm) }
                         composable("team-sharing") { TeamSharingScreen(vm) }
                         composable("more") { More() }
@@ -321,7 +325,7 @@ private fun AdSupportedBrowsePage(
 ) {
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) { content() }
-        if (showAd) NativeSlot(true, adUnitId)
+        if (showAd && adsAllowed) NativeSlot(true, adUnitId)
     }
 }
 
@@ -482,8 +486,8 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
-        if (!adFree && ads.canRequestAds) {
-            item { NativeSlot(true, AdUnits.HOME_NATIVE) }
+        if (!adFree && adsAllowed) {
+            item { if (adsAllowed) NativeSlot(adsAllowed, AdUnits.HOME_NATIVE) }
         }
         item {
             OutlinedTextField(
@@ -806,7 +810,7 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
                         })
                     }
                 }
-                if (!adFree && ads.canRequestAds) NativeSlot(true, AdUnits.APPS_NATIVE)
+                if (!adFree && adsAllowed) NativeSlot(true, AdUnits.APPS_NATIVE)
             }
             "clip" -> {
                 var text by remember { mutableStateOf("") }
@@ -890,7 +894,7 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
                 }
             }
             itemsIndexed(history, key = { _, it -> it.id }) { index, item ->
-                if (index == 6 && !adFree && ads.canRequestAds) NativeSlot(true, AdUnits.HISTORY_NATIVE)
+                if (index == 6 && !adFree && adsAllowed) NativeSlot(true, AdUnits.HISTORY_NATIVE)
                 Card(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(item.displayName, style = MaterialTheme.typography.titleSmall)
@@ -1397,10 +1401,10 @@ private fun More() {
 private fun Debug(ads: AdManager) {
     Column(Modifier.padding(16.dp)) {
         Text(stringResource(R.string.debug_ads), style = MaterialTheme.typography.titleLarge)
-        Text("consent=${ads.consentResolved} canRequest=${ads.canRequestAds}")
+        Text("consent=${ads.consentResolved} canRequest=${adsAllowed}")
         Text("Banners: Home, History, More and Storage. Native ads: Home, History, Apps, Photos, Videos, Music, Files and Favorites. Rewarded: Ad-Free and Premium.")
         Text("interstitialLoaded=${ads.interstitialLoaded} rewardedLoaded=${ads.rewardedLoaded} appOpenLoaded=${ads.appOpenLoaded}")
-        BannerSlot(true, AdUnits.HOME_BANNER)
+        BannerSlot(adsAllowed, AdUnits.HOME_BANNER)
         NativeSlot(true, AdUnits.HOME_NATIVE)
     }
 }
