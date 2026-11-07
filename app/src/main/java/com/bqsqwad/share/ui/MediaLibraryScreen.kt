@@ -387,7 +387,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
                             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 if (kind == "videos") AsyncImage(model = item.uri, contentDescription = item.name, modifier = Modifier.size(width = 104.dp, height = 64.dp).clickable { selectedVideo = item; playFrom(index) }) else BrandLogo(Modifier.size(42.dp), "Music artwork")
                                 Column(Modifier.weight(1f)) {
-                                    Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, modifier = Modifier.combinedClickable(onClick = { if (kind == "videos") { selectedVideo = item; playFrom(index) } else playFrom(index) }, onLongClick = { detailsItem = item }))
+                                    Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, modifier = Modifier.combinedClickable(onClick = { if (kind == "videos") detailsItem = item else playFrom(index) }, onLongClick = { detailsItem = item }))
                                     Text(if (kind == "videos") MediaRepository.formatDuration(item.durationMs) else "Audio", style = MaterialTheme.typography.bodySmall, maxLines = 1)
                                 }
                                 TextButton(onClick = { detailsItem = item }) { Text("⋯") }
