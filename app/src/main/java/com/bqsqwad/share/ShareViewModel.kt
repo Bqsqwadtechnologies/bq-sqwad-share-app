@@ -96,12 +96,11 @@ class ShareViewModel @Inject constructor(
             nearby.connected.collect { connected ->
                 if (connected.isNotEmpty()) {
                     val waiting = dao.observeAll().first().filter {
-                        it.direction.equals("SEND", true) && it.status == "WAITING_FOR_DEVICE"
+                        it.direction.equals("SEND", true) && it.status == "WAITING_FOR_DEVICE" && it.peerName in connected
                     }
                     waiting.forEach { row ->
-                        val target = row.peerName.takeIf { it in connected } ?: connected.first()
                         if (activeResumableTransfers[row.id] == null && pendingOutgoingQueue.none { it.id == row.id }) {
-                            val queued = row.copy(peerName = target, status = "QUEUED")
+                            val queued = row.copy(status = "QUEUED")
                             dao.update(queued)
                             pendingOutgoingQueue.add(queued)
                         }
@@ -724,11 +723,11 @@ class ShareViewModel @Inject constructor(
         pumpOutgoingQueue()
     }
 
-    fun retryTransfer(item: TransferEntity) = viewModelScope.launch {
+    fun retryTransfer(item: TransferEntity) = retryTransfer(item, item.peerName)
+
+    fun retryTransfer(item: TransferEntity, endpointId: String) = viewModelScope.launch {
         if (!item.direction.equals("SEND", ignoreCase = true)) return@launch
-        val connected = nearby.connected.value
-        val endpointId = item.peerName.takeIf { it in connected } ?: connected.firstOrNull()
-        if (endpointId == null) {
+        if (endpointId !in nearby.connected.value) {
             dao.update(item.copy(status = "WAITING_FOR_DEVICE"))
             return@launch
         }

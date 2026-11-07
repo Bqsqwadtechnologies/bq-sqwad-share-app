@@ -87,6 +87,7 @@ import androidx.navigation.compose.rememberNavController
 import com.bqsqwad.share.BuildConfig
 import com.bqsqwad.share.R
 import com.bqsqwad.share.ShareViewModel
+import com.bqsqwad.share.data.TransferEntity
 import com.bqsqwad.share.ads.AdManager
 import com.bqsqwad.share.ads.BannerSlot
 import com.bqsqwad.share.ads.NativeSlot
@@ -720,6 +721,9 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
 @Composable
 private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
     val history by vm.history.collectAsState()
+    val connected by vm.nearby.connected.collectAsState()
+    val peers by vm.nearby.peers.collectAsState()
+    var retryItem by remember { mutableStateOf<TransferEntity?>(null) }
     Scaffold { pad ->
         LazyColumn(Modifier.padding(pad).padding(16.dp)) {
             item {
@@ -750,13 +754,36 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
                             if (item.direction.equals("SEND", true) &&
                                 item.status in setOf("FAILED", "WAITING_FOR_DEVICE", "FAILED_SOURCE_MISSING")
                             ) {
-                                TextButton(onClick = { vm.retryTransfer(item) }) { Text("Retry") }
+                                TextButton(onClick = { retryItem = item }) { Text("Retry") }
                             }
                         }
                     }
                 }
             }
         }
+    }
+    retryItem?.let { item ->
+        AlertDialog(
+            onDismissRequest = { retryItem = null },
+            title = { Text("Choose the receiving device") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Choose the device that should receive this file. Select the original receiver to continue its saved checkpoint.")
+                    if (connected.isEmpty()) {
+                        Text("No devices are connected. Connect to the intended receiver first.")
+                    } else {
+                        connected.forEach { endpointId ->
+                            val label = peers.firstOrNull { it.endpointId == endpointId }?.name ?: "Nearby device " + endpointId.take(6)
+                            TextButton(onClick = {
+                                vm.retryTransfer(item, endpointId)
+                                retryItem = null
+                            }) { Text(label) }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { retryItem = null }) { Text("Close") } },
+        )
     }
 }
 
