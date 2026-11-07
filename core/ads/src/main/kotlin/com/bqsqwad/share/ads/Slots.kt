@@ -26,6 +26,7 @@ import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.nativead.AdChoicesView
 import com.google.android.gms.ads.nativead.MediaView
 import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdView
@@ -106,10 +107,17 @@ fun NativeSlot(enabled: Boolean, adUnitId: String, modifier: Modifier = Modifier
                         orientation = LinearLayout.VERTICAL
                         setPadding(16, 12, 16, 12)
                     }
+                    val disclosureRow = LinearLayout(ctx).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                    }
                     val disclosure = TextView(ctx).apply {
                         text = "Ad"
                         textSize = 11f
                     }
+                    val adChoices = AdChoicesView(ctx)
+                    disclosureRow.addView(disclosure)
+                    disclosureRow.addView(adChoices, LinearLayout.LayoutParams(32, 24))
                     val headline = TextView(ctx).apply {
                         textSize = 16f
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -123,7 +131,7 @@ fun NativeSlot(enabled: Boolean, adUnitId: String, modifier: Modifier = Modifier
                     }
                     val icon = ImageView(ctx)
                     val cta = Button(ctx)
-                    column.addView(disclosure)
+                    column.addView(disclosureRow)
                     column.addView(headline)
                     column.addView(media, LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, 150,
@@ -137,6 +145,7 @@ fun NativeSlot(enabled: Boolean, adUnitId: String, modifier: Modifier = Modifier
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT,
                     ))
+                    adChoicesView = adChoices
                     headlineView = headline
                     mediaView = media
                     bodyView = body
