@@ -110,7 +110,7 @@ class NearbyTransport @Inject constructor(
                 val expected = expectedReceiveCode
                 if (expected.length == 6 && info.endpointName != "BQ Sqwad Share code $expected") {
                     _connectionError.value = "The receive code did not match. Check the code and try again."
-                    client.rejectConnection(endpointId)
+                    runCatching { client.rejectConnection(endpointId) }
                     clearConnecting(endpointId)
                     _incoming.value = null
                     return@launch
