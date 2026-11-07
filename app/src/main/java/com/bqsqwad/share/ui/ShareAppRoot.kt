@@ -1100,8 +1100,11 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("About, legal and support", style = MaterialTheme.typography.titleMedium)
-                    Text("Legal information and support.")
-                    Button(onClick = { nav.navigate("more") }) { Text("Open About") }
+                    Text("Company information, policies and support.")
+                    TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMS))) }) { Text("Terms of Service") }
+                    TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY))) }) { Text("Privacy Policy") }
+                    TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:bqsqwadtechnologies@bqsqwadai.com"))) }) { Text("Email BQ Sqwad Technologies") }
+                    Button(onClick = { nav.navigate("more") }) { Text("About BQ Sqwad Share") }
                     if (BuildConfig.DEBUG) TextButton(onClick = { nav.navigate("debug") }) { Text(stringResource(R.string.debug_ads)) }
                 }
             }
@@ -1316,14 +1319,35 @@ private fun Chat(vm: ShareViewModel) {
 @Composable
 private fun More() {
     val context = LocalContext.current
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
         BrandHeader()
-        Text("About BQ Sqwad Share", style = MaterialTheme.typography.headlineSmall)
-        Text("Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-        Text("Share photos, videos, music, documents and apps with nearby devices.")
-        TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMS))) }) { Text("Terms of Service") }
-        TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY))) }) { Text("Privacy Policy") }
-        TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:bqsqwadtechnologies@bqsqwadai.com"))) }) { Text("Contact BQ Sqwad Technologies") }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("About BQ Sqwad Share", style = MaterialTheme.typography.titleLarge)
+                Text("Share photos, videos, music, documents and folders with nearby devices.")
+                Text("Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Legal information", style = MaterialTheme.typography.titleMedium)
+                Text("Read how we handle information and the terms that apply when you use BQ Sqwad Share.")
+                TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMS))) }) { Text("Terms of Service") }
+                TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY))) }) { Text("Privacy Policy") }
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Contact BQ Sqwad Technologies", style = MaterialTheme.typography.titleMedium)
+                Text("For support, privacy questions or feedback, contact our team.")
+                TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:bqsqwadtechnologies@bqsqwadai.com"))) }) {
+                    Text("bqsqwadtechnologies@bqsqwadai.com")
+                }
+            }
+        }
     }
 }
 
