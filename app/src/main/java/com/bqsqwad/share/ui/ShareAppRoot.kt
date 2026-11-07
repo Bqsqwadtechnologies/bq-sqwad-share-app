@@ -68,6 +68,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -76,7 +77,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -133,7 +137,15 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
         if (settings?.ageConfirmed == true) ads.startConsent(activity) {}
     }
     val dark = settings?.themeMode == "dark"
+    val systemHaptics = LocalHapticFeedback.current
+    val appHaptics = remember(settings?.haptics, systemHaptics) {
+        if (settings?.haptics != false) systemHaptics
+        else object : HapticFeedback {
+            override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) = Unit
+        }
+    }
     ShareTheme(dark = dark, accent = settings?.accent ?: "royal") {
+        CompositionLocalProvider(LocalHapticFeedback provides appHaptics) {
         if (settings == null) {
             Column(Modifier.fillMaxSize().padding(24.dp)) { Text(stringResource(R.string.app_name)) }
         } else if (!settings.ageConfirmed) {
@@ -317,6 +329,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                     }
                 }
             }
+        }
         }
     }
 }
@@ -1204,7 +1217,10 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
                             FilterChip(selected = s.accent == accent, onClick = { vm.accent(accent) }, label = { Text(accent) })
                         }
                     }
-                    SwitchRow(stringResource(R.string.reduce_motion), s.reduceMotion) { vm.motion(it) }
+                    Text("BQ Sqwad Share follows Android's system animation and accessibility preferences.")
+                    TextButton(onClick = {
+                        ctx.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    }) { Text("Open Android accessibility settings") }
                 }
             }
         }
