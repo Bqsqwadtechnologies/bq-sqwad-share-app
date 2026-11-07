@@ -331,7 +331,7 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false) 
                     }
                 }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     itemsIndexed(visibleMedia, key = { _, item -> item.key }) { index, item ->
                         Card(Modifier.fillMaxWidth()) {
                             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
