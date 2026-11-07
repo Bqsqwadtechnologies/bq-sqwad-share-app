@@ -42,11 +42,12 @@ fun StorageIntelligenceScreen(onOpenCleaner: () -> Unit) {
         scanning = true
         val result = withContext(Dispatchers.IO) {
             val stat = StatFs(context.filesDir.absolutePath)
-            val appRoots = listOfNotNull(
+            val appRoots = listOf(
                 "App files" to context.filesDir,
                 "App cache" to context.cacheDir,
-                "External app files" to context.getExternalFilesDir(null),
-                "External app cache" to context.externalCacheDir,
+            ) + listOfNotNull(
+                context.getExternalFilesDir(null)?.let { "External app files" to it },
+                context.externalCacheDir?.let { "External app cache" to it },
             ).distinctBy { it.second.canonicalPath }
             val files = appRoots.flatMap { (_, root) ->
                 if (root.exists()) root.walkTopDown().filter { it.isFile && it.canRead() }.toList() else emptyList()
