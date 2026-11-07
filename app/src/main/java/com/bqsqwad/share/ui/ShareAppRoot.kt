@@ -1258,7 +1258,7 @@ private fun Computer(vm: ShareViewModel) {
         )
         OutlinedButton(
             onClick = { vm.stopWeb(); url = null; message = "Local sharing stopped." },
-            enabled = url != null || sharing,
+            enabled = url != null,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(stringResource(R.string.disconnect)) }
     }
