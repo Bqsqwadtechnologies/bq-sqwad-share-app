@@ -347,24 +347,6 @@ class ShareViewModel @Inject constructor(
         val outgoing = staging.first.map { it.second } + staging.third
         pendingUris.value = staging.second
         if (outgoing.isEmpty()) return@launch
-                    val resolver = context.contentResolver
-                    var name = uri.lastPathSegment?.substringAfterLast('/') ?: "shared-file"
-                    var size = 0L
-                    resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
-                        if (cursor.moveToFirst()) {
-                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                            if (nameIndex >= 0) name = cursor.getString(nameIndex) ?: name
-                            if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) size = cursor.getLong(sizeIndex)
-                        }
-                    }
-                    val mime = resolver.getType(uri) ?: "application/octet-stream"
-                    val target = File(context.cacheDir, "outgoing-${System.currentTimeMillis()}-${name.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
-                    resolver.openInputStream(uri)?.use { input -> target.outputStream().use(input::copyTo) }
-                        ?: error("Unable to read selected file")
-                    OutgoingShareFile(target, mime, size.takeIf { it > 0L } ?: target.length(), name)
-                }.getOrNull()
-        }
         outgoing.forEach { (file, mime, bytes, displayName) ->
             val row = TransferEntity(
                 direction = "SEND",
