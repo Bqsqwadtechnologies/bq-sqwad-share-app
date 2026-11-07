@@ -94,6 +94,8 @@ class ShareViewModel @Inject constructor(
     private val maxConcurrentPayloads = 3
     private val activeResumableTransfers = java.util.concurrent.ConcurrentHashMap<Long, Job>()
     private val incomingTransferMimes = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val activeNearbyPayloadIds = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
+    private val transferServiceActive = java.util.concurrent.atomic.AtomicBoolean(false)
     private val resumableReceiver by lazy { ResumableFileReceiver(File(context.filesDir, "resumable-incoming")) }
 
     init {
@@ -131,11 +133,10 @@ class ShareViewModel @Inject constructor(
                 pumpOutgoingQueue()
             }
         }
-        val activePayloadIds = mutableSetOf<Long>()
         viewModelScope.launch {
             nearby.progress.collect { progress ->
                 if (progress.status == PayloadTransferUpdate.Status.IN_PROGRESS) {
-                    activePayloadIds.add(progress.payloadId)
+                    activeNearbyPayloadIds.add(progress.payloadId)
                     outgoingPayloadRecords[progress.payloadId]?.let { outgoing ->
                         viewModelScope.launch {
                             dao.update(
@@ -147,7 +148,7 @@ class ShareViewModel @Inject constructor(
                         }
                     }
                 } else {
-                    activePayloadIds.remove(progress.payloadId)
+                    activeNearbyPayloadIds.remove(progress.payloadId)
                     val outgoing = outgoingPayloadRecords.remove(progress.payloadId)
                     if (outgoing != null) {
                         outgoingPayloadIds.remove(outgoing.id)
@@ -174,13 +175,24 @@ class ShareViewModel @Inject constructor(
                     }
                     pumpOutgoingQueue()
                 }
-                val complete = progress.status != PayloadTransferUpdate.Status.IN_PROGRESS && activePayloadIds.isEmpty()
+                val complete = progress.status != PayloadTransferUpdate.Status.IN_PROGRESS &&
+                    activeNearbyPayloadIds.isEmpty() &&
+                    activeResumableTransfers.isEmpty() &&
+                    pendingOutgoingQueue.isEmpty() &&
+                    incomingTransferMimes.isEmpty()
                 val text = if (complete) {
-                    if (progress.status == 1) "Transfer completed" else "Transfer ended"
+                    if (progress.status == PayloadTransferUpdate.Status.SUCCESS) "Transfer completed" else "Transfer ended"
                 } else {
                     "Transferring ${progress.bytes} of ${progress.total} bytes"
                 }
-                TransferService.update(context, text, progress.bytes, progress.total, complete)
+                if (complete) {
+                    if (transferServiceActive.compareAndSet(true, false)) {
+                        TransferService.update(context, text, progress.bytes, progress.total, true)
+                    }
+                } else {
+                    transferServiceActive.set(true)
+                    TransferService.update(context, text, progress.bytes, progress.total, false)
+                }
             }
         }
         // Use (endpoint, payload ID) as the key: multiple peers can independently
@@ -681,6 +693,7 @@ class ShareViewModel @Inject constructor(
                     job.invokeOnCompletion {
                         activeResumableTransfers.remove(next.id, job)
                         pumpOutgoingQueue()
+                        updateTransferServiceIfIdle()
                     }
                     job.start()
                 }
@@ -690,6 +703,16 @@ class ShareViewModel @Inject constructor(
                     pendingOutgoingQueue.any { it.peerName in nearby.connected.value }
                 ) pumpOutgoingQueue()
             }
+        }
+    }
+
+    private fun updateTransferServiceIfIdle() {
+        val idle = activeNearbyPayloadIds.isEmpty() &&
+            activeResumableTransfers.isEmpty() &&
+            pendingOutgoingQueue.isEmpty() &&
+            incomingTransferMimes.isEmpty()
+        if (idle && transferServiceActive.compareAndSet(true, false)) {
+            TransferService.update(context, "Transfers complete", 0L, 0L, complete = true)
         }
     }
 
