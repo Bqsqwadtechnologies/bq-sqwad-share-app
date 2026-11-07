@@ -306,7 +306,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         composable("settings") { Settings(nav, vm, ads, activity) }
                         composable("clone") { Gated(settings, ads, activity, vm, "clone") { Clone(nav) } }
                         composable("computer") { Gated(settings, ads, activity, vm, "computer") { Computer(vm) } }
-                        composable("storage-intelligence") { StorageIntelligenceScreen { nav.navigate("cleaner") } }
+                        composable("storage-intelligence") { StorageIntelligenceScreen(onOpenCleaner = { nav.navigate("cleaner") }) }
                         composable("cleaner") { Cleaner(vm) }
                         composable("folder-transfer") { FolderTransferScreen(nav, vm) }
                         composable("device-hub") { DeviceHubScreen(nav, vm) }
