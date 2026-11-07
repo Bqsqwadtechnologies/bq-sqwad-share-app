@@ -168,6 +168,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
             val currentRoute = backStackEntry?.destination?.route
             val drawerState = rememberDrawerState(DrawerValue.Closed)
             val scope = rememberCoroutineScope()
+            var bannerDismissed by remember(currentRoute) { mutableStateOf(false) }
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
@@ -244,17 +245,25 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                                 "files", "history", "settings", "favorites", "more", "storage-intelligence",
                                 "library/{section}", "media/{kind}",
                             )
-                            BannerSlot(
-                                enabled = !adFree && adsAllowed && currentRoute in adVisibleRoutes,
-                                adUnitId = when (currentRoute) {
-                                    "home" -> AdUnits.HOME_BANNER
-                                    "history" -> AdUnits.HISTORY_BANNER
-                                    "more" -> AdUnits.MORE_BANNER
-                                    "storage-intelligence" -> AdUnits.STORAGE_BANNER
-                                    else -> AdUnits.HOME_BANNER
-                                },
-                                modifier = Modifier.navigationBarsPadding(),
-                            )
+                            val bannerEnabled = !adFree && adsAllowed && currentRoute in adVisibleRoutes && !bannerDismissed
+                            if (bannerEnabled) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    BannerSlot(
+                                        enabled = true,
+                                        adUnitId = when (currentRoute) {
+                                            "home" -> AdUnits.HOME_BANNER
+                                            "history" -> AdUnits.HISTORY_BANNER
+                                            "more" -> AdUnits.MORE_BANNER
+                                            "storage-intelligence" -> AdUnits.STORAGE_BANNER
+                                            else -> AdUnits.HOME_BANNER
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    IconButton(onClick = { bannerDismissed = true }) {
+                                        Icon(Icons.Filled.Close, contentDescription = "Dismiss advertisement")
+                                    }
+                                }
+                            }
                         }
                     },
                 ) { adPadding ->
@@ -333,9 +342,22 @@ private fun AdSupportedBrowsePage(
     adUnitId: String,
     content: @Composable () -> Unit,
 ) {
+    var dismissed by remember(adUnitId) { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) { content() }
-        if (showAd) NativeSlot(true, adUnitId)
+        if (showAd && !dismissed) {
+            Column(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("Advertisement", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(onClick = { dismissed = true }) { Text("Dismiss") }
+                }
+                NativeSlot(true, adUnitId)
+            }
+        }
     }
 }
 
