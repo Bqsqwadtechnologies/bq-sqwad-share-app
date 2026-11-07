@@ -67,7 +67,8 @@ class ShareViewModel @Inject constructor(
     private val store: SettingsStore,
     val nearby: NearbyTransport,
 ) : ViewModel() {
-    val settings = store.settings.stateIn(
+    val settings = store.settings
+    private val settingsState = store.settings.stateIn(
         viewModelScope,
         SharingStarted.Eagerly,
         UserSettings(
@@ -767,7 +768,7 @@ class ShareViewModel @Inject constructor(
             receiveExpiresAt.value == 0L
         if (idle && transferServiceActive.compareAndSet(true, false)) {
             lastTransferNotificationAt.set(SystemClock.elapsedRealtime())
-            TransferService.update(context, "Transfers complete", 0L, 0L, complete = true, showCompletionNotification = settings.value.notifications)
+            TransferService.update(context, "Transfers complete", 0L, 0L, complete = true, showCompletionNotification = settingsState.value.notifications)
         }
     }
 
