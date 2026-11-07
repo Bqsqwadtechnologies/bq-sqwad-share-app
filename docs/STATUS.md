@@ -57,3 +57,13 @@ No Android SDK or emulator in the coding agent. Full assembleDebug and two-phone
 - Device Hub now lists currently discovered and connected Nearby peers and allows disconnecting active peers. It is a live-session manager, not yet a persistent trusted-device registry.
 - A durable receiver-side chunk checkpoint store and tests have been added. It fsyncs accepted chunks, atomically records committed offsets, truncates uncommitted tails after restart, and verifies the complete SHA-256 before finalizing. **It is not yet wired into the Nearby sender/receiver callbacks**, so current Nearby file transfers still restart from the beginning after interruption.
 - Android build, automated test execution, biometric-device verification, folder transfer verification, and two-device testing remain outstanding. Do not treat source commits as proof of runtime verification.
+
+
+## 7 November 2026 roadmap items 5–8
+
+- **Storage Intelligence:** added a storage overview for Android's app-data volume, BQ Sqwad Share-owned folders, and the largest app-owned files. It does not scan or delete the user's personal files. The separate Deep Clean screen still requires explicit confirmation and only clears app cache.
+- **Media Studio:** added a Photos mode to the existing media library with MediaStore browsing, search, thumbnails, and an in-app preview. Music/video playback remains separate. Photo access and preview still need runtime testing on Android 13–15, including Android 14 selected-photo permission behavior.
+- **BQ Relay / Windows Bridge:** added OfflineRelayStore, a local disk queue for opaque recipient-encrypted chunks with bounded chunk size, storage quota, expiry, duplicate suppression, digest verification, and verified-ack deletion. This is storage groundwork only: it is not connected to Nearby, has no multi-hop forwarding scheduler, opt-in participation settings, authenticated route/ack protocol, or Windows client. No cloud or internet transfer was added.
+- **Team Sharing:** added a session-scoped recipient picker and multi-file send to only the selected, currently connected peers. It reuses the existing Nearby file transfer path. Saved teams, persistent permissions/trusted memberships, and background delivery are not implemented.
+
+The new Android UI and relay queue have not been built or executed in this environment. Unit tests were added for the relay queue but have not been run. Android Studio/GitHub Actions and real multi-device testing are still required before release.

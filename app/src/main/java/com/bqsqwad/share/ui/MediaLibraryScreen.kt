@@ -319,7 +319,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
         }
 
         if (permissionGranted && visibleMedia.isNotEmpty()) {
-            Text("${visibleMedia.size} ${if (kind == "music") "songs" else "videos"}", style = MaterialTheme.typography.titleMedium)
+            Text("${visibleMedia.size} ${when (kind) { "music" -> "songs"; "photos" -> "photos"; else -> "videos" }}", style = MaterialTheme.typography.titleMedium)
             LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 itemsIndexed(visibleMedia, key = { _, item -> item.key }) { index, item ->
                     Card(

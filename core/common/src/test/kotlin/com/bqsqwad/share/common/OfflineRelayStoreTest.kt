@@ -16,11 +16,11 @@ class OfflineRelayStoreTest {
         val encrypted = byteArrayOf(9, 4, 2, 8, 1)
         val id = store.enqueue("recipient_123", encrypted, 20_000L, nowMillis = 10_000L)
 
-        assertArrayEquals(encrypted, store.readOpaqueChunk(id))
+        assertArrayEquals(encrypted, store.readOpaqueChunk(id, nowMillis = 10_000L))
         assertFalse(store.acknowledge(id, verifiedNextHop = false))
-        assertArrayEquals(encrypted, store.readOpaqueChunk(id))
+        assertArrayEquals(encrypted, store.readOpaqueChunk(id, nowMillis = 10_000L))
         assertTrue(store.acknowledge(id, verifiedNextHop = true))
-        assertNull(store.readOpaqueChunk(id))
+        assertNull(store.readOpaqueChunk(id, nowMillis = 10_000L))
         root.deleteRecursively()
     }
 

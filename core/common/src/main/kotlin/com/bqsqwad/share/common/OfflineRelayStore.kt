@@ -77,12 +77,18 @@ class OfflineRelayStore(
     }
 
     @Synchronized
-    fun readOpaqueChunk(id: String): ByteArray? {
+    fun readOpaqueChunk(id: String, nowMillis: Long = System.currentTimeMillis()): ByteArray? {
         val safeId = safeId(id)
         val metadata = File(directory, "$safeId.properties")
         val payload = File(directory, "$safeId.chunk")
         if (!metadata.isFile || !payload.isFile) return null
         val values = readMetadata(metadata)
+        val expiry = values.getProperty("expiresAt")?.toLongOrNull() ?: 0L
+        if (expiry <= nowMillis) {
+            metadata.delete()
+            payload.delete()
+            return null
+        }
         val bytes = payload.readBytes()
         if (values.getProperty("digest") != sha256(bytes)) return null
         return bytes
@@ -101,8 +107,8 @@ class OfflineRelayStore(
         val metadata = File(directory, "$safeId.properties")
         val payload = File(directory, "$safeId.chunk")
         if (!metadata.exists() && !payload.exists()) return false
-        val metadataRemoved = !metadata.exists() || metadata.delete()
         val payloadRemoved = !payload.exists() || payload.delete()
+        val metadataRemoved = !metadata.exists() || metadata.delete()
         return metadataRemoved && payloadRemoved
     }
 
@@ -119,6 +125,10 @@ class OfflineRelayStore(
             }
         }
         directory.listFiles().orEmpty().filter { it.name.endsWith(".tmp") }.forEach { it.delete() }
+        directory.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".chunk") }.forEach { chunk ->
+            val id = chunk.name.removeSuffix(".chunk")
+            if (!File(directory, "$id.properties").exists() && chunk.delete()) removed++
+        }
         return removed
     }
 
