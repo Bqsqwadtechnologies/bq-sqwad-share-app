@@ -44,8 +44,13 @@ class ResumableFileReceiver(private val root: File) {
             return saved.committedOffset
         }
         require(!partial.exists()) { "Untracked partial transfer file already exists." }
-        writeMetadata(metadata, Saved(offer.transferId, safeName(offer.displayName), offer.totalBytes, offer.sha256.copyOf(), 0L))
         check(partial.createNewFile()) { "Unable to create partial transfer file." }
+        try {
+            writeMetadata(metadata, Saved(offer.transferId, safeName(offer.displayName), offer.totalBytes, offer.sha256.copyOf(), 0L))
+        } catch (failure: Throwable) {
+            partial.delete()
+            throw failure
+        }
         return 0L
     }
 
@@ -92,7 +97,7 @@ class ResumableFileReceiver(private val root: File) {
         require(sha256(partial).contentEquals(saved.sha256)) { "Completed file failed SHA-256 verification." }
         val destination = File(root, uniqueName(saved.displayName))
         check(partial.renameTo(destination)) { "Unable to finalize received file." }
-        check(metadata.delete()) { "File was received but its checkpoint could not be removed." }
+        metadata.delete()
         return destination
     }
 
@@ -130,8 +135,19 @@ class ResumableFileReceiver(private val root: File) {
         return "$base ($index)$extension"
     }
 
-    private fun partialFile(id: String) = File(root, "$id.part")
-    private fun metadataFile(id: String) = File(root, "$id.meta")
+    private fun validateTransferId(id: String) {
+        require(id.matches(Regex("[A-Za-z0-9_-]{1,80}"))) { "Invalid transfer ID." }
+    }
+
+    private fun partialFile(id: String): File {
+        validateTransferId(id)
+        return File(root, "$id.part")
+    }
+
+    private fun metadataFile(id: String): File {
+        validateTransferId(id)
+        return File(root, "$id.meta")
+    }
 
     private fun writeMetadata(file: File, saved: Saved) {
         val temporary = File(root, file.name + ".tmp")
