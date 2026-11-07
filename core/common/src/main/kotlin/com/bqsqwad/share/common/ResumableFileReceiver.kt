@@ -46,6 +46,10 @@ class ResumableFileReceiver(
 
     private val activeSessions = ConcurrentHashMap<String, ActiveSession>()
 
+    fun cleanupExpired(nowMillis: Long = System.currentTimeMillis()) {
+        if (root.isDirectory) expireStale(nowMillis)
+    }
+
     fun begin(offer: Offer, nowMillis: Long = System.currentTimeMillis()): Long {
         validateOffer(offer)
         if (!root.exists()) check(root.mkdirs()) { "Unable to create transfer staging directory." }
