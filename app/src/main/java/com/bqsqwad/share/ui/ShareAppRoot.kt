@@ -234,7 +234,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         startDestination = "home",
                         modifier = Modifier.padding(adPadding),
                     ) {
-                        composable("home") { Home(nav, vm, ads, adFree) }
+                        composable("home") { Home(nav, vm, ads, adFree) { scope.launch { drawerState.open() } } }
                         composable("files") { FilesBrowser(nav, vm) }
                         composable("send") { Send(nav, vm) }
                         composable("scan") {
@@ -307,7 +307,7 @@ private fun BrandHeader() {
 }
 
 @Composable
-private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
+private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adFree: Boolean, onMenu: () -> Unit) {
     val history by vm.history.collectAsState()
     var search by remember { mutableStateOf("") }
     val tiles = listOf(
@@ -339,6 +339,8 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                     Text("BQ Sqwad Share", style = MaterialTheme.typography.titleLarge)
                     Text("Share everything. Simply.", style = MaterialTheme.typography.bodySmall)
                 }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onMenu) { Text("Menu") }
             }
             OutlinedTextField(
                 value = search,
@@ -349,7 +351,7 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                 placeholder = { Text("Photos, music, videos, files…") },
             )
         }
-        items(tiles.chunked(2)) { pair ->
+        itemsIndexed(tiles.chunked(2)) { _, pair ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 pair.forEach { (label, route, icon) ->
                     Card(
