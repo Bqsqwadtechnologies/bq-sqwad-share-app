@@ -770,7 +770,7 @@ class ShareViewModel @Inject constructor(
             RandomAccessFile(source, "r").use { input ->
                 while (offset < source.length()) {
                     if (endpointId !in nearby.connected.value) throw IllegalStateException("Device disconnected.")
-                    val count = minOf(16_000L, source.length() - offset).toInt()
+                    val count = minOf(NEARBY_BYTES_CHUNK_SIZE.toLong(), source.length() - offset).toInt()
                     val bytes = ByteArray(count)
                     input.seek(offset)
                     input.readFully(bytes)
@@ -1093,6 +1093,7 @@ class ShareViewModel @Inject constructor(
         private const val MIN_RECEIVE_FREE_BYTES = 128L * 1024L * 1024L
         private const val PROGRESS_PERSIST_INTERVAL_BYTES = 1024L * 1024L
         private const val NOTIFICATION_UPDATE_INTERVAL_MS = 750L
+        private const val NEARBY_BYTES_CHUNK_SIZE = 28 * 1024
     }
 
 
