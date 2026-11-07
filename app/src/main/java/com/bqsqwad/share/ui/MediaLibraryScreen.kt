@@ -202,7 +202,17 @@ fun MediaLibraryScreen(initialKind: String = "music") {
     }
 
     Column(
-        Modifier.fillMaxSize().pointerInput(kind) {\n            var drag = 0f\n            detectHorizontalDragGestures(\n                onHorizontalDrag = { _, amount -> drag += amount },\n                onDragEnd = {\n                    if (drag < -72f) switchMediaPage(1)\n                    else if (drag > 72f) switchMediaPage(-1)\n                    drag = 0f\n                },\n            )\n        }.padding(16.dp),
+        Modifier.fillMaxSize().pointerInput(kind) {
+            var drag = 0f
+            detectHorizontalDragGestures(
+                onHorizontalDrag = { _, amount -> drag += amount },
+                onDragEnd = {
+                    if (drag < -72f) switchMediaPage(1)
+                    else if (drag > 72f) switchMediaPage(-1)
+                    drag = 0f
+                },
+            )
+        }.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(when (kind) { "music" -> "Music"; "videos" -> "Videos"; else -> "Photos" }, style = MaterialTheme.typography.headlineMedium)
@@ -297,7 +307,21 @@ fun MediaLibraryScreen(initialKind: String = "music") {
         } else if (activePlayer != null && kind == "music") {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {\n                        Image(\n                            painter = painterResource(R.drawable.brand_logo),\n                            contentDescription = "BQ Sqwad Share artwork",\n                            modifier = Modifier.size(64.dp),\n                        )\n                        Column(Modifier.weight(1f).padding(start = 12.dp)) {\n                            Text("BQ Sqwad Music", style = MaterialTheme.typography.labelMedium)\n                            Text(\n                                activePlayer.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Now playing",\n                                style = MaterialTheme.typography.titleMedium,\n                                maxLines = 2,\n                            )\n                        }\n                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(R.drawable.brand_logo),
+                            contentDescription = "BQ Sqwad Share artwork",
+                            modifier = Modifier.size(64.dp),
+                        )
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text("BQ Sqwad Music", style = MaterialTheme.typography.labelMedium)
+                            Text(
+                                activePlayer.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Now playing",
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 2,
+                            )
+                        }
+                    }
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -308,6 +332,10 @@ fun MediaLibraryScreen(initialKind: String = "music") {
                             Text(if (isPlaying) "Pause" else "Play")
                         }
                         OutlinedButton(onClick = { activePlayer.seekToNextMediaItem() }) { Text("Next") }
+                        OutlinedButton(onClick = {
+                            activePlayer.stop()
+                            activePlayer.clearMediaItems()
+                        }) { Text("Stop") }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         FilterChip(
@@ -361,8 +389,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
                         ) {
                             if (kind == "photos") AsyncImage(model = item.uri, contentDescription = item.name, modifier = Modifier.size(76.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 2)
-                                Text(MediaRepository.formatBytes(item.sizeBytes), style = MaterialTheme.typography.bodySmall)
+                                Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                             }
                             Text(if (index == currentIndex) "Playing" else "Play", color = MaterialTheme.colorScheme.primary)
                         }

@@ -60,7 +60,7 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
         }.toMap()
         UserSettings(
             ageConfirmed = p[age] == true,
-            themeMode = p[theme] ?: "system",
+            themeMode = p[theme] ?: "light",
             accent = p[accent] ?: "royal",
             haptics = p[haptics] != false,
             reduceMotion = p[motion] == true,

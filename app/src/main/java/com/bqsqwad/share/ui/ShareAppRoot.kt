@@ -53,6 +53,8 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.CircularProgressIndicator
@@ -118,11 +120,7 @@ private const val PRIVACY = "https://bqsqwadtechnologies.github.io/bq-sqwad-shar
 
 @Composable
 fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?, ads: AdManager) {
-    val dark = when (settings?.themeMode) {
-        "light" -> false
-        "dark" -> true
-        else -> isSystemInDarkTheme()
-    }
+    val dark = settings?.themeMode == "dark"
     ShareTheme(dark = dark, accent = settings?.accent ?: "royal") {
         if (settings == null) {
             Column(Modifier.fillMaxSize().padding(24.dp)) { Text(stringResource(R.string.app_name)) }
@@ -310,6 +308,7 @@ private fun BrandHeader() {
 private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adFree: Boolean, onMenu: () -> Unit) {
     val history by vm.history.collectAsState()
     var search by remember { mutableStateOf("") }
+    var quickActionsExpanded by remember { mutableStateOf(false) }
     val tiles = listOf(
         Triple("Send", "send", Icons.Filled.Send),
         Triple("Receive", "receive", Icons.Filled.QrCodeScanner),
@@ -333,8 +332,27 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                 Image(
                     painter = painterResource(R.drawable.brand_logo),
                     contentDescription = "BQ Sqwad Share",
-                    modifier = Modifier.size(58.dp),
+                    modifier = Modifier.size(58.dp).clickable { quickActionsExpanded = true },
                 )
+                DropdownMenu(
+                    expanded = quickActionsExpanded,
+                    onDismissRequest = { quickActionsExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("↑  Send") },
+                        onClick = {
+                            quickActionsExpanded = false
+                            nav.navigate("send") { launchSingleTop = true }
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("↓  Receive") },
+                        onClick = {
+                            quickActionsExpanded = false
+                            nav.navigate("receive") { launchSingleTop = true }
+                        },
+                    )
+                }
                 Column(Modifier.padding(start = 12.dp)) {
                     Text("BQ Sqwad Share", style = MaterialTheme.typography.titleLarge)
                     Text("Share everything. Simply.", style = MaterialTheme.typography.bodySmall)
@@ -906,7 +924,7 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Appearance", style = MaterialTheme.typography.titleMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("system", "light", "dark").forEach { mode ->
+                        listOf("light", "dark").forEach { mode ->
                             FilterChip(selected = s.themeMode == mode, onClick = { vm.theme(mode) }, label = { Text(mode) })
                         }
                     }
