@@ -198,6 +198,10 @@ class WebShareServer(
             write(out, 413, "text/plain", "File exceeds the local sharing size limit.")
             return
         }
+        if (length > inbox.usableSpace - MIN_FREE_SPACE_BYTES) {
+            write(out, 507, "text/plain", "Not enough free storage on the phone.")
+            return
+        }
         val requestedName = headers["x-file-name"]?.let { encoded ->
             runCatching { URLDecoder.decode(encoded, StandardCharsets.UTF_8) }.getOrNull()
         }.orEmpty()
@@ -317,6 +321,7 @@ class WebShareServer(
             411 -> "Length Required"
             413 -> "Payload Too Large"
             429 -> "Too Many Requests"
+            507 -> "Insufficient Storage"
             else -> "Error"
         }
         val header = "HTTP/1.1 $code $msg\r\nContent-Type: $type; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n"
@@ -328,6 +333,7 @@ class WebShareServer(
         private const val MAX_HEADER_LINE = 8 * 1024
         private const val MAX_HEADER_BYTES = 16 * 1024
         private const val MAX_UPLOAD_BYTES = 1024L * 1024L * 1024L
+        private const val MIN_FREE_SPACE_BYTES = 128L * 1024L * 1024L
         private const val MAX_CLIENTS = 4
         private const val MAX_PIN_FAILURES = 8
         private const val PIN_FAILURE_WINDOW_MS = 60_000L
