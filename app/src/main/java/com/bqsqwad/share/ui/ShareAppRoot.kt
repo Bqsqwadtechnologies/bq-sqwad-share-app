@@ -234,7 +234,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                             // Keep ads on browsing/information pages only. Never show them
                             // during pairing, QR scanning, sending, receiving, or transfer flows.
                             val adVisibleRoutes = setOf(
-                                "home", "files", "history", "settings", "favorites", "more",
+                                "home", "files", "history", "settings", "favorites", "more", "storage-intelligence",
                                 "library/{section}", "media/{kind}",
                             )
                             BannerSlot(
@@ -257,7 +257,11 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         modifier = Modifier.padding(adPadding),
                     ) {
                         composable("home") { Home(nav, vm, ads, adFree) { scope.launch { drawerState.open() } } }
-                        composable("files") { FilesBrowser(nav, vm) }
+                        composable("files") {
+                            AdSupportedBrowsePage(!adFree && ads.canRequestAds, AdUnits.FILES_NATIVE) {
+                                FilesBrowser(nav, vm)
+                            }
+                        }
                         composable("send") { Send(nav, vm) }
                         composable("scan") {
                             QrScanner { code ->
@@ -269,10 +273,22 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         composable("picker") { Picker(nav, vm, ads, adFree) }
                         composable("history") { History(vm, ads, adFree) }
                         composable("library/{section}") { entry ->
-                            FilesBrowser(nav, vm, initialTab = entry.arguments?.getString("section").orEmpty())
+                            val section = entry.arguments?.getString("section").orEmpty()
+                            val unit = if (section == "apps") AdUnits.APPS_NATIVE else AdUnits.FILES_NATIVE
+                            AdSupportedBrowsePage(!adFree && ads.canRequestAds, unit) {
+                                FilesBrowser(nav, vm, initialTab = section)
+                            }
                         }
                         composable("media/{kind}") { entry ->
-                            MediaLibraryScreen(initialKind = entry.arguments?.getString("kind").orEmpty())
+                            val kind = entry.arguments?.getString("kind").orEmpty()
+                            val unit = when (kind) {
+                                "photos" -> AdUnits.PHOTOS_NATIVE
+                                "videos" -> AdUnits.VIDEOS_NATIVE
+                                else -> AdUnits.MUSIC_NATIVE
+                            }
+                            AdSupportedBrowsePage(!adFree && ads.canRequestAds, unit) {
+                                MediaLibraryScreen(initialKind = kind)
+                            }
                         }
                         composable("settings") { Settings(nav, vm, ads, activity) }
                         composable("clone") { Gated(settings, ads, activity, vm, "clone") { Clone(vm) } }
@@ -286,7 +302,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                             if (biometricActivity == null) Text("Private Vault requires a compatible Android activity.")
                             else PrivateVaultScreen(biometricActivity)
                         }
-                        composable("favorites") { Favorites(vm) }
+                        composable("favorites") { AdSupportedBrowsePage(!adFree && ads.canRequestAds, AdUnits.FAVORITES_NATIVE) { Favorites(vm) } }
                         composable("chat") { Chat(vm) }
                         composable("team-sharing") { TeamSharingScreen(vm) }
                         composable("more") { More() }
@@ -297,6 +313,18 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
         }
     }
 }
+@Composable
+private fun AdSupportedBrowsePage(
+    showAd: Boolean,
+    adUnitId: String,
+    content: @Composable () -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(1f)) { content() }
+        if (showAd) NativeSlot(true, adUnitId)
+    }
+}
+
 @Composable
 private fun GlobalMusicBar() {
     val context = LocalContext.current
