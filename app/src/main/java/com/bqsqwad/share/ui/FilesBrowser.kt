@@ -1,5 +1,6 @@
 package com.bqsqwad.share.ui
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import java.io.File
@@ -59,7 +60,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.content.FileProvider
 import com.bqsqwad.share.ShareViewModel
+import com.bqsqwad.share.data.TransferEntity
 import com.bqsqwad.share.files.FileUtilities
 import coil.ImageLoader
 import coil.decode.VideoFrameDecoder
@@ -85,6 +88,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
     val selectedUris = remember { mutableStateMapOf<String, Uri>() }
     val selectedFiles = remember { mutableStateMapOf<String, List<File>>() }
     var shareDialog by remember { mutableStateOf(false) }
+    var deleteReceivedItem by remember { mutableStateOf<TransferEntity?>(null) }
     var previewItem by remember { mutableStateOf<ShareMediaItem?>(null) }
     var appInfo by remember { mutableStateOf<ShareAppItem?>(null) }
     var archiving by remember { mutableStateOf(false) }
@@ -328,6 +332,13 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                                     Text(item.displayName, style = MaterialTheme.typography.titleSmall)
                                     Text(MediaRepository.formatBytes(item.bytes), style = MaterialTheme.typography.bodySmall)
                                 }
+                                if (tab == "Received") {
+                                    TextButton(
+                                        onClick = { openReceivedFile(context, item) },
+                                        enabled = item.localPath?.let { File(it).isFile && File(it).canRead() } == true,
+                                    ) { Text("Open") }
+                                    TextButton(onClick = { deleteReceivedItem = item }) { Text("Delete") }
+                                }
                                 if (isSelected) Text("✓")
                             }
                         }
@@ -542,5 +553,39 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
             },
             dismissButton = { TextButton(onClick = { shareDialog = false }) { Text("Cancel") } },
         )
+    }
+}
+
+    deleteReceivedItem?.let { item ->
+        AlertDialog(
+            onDismissRequest = { deleteReceivedItem = null },
+            title = { Text("Delete received file?") },
+            text = { Text("This permanently deletes ${item.displayName} from this phone and removes its transfer record.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.permanentlyDelete(item)
+                    deleteReceivedItem = null
+                }) { Text("Delete permanently") }
+            },
+            dismissButton = { TextButton(onClick = { deleteReceivedItem = null }) { Text("Cancel") } },
+        )
+    }
+}
+
+
+internal fun openReceivedFile(context: Context, item: TransferEntity) {
+    val file = item.localPath?.let(::File)
+    if (file == null || !file.isFile || !file.canRead()) {
+        Toast.makeText(context, "This received file is no longer available.", Toast.LENGTH_SHORT).show()
+        return
+    }
+    runCatching {
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+        val mime = item.mime.takeIf { it.isNotBlank() && it != "application/octet-stream" } ?: "*/*"
+        val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        context.startActivity(Intent.createChooser(intent, "Open with"))
+    }.onFailure {
+        Toast.makeText(context, "No compatible app could open this file.", Toast.LENGTH_SHORT).show()
     }
 }
