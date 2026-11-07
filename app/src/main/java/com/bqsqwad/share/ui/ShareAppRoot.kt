@@ -768,7 +768,7 @@ private fun Receive(vm: ShareViewModel) {
             Text("${stringResource(R.string.manual_code)}: $code", style = MaterialTheme.typography.headlineSmall)
             Text("Code expires in %02d:%02d".format(remainingSeconds / 60, remainingSeconds % 60))
         } else {
-            Text(if (expiresAt == 0L) "Allow Nearby permissions to create a receive code." else "This receive code has expired. Generate a new one to receive files.")
+            Text(if (nearbyPermissionsGranted) "No active receive session. Generate a new code to receive files." else "Grant Nearby permissions to create a receive code.")
         }
         if (nearbyPermissionsGranted) {
             Button(onClick = { vm.startReceiveSession() }) {
