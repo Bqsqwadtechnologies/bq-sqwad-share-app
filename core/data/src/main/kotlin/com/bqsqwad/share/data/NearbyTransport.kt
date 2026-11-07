@@ -200,7 +200,7 @@ class NearbyTransport @Inject constructor(
         val trusted = runCatching { settingsStore.settings.first().trustedDevices }.getOrDefault(emptyMap())
         _peers.value = _peers.value.map { peer ->
             val identity = remoteIdentities[peer.endpointId]
-            peer.copy(name = identity?.name ?: peer.name, trusted = identity?.id in trusted.keys, stableIdentity = identity?.id)
+            peer.copy(name = identity?.name ?: peer.name, trusted = identity != null && identity.id in trusted.keys, stableIdentity = identity?.id)
         }
     }
 
@@ -215,6 +215,8 @@ class NearbyTransport @Inject constructor(
         settingsStore.untrustDevice(identity)
         refreshPeerTrust()
     }
+    suspend fun localDeviceIdentity(): String = settingsStore.stableDeviceId()
+
     fun sendBytes(endpointId: String, bytes: ByteArray) {
         client.sendPayload(endpointId, Payload.fromBytes(bytes))
     }

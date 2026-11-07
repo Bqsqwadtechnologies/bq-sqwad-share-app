@@ -2,7 +2,7 @@
 
 **Product scope: offline/local transfers only.** Do not add internet long-distance transfer, WebRTC, TURN/STUN services, remote signaling, cloud file storage, or external transfer APIs.
 
-Status: required architecture and acceptance contract. A local opaque-chunk disk queue foundation exists in core/common/OfflineRelayStore.kt, but it is not wired to Nearby or a forwarding scheduler. This document does not claim that multi-hop relay is implemented.
+Status: required architecture and acceptance contract. A local opaque-chunk disk queue foundation exists in core/common/OfflineRelayStore.kt, but it is not wired to Nearby or a forwarding scheduler. Live Nearby resumable file transfer is implemented separately with sender/receiver OFFER, ACCEPT, CHUNK, ACK and COMPLETE control frames; this is a direct two-device transfer, not multi-hop relay. This document does not claim that multi-hop relay is implemented.
 
 ## Product behaviour
 

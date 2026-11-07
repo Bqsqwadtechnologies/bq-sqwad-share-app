@@ -67,3 +67,12 @@ No Android SDK or emulator in the coding agent. Full assembleDebug and two-phone
 - **Team Sharing:** added a session-scoped recipient picker and multi-file send to only the selected, currently connected peers. It reuses the existing Nearby file transfer path. Saved teams, persistent permissions/trusted memberships, and background delivery are not implemented.
 
 The new Android UI and relay queue have not been built or executed in this environment. Unit tests were added for the relay queue but have not been run. Android Studio/GitHub Actions and real multi-device testing are still required before release.
+
+
+## 7 November 2026 follow-up — resumable Nearby and Device Hub
+
+- **Live resumable transfers:** the sender now sends a stable transfer offer, waits for the receiver's durable checkpoint offset, sends checksummed 16 KB chunks one at a time, and persists acknowledged progress. The receiver fsyncs each accepted chunk before acknowledging it, verifies the final SHA-256, and only then saves the file. A retry/reconnect reuses the sender's stable device ID plus transfer-row ID so the receiver can return its saved offset. This replaces the normal outgoing Nearby file-payload path for new transfers; legacy incoming FILE payloads remain supported for compatibility.
+- **Cancellation:** an active sender sends a transfer-cancel control frame when the peer is still connected, allowing the receiver to discard that partial checkpoint.
+- **Persistent Device Hub history:** each installation creates a stable local UUID and exchanges it with the peer over the Nearby connection. Users explicitly approve or remove trust. Approved identities and display names are persisted locally using DataStore and remain visible after disconnect/restart. This is an app-level stable identity record, not hardware-backed device attestation; users should only trust devices they recognize.
+- **Still outstanding:** OfflineRelayStore remains a local opaque-chunk queue only. Multi-hop forwarding, relay participation/consent UI, route authentication and delivery scheduling are not implemented. A Windows companion client is also not included. These require a separately designed peer-to-peer protocol and Windows project; no cloud service has been introduced.
+- **Verification:** protocol codec tests were added. No Android Gradle build, unit-test execution, or two-device disconnect/reconnect test has been run in this environment. Do not treat these changes as release-verified until those checks pass.

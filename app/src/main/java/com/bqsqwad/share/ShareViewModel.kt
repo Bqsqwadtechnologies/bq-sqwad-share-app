@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import com.bqsqwad.share.common.FileKind
 import com.bqsqwad.share.common.SessionCrypto
 import com.bqsqwad.share.common.TransferProtocol
+import com.bqsqwad.share.common.ResumableFileReceiver
 import com.bqsqwad.share.common.folderFor
 import com.bqsqwad.share.common.kindForMime
 import com.bqsqwad.share.data.NearbyTransport
@@ -31,10 +32,17 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.RandomAccessFile
 import javax.inject.Inject
 
 private data class OutgoingShareFile(val file: File, val mime: String, val bytes: Long, val displayName: String)
@@ -68,6 +76,8 @@ class ShareViewModel @Inject constructor(
     private val pendingOutgoingQueue = java.util.concurrent.ConcurrentLinkedQueue<TransferEntity>()
     private val pumpingQueue = java.util.concurrent.atomic.AtomicBoolean(false)
     private val maxConcurrentPayloads = 3
+    private val activeResumableTransfers = java.util.concurrent.ConcurrentHashMap<Long, Job>()
+    private val resumableReceiver by lazy { ResumableFileReceiver(File(context.filesDir, "resumable-incoming")) }
 
     init {
         // A process restart cannot resume a Nearby payload in place. Mark unfinished
@@ -80,10 +90,25 @@ class ShareViewModel @Inject constructor(
             )
             transferRows
                 .filter { it.direction.equals("SEND", true) && it.status in setOf("SENDING", "QUEUED") }
-                .forEach { dao.update(it.copy(status = "WAITING_FOR_DEVICE", bytesDone = 0L)) }
+                .forEach { dao.update(it.copy(status = "WAITING_FOR_DEVICE")) }
         }
         viewModelScope.launch {
-            nearby.connected.collect { pumpOutgoingQueue() }
+            nearby.connected.collect { connected ->
+                if (connected.isNotEmpty()) {
+                    val waiting = dao.observeAll().first().filter {
+                        it.direction.equals("SEND", true) && it.status == "WAITING_FOR_DEVICE"
+                    }
+                    waiting.forEach { row ->
+                        val target = row.peerName.takeIf { it in connected } ?: connected.first()
+                        if (activeResumableTransfers[row.id] == null && pendingOutgoingQueue.none { it.id == row.id }) {
+                            val queued = row.copy(peerName = target, status = "QUEUED")
+                            dao.update(queued)
+                            pendingOutgoingQueue.add(queued)
+                        }
+                    }
+                }
+                pumpOutgoingQueue()
+            }
         }
         val activePayloadIds = mutableSetOf<Long>()
         viewModelScope.launch {
@@ -200,8 +225,10 @@ class ShareViewModel @Inject constructor(
                 when (payload.type) {
                     Payload.Type.BYTES -> {
                         nonFilePayloads.add(key)
-                        val manifest = payload.asBytes()?.let { bytes ->
-                            runCatching { TransferProtocol.parseFileManifest(bytes) }.getOrNull()
+                        val bytes = payload.asBytes()
+                        if (bytes != null && handleResumableFrame(event.endpointId, bytes)) return@collect
+                        val manifest = bytes?.let { data ->
+                            runCatching { TransferProtocol.parseFileManifest(data) }.getOrNull()
                         }
                         if (manifest != null) {
                             val manifestKey = event.endpointId to manifest.filePayloadId
@@ -471,54 +498,223 @@ class ShareViewModel @Inject constructor(
         if (!pumpingQueue.compareAndSet(false, true)) return
         viewModelScope.launch {
             try {
-                while (outgoingPayloadRecords.size < maxConcurrentPayloads) {
+                while (activeResumableTransfers.size < maxConcurrentPayloads) {
                     val connectedNow = nearby.connected.value
                     val next = pendingOutgoingQueue.firstOrNull { it.peerName in connectedNow } ?: break
                     if (!pendingOutgoingQueue.remove(next)) continue
                     val source = next.localPath?.let(::File)
                     if (source == null || !source.isFile || !source.canRead()) {
-                        dao.update(next.copy(status = "FAILED_SOURCE_MISSING", bytesDone = 0L))
+                        dao.update(next.copy(status = "FAILED_SOURCE_MISSING"))
                         continue
                     }
-                    try {
-                        val digest = withContext(Dispatchers.IO) {
-                            FileUtilities.sha256(source).chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-                        }
-                        val payloadId = nearby.sendFileWithMetadata(
-                            endpointId = next.peerName,
-                            file = source,
-                            displayName = next.displayName,
-                            mime = next.mime,
-                            size = source.length(),
-                            sha256 = digest,
-                        )
-                        val sending = next.copy(status = "SENDING", bytesDone = 0L)
-                        outgoingPayloadRecords[payloadId] = sending
-                        outgoingPayloadIds[next.id] = payloadId
-                        dao.update(sending)
-                    } catch (_: Exception) {
-                        dao.update(next.copy(status = "FAILED", bytesDone = 0L))
-                        if (source.name.startsWith("outgoing-")) runCatching { source.delete() }
+                    val job = viewModelScope.launch(start = CoroutineStart.LAZY) { sendResumableFile(next, source) }
+                    activeResumableTransfers[next.id] = job
+                    job.invokeOnCompletion {
+                        activeResumableTransfers.remove(next.id, job)
+                        pumpOutgoingQueue()
                     }
+                    job.start()
                 }
             } finally {
                 pumpingQueue.set(false)
-                if (outgoingPayloadRecords.size < maxConcurrentPayloads &&
+                if (activeResumableTransfers.size < maxConcurrentPayloads &&
                     pendingOutgoingQueue.any { it.peerName in nearby.connected.value }
-                ) {
-                    pumpOutgoingQueue()
-                }
+                ) pumpOutgoingQueue()
             }
         }
     }
 
+    private suspend fun sendResumableFile(row: TransferEntity, source: File) {
+        val endpointId = row.peerName
+        var acknowledgedBytes = row.bytesDone
+        try {
+            val digest = withContext(Dispatchers.IO) {
+                FileUtilities.sha256(source).chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+            }
+            val senderId = nearby.localDeviceIdentity().replace("-", "").take(32)
+            val transferId = "bq" + senderId + "_" + row.id
+            val offer = TransferProtocol.ResumableOffer(transferId, row.displayName, row.mime, source.length(), digest)
+            dao.update(row.copy(status = "SENDING", bytesDone = row.bytesDone.coerceAtMost(source.length())))
+            val accepted = sendAndAwait(
+                endpointId,
+                TransferProtocol.frame(TransferProtocol.TYPE_OFFER, TransferProtocol.resumableOfferBody(offer)),
+                TransferProtocol.TYPE_ACCEPT,
+                transferId,
+            )
+            var offset = TransferProtocol.parseTransferOffset(accepted.body).nextOffset
+            require(offset in 0..source.length()) { "Receiver returned an invalid resume offset." }
+            acknowledgedBytes = offset
+            dao.update(row.copy(status = "SENDING", bytesDone = offset))
+            RandomAccessFile(source, "r").use { input ->
+                while (offset < source.length()) {
+                    if (endpointId !in nearby.connected.value) throw IllegalStateException("Device disconnected.")
+                    val count = minOf(16_000L, source.length() - offset).toInt()
+                    val bytes = ByteArray(count)
+                    input.seek(offset)
+                    input.readFully(bytes)
+                    val ack = sendAndAwait(
+                        endpointId,
+                        TransferProtocol.frame(TransferProtocol.TYPE_CHUNK, TransferProtocol.resumableChunkBody(transferId, offset, bytes)),
+                        TransferProtocol.TYPE_ACK,
+                        transferId,
+                        offset + count,
+                    )
+                    val nextOffset = TransferProtocol.parseTransferOffset(ack.body).nextOffset
+                    require(nextOffset == offset + count) { "Receiver acknowledged an unexpected byte offset." }
+                    offset = nextOffset
+                    acknowledgedBytes = offset
+                    dao.update(row.copy(status = "SENDING", bytesDone = offset))
+                }
+            }
+            val finalAck = sendAndAwait(
+                endpointId,
+                TransferProtocol.frame(TransferProtocol.TYPE_COMPLETE, TransferProtocol.transferIdBody(transferId)),
+                TransferProtocol.TYPE_ACK,
+                transferId,
+                source.length(),
+            )
+            require(TransferProtocol.parseTransferOffset(finalAck.body).nextOffset == source.length()) {
+                "Receiver did not confirm the complete file."
+            }
+            dao.update(row.copy(status = "DONE", bytesDone = source.length()))
+            if (source.name.startsWith("outgoing-")) withContext(Dispatchers.IO) { source.delete() }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            dao.update(row.copy(status = "WAITING_FOR_DEVICE", bytesDone = acknowledgedBytes))
+            incomingTransferMessage.value = "Transfer paused. Reconnect to resume from the last verified checkpoint."
+        }
+    }
+
+    private suspend fun sendAndAwait(
+        endpointId: String,
+        bytes: ByteArray,
+        expectedType: Byte,
+        transferId: String,
+        expectedOffset: Long? = null,
+    ): TransferProtocol.ParsedFrame = coroutineScope {
+        val waiter = async(start = CoroutineStart.UNDISPATCHED) {
+            awaitTransferControl(endpointId, expectedType, transferId, expectedOffset)
+        }
+        nearby.sendBytes(endpointId, bytes)
+        waiter.await()
+    }
+
+    private suspend fun awaitTransferControl(
+        endpointId: String,
+        expectedType: Byte,
+        transferId: String,
+        expectedOffset: Long? = null,
+    ): TransferProtocol.ParsedFrame = withTimeout(45_000L) {
+        val event = nearby.payloads.first { incoming ->
+            if (incoming.endpointId != endpointId || incoming.payload.type != Payload.Type.BYTES) return@first false
+            val bytes = incoming.payload.asBytes() ?: return@first false
+            val parsed = runCatching { TransferProtocol.parse(bytes) }.getOrNull() ?: return@first false
+            if (parsed.type != expectedType) return@first false
+            val receivedId = runCatching {
+                if (expectedType == TransferProtocol.TYPE_ACCEPT || expectedType == TransferProtocol.TYPE_ACK) {
+                    TransferProtocol.parseTransferOffset(parsed.body).transferId
+                } else {
+                    TransferProtocol.parseTransferId(parsed.body)
+                }
+            }.getOrNull()
+            val receivedOffset = if (expectedType == TransferProtocol.TYPE_ACCEPT || expectedType == TransferProtocol.TYPE_ACK) {
+                runCatching { TransferProtocol.parseTransferOffset(parsed.body).nextOffset }.getOrNull()
+            } else null
+            receivedId == transferId && (expectedOffset == null || receivedOffset == expectedOffset)
+        }
+        TransferProtocol.parse(event.payload.asBytes()!!)
+    }
+
+    private suspend fun handleResumableFrame(endpointId: String, bytes: ByteArray): Boolean {
+        val frame = runCatching { TransferProtocol.parse(bytes) }.getOrNull() ?: return false
+        return try {
+            when (frame.type) {
+                TransferProtocol.TYPE_OFFER -> {
+                    val offer = TransferProtocol.parseResumableOffer(frame.body)
+                    val offset = withContext(Dispatchers.IO) {
+                        resumableReceiver.begin(ResumableFileReceiver.Offer(
+                            transferId = offer.transferId,
+                            displayName = offer.displayName,
+                            totalBytes = offer.totalBytes,
+                            sha256 = offer.sha256,
+                        ))
+                    }
+                    nearby.sendBytes(endpointId, TransferProtocol.frame(
+                        TransferProtocol.TYPE_ACCEPT,
+                        TransferProtocol.transferOffsetBody(offer.transferId, offset),
+                    ))
+                    true
+                }
+                TransferProtocol.TYPE_CHUNK -> {
+                    val chunk = TransferProtocol.parseResumableChunk(frame.body)
+                    val nextOffset = withContext(Dispatchers.IO) {
+                        resumableReceiver.appendChunk(chunk.transferId, chunk.offset, chunk.data, chunk.sha256)
+                    }
+                    nearby.sendBytes(endpointId, TransferProtocol.frame(
+                        TransferProtocol.TYPE_ACK,
+                        TransferProtocol.transferOffsetBody(chunk.transferId, nextOffset),
+                    ))
+                    true
+                }
+                TransferProtocol.TYPE_COMPLETE -> {
+                    val transferId = TransferProtocol.parseTransferId(frame.body)
+                    val completed = withContext(Dispatchers.IO) { resumableReceiver.complete(transferId) }
+                    try {
+                        val name = FileUtilities.safeFileName(completed.name)
+                        val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(completed.extension.lowercase())
+                            ?: "application/octet-stream"
+                        val kind = kindForMime(mime, name)
+                        val directory = File(context.getExternalFilesDir(null), folderFor(kind))
+                        val destination = withContext(Dispatchers.IO) {
+                            FileUtilities.copyToUniqueDestination(completed, directory, name)
+                        }
+                        record(destination.name, mime, destination.length(), "RECEIVE", endpointId, destination.absolutePath)
+                        incomingTransferMessage.value = "Received and verified: " + destination.name
+                        nearby.sendBytes(endpointId, TransferProtocol.frame(
+                            TransferProtocol.TYPE_ACK,
+                            TransferProtocol.transferOffsetBody(transferId, completed.length()),
+                        ))
+                    } finally {
+                        withContext(Dispatchers.IO) { completed.delete() }
+                    }
+                    true
+                }
+                TransferProtocol.TYPE_CANCEL -> {
+                    val transferId = TransferProtocol.parseTransferId(frame.body)
+                    withContext(Dispatchers.IO) { resumableReceiver.discard(transferId) }
+                    true
+                }
+                else -> false
+            }
+        } catch (failure: Exception) {
+            incomingTransferMessage.value = failure.message?.take(120) ?: "Could not process resumable transfer."
+            true
+        }
+    }
+
     fun cancelTransfer(item: TransferEntity) = viewModelScope.launch {
-        val payloadId = outgoingPayloadIds.remove(item.id)
-        if (payloadId != null) {
-            outgoingPayloadRecords.remove(payloadId)
-            nearby.cancelPayload(payloadId)
+        val active = activeResumableTransfers.remove(item.id)
+        if (active != null) {
+            active.cancel()
+            if (item.peerName in nearby.connected.value) {
+                val senderId = nearby.localDeviceIdentity().replace("-", "").take(32)
+                val transferId = "bq" + senderId + "_" + item.id
+                nearby.sendBytes(item.peerName, TransferProtocol.frame(
+                    TransferProtocol.TYPE_CANCEL,
+                    TransferProtocol.transferIdBody(transferId),
+                ))
+            }
             dao.update(item.copy(status = "CANCELLED"))
         } else if (pendingOutgoingQueue.removeIf { it.id == item.id }) {
+            if (item.peerName in nearby.connected.value) {
+                val senderId = nearby.localDeviceIdentity().replace("-", "").take(32)
+                val transferId = "bq" + senderId + "_" + item.id
+                nearby.sendBytes(item.peerName, TransferProtocol.frame(
+                    TransferProtocol.TYPE_CANCEL,
+                    TransferProtocol.transferIdBody(transferId),
+                ))
+            }
             dao.update(item.copy(status = "CANCELLED"))
             item.localPath?.let { path ->
                 val file = File(path)
@@ -533,7 +729,7 @@ class ShareViewModel @Inject constructor(
         val connected = nearby.connected.value
         val endpointId = item.peerName.takeIf { it in connected } ?: connected.firstOrNull()
         if (endpointId == null) {
-            dao.update(item.copy(status = "WAITING_FOR_DEVICE", bytesDone = 0L))
+            dao.update(item.copy(status = "WAITING_FOR_DEVICE"))
             return@launch
         }
         val source = item.localPath?.let(::File)
@@ -542,12 +738,11 @@ class ShareViewModel @Inject constructor(
             return@launch
         }
         val alreadyQueued = pendingOutgoingQueue.any { it.id == item.id }
-        val alreadyActive = outgoingPayloadIds.containsKey(item.id)
+        val alreadyActive = activeResumableTransfers.containsKey(item.id)
         if (alreadyQueued || alreadyActive) return@launch
         val retryRow = item.copy(
             peerName = endpointId,
             status = "QUEUED",
-            bytesDone = 0L,
             createdAt = System.currentTimeMillis(),
         )
         dao.update(retryRow)

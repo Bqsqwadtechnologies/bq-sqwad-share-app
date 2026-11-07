@@ -251,6 +251,108 @@ object TransferProtocol {
         return Ack(fileId, nextOffset)
     }
 
+
+    data class ResumableOffer(
+        val transferId: String,
+        val displayName: String,
+        val mime: String,
+        val totalBytes: Long,
+        val sha256: ByteArray,
+    )
+
+    fun resumableOfferBody(offer: ResumableOffer): ByteArray {
+        require(offer.transferId.matches(Regex("[A-Za-z0-9_-]{1,80}")))
+        val id = offer.transferId.toByteArray(Charsets.US_ASCII)
+        val name = offer.displayName.toByteArray(Charsets.UTF_8)
+        val mime = offer.mime.toByteArray(Charsets.UTF_8)
+        require(name.size in 1..4096 && mime.size in 1..256 && offer.totalBytes >= 0L && offer.sha256.size == 32)
+        return ByteBuffer.allocate(1 + id.size + 2 + name.size + 2 + mime.size + 8 + 32)
+            .order(ByteOrder.LITTLE_ENDIAN).apply {
+                put(id.size.toByte()); put(id)
+                putShort(name.size.toShort()); put(name)
+                putShort(mime.size.toShort()); put(mime)
+                putLong(offer.totalBytes); put(offer.sha256)
+            }.array()
+    }
+
+    fun parseResumableOffer(body: ByteArray): ResumableOffer {
+        val b = ByteBuffer.wrap(body).order(ByteOrder.LITTLE_ENDIAN)
+        require(b.remaining() >= 46)
+        val idLength = b.get().toInt() and 0xff
+        require(idLength in 1..80 && b.remaining() >= idLength + 2)
+        val id = ByteArray(idLength).also(b::get).toString(Charsets.US_ASCII)
+        require(id.matches(Regex("[A-Za-z0-9_-]{1,80}")))
+        val nameLength = b.short.toInt() and 0xffff
+        require(nameLength in 1..4096 && b.remaining() >= nameLength + 2)
+        val name = ByteArray(nameLength).also(b::get).toString(Charsets.UTF_8)
+        val mimeLength = b.short.toInt() and 0xffff
+        require(mimeLength in 1..256 && b.remaining() == mimeLength + 8 + 32)
+        val mime = ByteArray(mimeLength).also(b::get).toString(Charsets.UTF_8)
+        val size = b.long
+        val hash = ByteArray(32).also(b::get)
+        require(size >= 0L)
+        return ResumableOffer(id, name, mime, size, hash)
+    }
+
+    data class TransferOffset(val transferId: String, val nextOffset: Long)
+
+    fun transferOffsetBody(transferId: String, nextOffset: Long): ByteArray {
+        require(transferId.matches(Regex("[A-Za-z0-9_-]{1,80}")) && nextOffset >= 0L)
+        val id = transferId.toByteArray(Charsets.US_ASCII)
+        return ByteBuffer.allocate(1 + id.size + 8).order(ByteOrder.LITTLE_ENDIAN)
+            .put(id.size.toByte()).put(id).putLong(nextOffset).array()
+    }
+
+    fun parseTransferOffset(body: ByteArray): TransferOffset {
+        val b = ByteBuffer.wrap(body).order(ByteOrder.LITTLE_ENDIAN)
+        require(b.remaining() >= 10)
+        val length = b.get().toInt() and 0xff
+        require(length in 1..80 && b.remaining() == length + 8)
+        val id = ByteArray(length).also(b::get).toString(Charsets.US_ASCII)
+        require(id.matches(Regex("[A-Za-z0-9_-]{1,80}")))
+        val offset = b.long
+        require(offset >= 0L)
+        return TransferOffset(id, offset)
+    }
+
+    data class ResumableChunk(val transferId: String, val offset: Long, val data: ByteArray, val sha256: ByteArray)
+
+    fun resumableChunkBody(transferId: String, offset: Long, data: ByteArray): ByteArray {
+        require(transferId.matches(Regex("[A-Za-z0-9_-]{1,80}")) && offset >= 0L)
+        require(data.size in 1..16_000)
+        val id = transferId.toByteArray(Charsets.US_ASCII)
+        val hash = sha256(data)
+        return ByteBuffer.allocate(1 + id.size + 8 + 4 + 32 + data.size).order(ByteOrder.LITTLE_ENDIAN)
+            .put(id.size.toByte()).put(id).putLong(offset).putInt(data.size).put(hash).put(data).array()
+    }
+
+    fun parseResumableChunk(body: ByteArray): ResumableChunk {
+        val b = ByteBuffer.wrap(body).order(ByteOrder.LITTLE_ENDIAN)
+        require(b.remaining() >= 46)
+        val idLength = b.get().toInt() and 0xff
+        require(idLength in 1..80 && b.remaining() >= idLength + 44)
+        val id = ByteArray(idLength).also(b::get).toString(Charsets.US_ASCII)
+        require(id.matches(Regex("[A-Za-z0-9_-]{1,80}")))
+        val offset = b.long
+        val length = b.int
+        require(offset >= 0L && length in 1..16_000 && b.remaining() == 32 + length)
+        val hash = ByteArray(32).also(b::get)
+        val data = ByteArray(length).also(b::get)
+        require(sha256(data).contentEquals(hash)) { "Resumable chunk checksum mismatch." }
+        return ResumableChunk(id, offset, data, hash)
+    }
+
+    fun transferIdBody(transferId: String): ByteArray {
+        require(transferId.matches(Regex("[A-Za-z0-9_-]{1,80}")))
+        return transferId.toByteArray(Charsets.US_ASCII)
+    }
+
+    fun parseTransferId(body: ByteArray): String {
+        val id = body.toString(Charsets.US_ASCII)
+        require(id.matches(Regex("[A-Za-z0-9_-]{1,80}")))
+        return id
+    }
+
     fun encryptFrame(key: SecretKey, plainFrame: ByteArray): ByteArray =
         SessionCrypto.encrypt(key, plainFrame)
 

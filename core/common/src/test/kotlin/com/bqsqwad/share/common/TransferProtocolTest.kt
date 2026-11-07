@@ -27,6 +27,30 @@ class TransferProtocolTest {
     }
 
     @Test
+    fun resumableOfferChunkAndOffsetFramesRoundTrip() {
+        val transferId = "device_123-transfer_45"
+        val digest = TransferProtocol.sha256("hello world".toByteArray())
+        val offer = TransferProtocol.ResumableOffer(transferId, "notes.txt", "text/plain", 11L, digest)
+        val decodedOffer = TransferProtocol.parseResumableOffer(TransferProtocol.resumableOfferBody(offer))
+        assertEquals(transferId, decodedOffer.transferId)
+        assertEquals("notes.txt", decodedOffer.displayName)
+        assertEquals("text/plain", decodedOffer.mime)
+        assertEquals(11L, decodedOffer.totalBytes)
+        assertArrayEquals(digest, decodedOffer.sha256)
+
+        val chunk = TransferProtocol.resumableChunkBody(transferId, 0L, "hello world".toByteArray())
+        val decodedChunk = TransferProtocol.parseResumableChunk(chunk)
+        assertEquals(transferId, decodedChunk.transferId)
+        assertEquals(0L, decodedChunk.offset)
+        assertArrayEquals("hello world".toByteArray(), decodedChunk.data)
+
+        val offset = TransferProtocol.parseTransferOffset(TransferProtocol.transferOffsetBody(transferId, 11L))
+        assertEquals(transferId, offset.transferId)
+        assertEquals(11L, offset.nextOffset)
+        assertEquals(transferId, TransferProtocol.parseTransferId(TransferProtocol.transferIdBody(transferId)))
+    }
+
+    @Test
     fun frameRoundTrip() {
         val body = "hello".toByteArray()
         val framed = TransferProtocol.frame(TransferProtocol.TYPE_HELLO, body)
