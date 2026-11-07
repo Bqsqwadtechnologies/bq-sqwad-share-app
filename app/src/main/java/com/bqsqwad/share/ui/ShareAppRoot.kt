@@ -720,6 +720,8 @@ private fun Receive(vm: ShareViewModel) {
     val connecting by vm.nearby.connecting.collectAsState()
     val incomingMessage by vm.incomingTransferMessage.collectAsState()
     val expiresAt by vm.receiveExpiresAt.collectAsState()
+    val advertising by vm.nearby.advertising.collectAsState()
+    val advertisingError by vm.nearby.advertisingError.collectAsState()
     var remainingSeconds by remember { mutableStateOf(0L) }
     var nearbyPermissionsGranted by remember { mutableStateOf(false) }
     val requiredReceivePermissions = remember {
@@ -753,7 +755,7 @@ private fun Receive(vm: ShareViewModel) {
             delay(1000L)
         }
     }
-    val code = if (expiresAt > 0L && remainingSeconds > 0L) vm.sessionCode else ""
+    val code = if (expiresAt > 0L && remainingSeconds > 0L && advertising) vm.sessionCode else ""
     val payload = if (code.isNotBlank()) "bqsqwad://share?code=$code&expires=$expiresAt&key=${vm.keyText}&v=${vm.verification}" else ""
     Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(stringResource(R.string.show_qr), style = MaterialTheme.typography.titleLarge)
@@ -784,6 +786,14 @@ private fun Receive(vm: ShareViewModel) {
                 }
             }
         }
+        advertisingError?.let { error ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Nearby advertising could not start", style = MaterialTheme.typography.titleSmall)
+                    Text(error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
         if (code.isNotBlank()) {
             Image(
                 bitmap = qrBitmap(payload).asImageBitmap(),
@@ -794,11 +804,18 @@ private fun Receive(vm: ShareViewModel) {
             Text("${stringResource(R.string.manual_code)}: $code", style = MaterialTheme.typography.headlineSmall)
             Text("Code expires in %02d:%02d".format(remainingSeconds / 60, remainingSeconds % 60))
         } else {
-            Text(if (nearbyPermissionsGranted) "No active receive session. Generate a new code to receive files." else "Grant Nearby permissions to create a receive code.")
+            Text(
+                when {
+                    advertisingError != null -> "The receive code is unavailable until Nearby advertising starts."
+                    nearbyPermissionsGranted && expiresAt > 0L -> "Starting Nearby advertising…"
+                    nearbyPermissionsGranted -> "No active receive session. Generate a new code to receive files."
+                    else -> "Grant Nearby permissions to create a receive code."
+                }
+            )
         }
         if (nearbyPermissionsGranted) {
             Button(onClick = { vm.startReceiveSession() }) {
-                Text(if (code.isBlank()) "Generate new code" else "Regenerate code")
+                Text(if (advertisingError != null) "Retry receive setup" else if (code.isBlank()) "Generate new code" else "Regenerate code")
             }
         } else {
             Button(onClick = { receivePermissions.launch(requiredReceivePermissions) }) {
