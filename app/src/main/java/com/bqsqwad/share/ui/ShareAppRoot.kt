@@ -341,7 +341,7 @@ private fun AdSupportedBrowsePage(
 ) {
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) { content() }
-        if (showAd && adsAllowed) NativeSlot(true, adUnitId)
+        if (showAd) NativeSlot(true, adUnitId)
     }
 }
 
@@ -418,6 +418,7 @@ private fun BrandHeader() {
 
 @Composable
 private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adFree: Boolean, onMenu: () -> Unit) {
+    val adsAllowed by ads.canRequestAdsState.collectAsState()
     val history by vm.history.collectAsState()
     var search by remember { mutableStateOf("") }
     var quickActionsExpanded by remember { mutableStateOf(false) }
@@ -918,7 +919,7 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
                 Button(onClick = {
                     val id = vm.nearby.connected.value.firstOrNull()
                     if (id == null) Toast.makeText(ctx, ctx.getString(R.string.not_found), Toast.LENGTH_SHORT).show()
-                    else vm.sendText(id, text)
+                    else if (vm.sendTextToConnected(text)) text = "" else Toast.makeText(ctx, "Could not send clipboard text.", Toast.LENGTH_SHORT).show()
                 }, modifier = Modifier.height(48.dp)) { Text(stringResource(R.string.send)) }
             }
             else -> {
