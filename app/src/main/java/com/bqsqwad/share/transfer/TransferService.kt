@@ -50,8 +50,16 @@ class TransferService : Service() {
         private const val EXTRA_MAX = "max"
         private const val EXTRA_PROGRESS = "progress"
         private const val EXTRA_COMPLETE = "complete"
+        private const val EXTRA_SHOW_COMPLETE = "show_complete"
 
-        fun update(context: Context, text: String, transferred: Long, total: Long, complete: Boolean = false) {
+        fun update(
+            context: Context,
+            text: String,
+            transferred: Long,
+            total: Long,
+            complete: Boolean = false,
+            showCompletionNotification: Boolean = true,
+        ) {
             val safeTotal = total.coerceAtLeast(0L)
             val max = if (safeTotal > Int.MAX_VALUE) 1000 else safeTotal.toInt()
             val progress = if (safeTotal <= 0L) 0 else if (safeTotal > Int.MAX_VALUE) {
@@ -63,6 +71,7 @@ class TransferService : Service() {
                 .putExtra(EXTRA_MAX, max)
                 .putExtra(EXTRA_PROGRESS, progress)
                 .putExtra(EXTRA_COMPLETE, complete)
+                .putExtra(EXTRA_SHOW_COMPLETE, showCompletionNotification)
             if (Build.VERSION.SDK_INT >= 26) ContextCompat.startForegroundService(context, intent)
             else context.startService(intent)
         }
