@@ -41,6 +41,42 @@ class TransferProtocolTest {
     }
 
     @Test
+    fun fileManifestRoundTripsAndCorrelatesByNearbyPayloadId() {
+        val digest = ByteArray(32) { (it * 3).toByte() }
+        val encoded = TransferProtocol.fileManifestBody(
+            filePayloadId = 987654321L,
+            name = "family-photo.jpg",
+            mime = "image/jpeg",
+            size = 8_765_432L,
+            fileSha256 = digest,
+        )
+        val decoded = TransferProtocol.parseFileManifest(encoded)
+        assertEquals(987654321L, decoded.filePayloadId)
+        assertEquals("family-photo.jpg", decoded.name)
+        assertEquals("image/jpeg", decoded.mime)
+        assertEquals(8_765_432L, decoded.size)
+        assertArrayEquals(digest, decoded.sha256)
+    }
+
+    @Test
+    fun fileManifestRejectsCorruptionAndInvalidMetadata() {
+        val valid = TransferProtocol.fileManifestBody(5L, "doc.pdf", "application/pdf", 10L, ByteArray(32))
+        val corrupt = valid.copyOf().also { it[0] = 0 }
+        try {
+            TransferProtocol.parseFileManifest(corrupt)
+            throw AssertionError("Corrupt manifest should be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+        try {
+            TransferProtocol.fileManifestBody(0L, "doc.pdf", "application/pdf", 10L, ByteArray(32))
+            throw AssertionError("Invalid payload ID should be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
+    @Test
     fun resumeFromOffset() {
         val file = ByteArray(50_000) { (it % 251).toByte() }
         val frames = TransferProtocol.chunkFile(1, file, resumeOffset = 20_000, chunkSize = 10_000)

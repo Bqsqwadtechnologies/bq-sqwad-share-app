@@ -1,6 +1,7 @@
 package com.bqsqwad.share.data
 
 import android.content.Context
+import com.bqsqwad.share.common.TransferProtocol
 import com.bqsqwad.share.domain.Peer
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.AdvertisingOptions
@@ -182,6 +183,32 @@ class NearbyTransport @Inject constructor(
         val payload = Payload.fromFile(file)
         client.sendPayload(endpointId, payload)
         return payload.id
+    }
+
+    /**
+     * Sends a manifest tied to the FILE payload's real Nearby ID, then the file.
+     * BYTES and FILE callbacks may arrive in either order; the receiver correlates
+     * them by this ID, so concurrent file transfers cannot cross-match metadata.
+     */
+    fun sendFileWithMetadata(
+        endpointId: String,
+        file: File,
+        displayName: String,
+        mime: String,
+        size: Long,
+        sha256: ByteArray,
+    ): Long {
+        val filePayload = Payload.fromFile(file)
+        val manifest = TransferProtocol.fileManifestBody(
+            filePayload.id,
+            displayName,
+            mime,
+            size,
+            sha256,
+        )
+        client.sendPayload(endpointId, Payload.fromBytes(manifest))
+        client.sendPayload(endpointId, filePayload)
+        return filePayload.id
     }
 
     fun cancelPayload(id: Long) { client.cancelPayload(id) }

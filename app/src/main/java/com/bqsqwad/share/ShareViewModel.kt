@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bqsqwad.share.common.FileKind
 import com.bqsqwad.share.common.SessionCrypto
+import com.bqsqwad.share.common.TransferProtocol
 import com.bqsqwad.share.common.folderFor
 import com.bqsqwad.share.common.kindForMime
 import com.bqsqwad.share.data.NearbyTransport
@@ -129,28 +130,50 @@ class ShareViewModel @Inject constructor(
                 TransferService.update(context, text, progress.bytes, progress.total, complete)
             }
         }
-        val pendingIncoming = java.util.concurrent.ConcurrentHashMap<Long, Pair<String, File>>()
-        val completedIncoming = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
+        // Use (endpoint, payload ID) as the key: multiple peers can independently
+        // allocate the same numeric Nearby payload ID.
+        val pendingIncoming = java.util.concurrent.ConcurrentHashMap<Pair<String, Long>, File>()
+        val incomingManifests = java.util.concurrent.ConcurrentHashMap<Pair<String, Long>, TransferProtocol.FileManifest>()
+        val completedIncoming = java.util.concurrent.ConcurrentHashMap.newKeySet<Pair<String, Long>>()
 
-        fun persistCompletedPayload(payloadId: Long) {
-            val pending = pendingIncoming.remove(payloadId) ?: return
-            completedIncoming.remove(payloadId)
-            val (endpointId, incomingFile) = pending
+        fun persistCompletedPayload(key: Pair<String, Long>) {
+            val incomingFile = pendingIncoming.remove(key) ?: return
+            val manifest = incomingManifests.remove(key)
+            completedIncoming.remove(key)
+            val endpointId = key.first
             viewModelScope.launch {
                 try {
                     val receivedName = withContext(Dispatchers.IO) {
-                        val name = FileUtilities.safeFileName(incomingFile.name)
+                        if (manifest != null) {
+                            require(incomingFile.length() == manifest.size) {
+                                "The received file size does not match the sender's manifest."
+                            }
+                            require(FileUtilities.sha256(incomingFile).equals(
+                                manifest.sha256.joinToString("") { "%02x".format(it) },
+                                ignoreCase = true,
+                            )) {
+                                "The received file failed the sender's SHA-256 integrity check."
+                            }
+                        }
+                        val name = FileUtilities.safeFileName(manifest?.name ?: incomingFile.name)
                         val extension = name.substringAfterLast('.', "").lowercase()
-                        val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
+                        val mime = manifest?.mime
+                            ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+                            ?: "application/octet-stream"
                         val kind = kindForMime(mime, name)
                         val directory = File(context.getExternalFilesDir(null), folderFor(kind))
                         val destination = FileUtilities.copyToUniqueDestination(incomingFile, directory, name)
                         record(destination.name, mime, destination.length(), "RECEIVE", endpointId, destination.absolutePath)
                         destination.name
                     }
-                    incomingTransferMessage.value = "Received: $receivedName"
-                } catch (_: Exception) {
-                    incomingTransferMessage.value = "The transfer finished, but this file could not be saved. Check available storage and try again."
+                    incomingTransferMessage.value = if (manifest != null) {
+                        "Received and verified: $receivedName"
+                    } else {
+                        "Received: $receivedName (sender verification unavailable)"
+                    }
+                } catch (failure: Exception) {
+                    incomingTransferMessage.value = failure.message?.takeIf { it.contains("integrity", true) || it.contains("manifest", true) }
+                        ?: "The transfer finished, but this file could not be saved. Check available storage and try again."
                 } finally {
                     // Nearby's temporary payload file is no longer needed after the app-owned copy.
                     withContext(Dispatchers.IO) { runCatching { incomingFile.delete() } }
@@ -161,27 +184,43 @@ class ShareViewModel @Inject constructor(
         viewModelScope.launch {
             nearby.payloads.collect { event ->
                 val payload = event.payload
-                if (payload.type == Payload.Type.FILE) {
-                    val incomingFile = runCatching { payload.asFile()?.asJavaFile() }.getOrNull() ?: return@collect
-                    pendingIncoming[payload.id] = event.endpointId to incomingFile
-                    if (completedIncoming.remove(payload.id)) persistCompletedPayload(payload.id)
+                val key = event.endpointId to payload.id
+                when (payload.type) {
+                    Payload.Type.BYTES -> {
+                        val manifest = payload.asBytes()?.let { bytes ->
+                            runCatching { TransferProtocol.parseFileManifest(bytes) }.getOrNull()
+                        }
+                        if (manifest != null) {
+                            val manifestKey = event.endpointId to manifest.filePayloadId
+                            incomingManifests[manifestKey] = manifest
+                            if (pendingIncoming.containsKey(manifestKey) && completedIncoming.remove(manifestKey)) {
+                                persistCompletedPayload(manifestKey)
+                            }
+                        }
+                    }
+                    Payload.Type.FILE -> {
+                        val incomingFile = runCatching { payload.asFile()?.asJavaFile() }.getOrNull() ?: return@collect
+                        pendingIncoming[key] = incomingFile
+                        if (completedIncoming.remove(key)) persistCompletedPayload(key)
+                    }
+                    else -> Unit
                 }
             }
         }
 
         viewModelScope.launch {
             nearby.progress.collect { event ->
+                val key = event.endpointId to event.payloadId
                 if (event.status == PayloadTransferUpdate.Status.SUCCESS) {
-                    if (pendingIncoming.containsKey(event.payloadId)) {
-                        persistCompletedPayload(event.payloadId)
+                    if (pendingIncoming.containsKey(key) && incomingManifests.containsKey(key)) {
+                        persistCompletedPayload(key)
                     } else {
-                        completedIncoming.add(event.payloadId)
+                        completedIncoming.add(key)
                     }
                 } else if (event.status != PayloadTransferUpdate.Status.IN_PROGRESS) {
-                    pendingIncoming.remove(event.payloadId)?.second?.let { file ->
-                        runCatching { file.delete() }
-                    }
-                    completedIncoming.remove(event.payloadId)
+                    pendingIncoming.remove(key)?.let { file -> runCatching { file.delete() } }
+                    incomingManifests.remove(key)
+                    completedIncoming.remove(key)
                 }
             }
         }
@@ -404,7 +443,15 @@ class ShareViewModel @Inject constructor(
                         continue
                     }
                     try {
-                        val payloadId = nearby.sendFile(next.peerName, source)
+                        val digest = withContext(Dispatchers.IO) { FileUtilities.sha256(source) }
+                        val payloadId = nearby.sendFileWithMetadata(
+                            endpointId = next.peerName,
+                            file = source,
+                            displayName = next.displayName,
+                            mime = next.mime,
+                            size = source.length(),
+                            sha256 = digest,
+                        )
                         val sending = next.copy(status = "SENDING", bytesDone = 0L)
                         outgoingPayloadRecords[payloadId] = sending
                         outgoingPayloadIds[next.id] = payloadId

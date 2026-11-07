@@ -95,6 +95,78 @@ object TransferProtocol {
         return Offer(fileId, size, String(nameBytes, Charsets.UTF_8), hash)
     }
 
+    private const val FILE_MANIFEST_MAGIC = 0x4251464d // BQFM
+    private const val FILE_MANIFEST_VERSION: Byte = 1
+
+    data class FileManifest(
+        val filePayloadId: Long,
+        val size: Long,
+        val name: String,
+        val mime: String,
+        val sha256: ByteArray,
+    )
+
+    /**
+     * Metadata is keyed by the actual Nearby FILE payload ID. Nearby does not
+     * guarantee ordering between BYTES and FILE payloads, so receivers must
+     * correlate by ID rather than by arrival order.
+     */
+    fun fileManifestBody(
+        filePayloadId: Long,
+        name: String,
+        mime: String,
+        size: Long,
+        fileSha256: ByteArray,
+    ): ByteArray {
+        require(filePayloadId > 0L) { "Invalid Nearby payload ID" }
+        require(size >= 0L) { "Invalid file size" }
+        val nameBytes = name.toByteArray(Charsets.UTF_8)
+        val mimeBytes = mime.toByteArray(Charsets.UTF_8)
+        require(nameBytes.size in 1..4096) { "Invalid file name length" }
+        require(mimeBytes.size in 1..256) { "Invalid MIME type length" }
+        require(fileSha256.size == 32) { "SHA-256 must be 32 bytes" }
+        return ByteBuffer.allocate(4 + 1 + 8 + 8 + 4 + 4 + nameBytes.size + mimeBytes.size + 32)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .apply {
+                putInt(FILE_MANIFEST_MAGIC)
+                put(FILE_MANIFEST_VERSION)
+                putLong(filePayloadId)
+                putLong(size)
+                putInt(nameBytes.size)
+                putInt(mimeBytes.size)
+                put(nameBytes)
+                put(mimeBytes)
+                put(fileSha256)
+            }.array()
+    }
+
+    fun parseFileManifest(body: ByteArray): FileManifest {
+        require(body.size >= 61) { "File manifest too short" }
+        val buffer = ByteBuffer.wrap(body).order(ByteOrder.LITTLE_ENDIAN)
+        require(buffer.int == FILE_MANIFEST_MAGIC) { "Not a BQ file manifest" }
+        require(buffer.get() == FILE_MANIFEST_VERSION) { "Unsupported file manifest version" }
+        val payloadId = buffer.long
+        val size = buffer.long
+        val nameLength = buffer.int
+        val mimeLength = buffer.int
+        require(payloadId > 0L) { "Invalid Nearby payload ID" }
+        require(size >= 0L) { "Invalid file size" }
+        require(nameLength in 1..4096 && mimeLength in 1..256) { "Invalid manifest text length" }
+        require(nameLength.toLong() + mimeLength.toLong() + 32L == buffer.remaining().toLong()) {
+            "Invalid file manifest length"
+        }
+        val nameBytes = ByteArray(nameLength).also(buffer::get)
+        val mimeBytes = ByteArray(mimeLength).also(buffer::get)
+        val hash = ByteArray(32).also(buffer::get)
+        return FileManifest(
+            filePayloadId = payloadId,
+            size = size,
+            name = String(nameBytes, Charsets.UTF_8),
+            mime = String(mimeBytes, Charsets.UTF_8),
+            sha256 = hash,
+        )
+    }
+
     fun chunkBody(fileId: Int, offset: Long, data: ByteArray): ByteArray {
         require(fileId >= 0) { "Invalid file ID" }
         require(offset >= 0L) { "Invalid chunk offset" }
