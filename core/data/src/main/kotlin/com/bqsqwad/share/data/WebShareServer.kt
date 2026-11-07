@@ -143,7 +143,7 @@ class WebShareServer(
                     if (file == null || !file.isFile) write(out, 404, "text/plain", "Missing")
                     else {
                         val safeName = file.name.replace("\\", "_").replace("\"", "_").replace("\r", "_").replace("\n", "_")
-                        val header = "HTTP/1.1 200 OK\\r\\nContent-Type: application/octet-stream\\r\\nContent-Length: ${file.length()}\\r\\nContent-Disposition: attachment; filename=\"$safeName\"\\r\\nCache-Control: no-store\\r\\nX-Content-Type-Options: nosniff\\r\\nConnection: close\\r\\n\\r\\n"
+                        val header = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: ${file.length()}\r\nContent-Disposition: attachment; filename=\"$safeName\"\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n"
                         out.write(header.toByteArray(StandardCharsets.US_ASCII))
                         file.inputStream().use { it.copyTo(out) }
                     }
@@ -201,7 +201,7 @@ class WebShareServer(
         val requestedName = headers["x-file-name"]?.let { encoded ->
             runCatching { URLDecoder.decode(encoded, StandardCharsets.UTF_8) }.getOrNull()
         }.orEmpty()
-        val leafName = requestedName.substringAfterLast('/').substringAfterLast('\\\\')
+        val leafName = requestedName.substringAfterLast('/').substringAfterLast('\\')
         val safeName = leafName.filter { it.isLetterOrDigit() || it in " ._()-[]" }.trim().trim('.').take(180)
             .ifBlank { "received-${System.currentTimeMillis()}.bin" }
         val base = safeName.substringBeforeLast('.', safeName)
@@ -319,7 +319,7 @@ class WebShareServer(
             429 -> "Too Many Requests"
             else -> "Error"
         }
-        val header = "HTTP/1.1 $code $msg\\r\\nContent-Type: $type; charset=utf-8\\r\\nContent-Length: ${bytes.size}\\r\\nCache-Control: no-store\\r\\nX-Content-Type-Options: nosniff\\r\\nConnection: close\\r\\n\\r\\n"
+        val header = "HTTP/1.1 $code $msg\r\nContent-Type: $type; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n"
         out.write(header.toByteArray(StandardCharsets.US_ASCII))
         out.write(bytes)
     }
