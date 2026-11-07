@@ -73,7 +73,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String = "apps") {
+fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String = "apps", showCategoryTabs: Boolean = true, showSearch: Boolean = true, externalSearchQuery: String? = null) {
     val context = LocalContext.current
     val videoImageLoader = remember(context) { ImageLoader.Builder(context).components { add(VideoFrameDecoder.Factory()) }.build() }
     val haptic = LocalHapticFeedback.current
@@ -93,7 +93,8 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
     var appInfo by remember { mutableStateOf<ShareAppItem?>(null) }
     var archiving by remember { mutableStateOf(false) }
     var extracting by remember { mutableStateOf(false) }
-    var searchText by remember { mutableStateOf("") }
+    var searchText by remember { mutableStateOf(externalSearchQuery.orEmpty()) }
+    LaunchedEffect(externalSearchQuery) { if (externalSearchQuery != null) searchText = externalSearchQuery }
     var sortBySize by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val requestMedia = rememberMediaPermissionRequest(tab) { refresh++ }
@@ -127,8 +128,8 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
             .let { rows -> if (sortBySize) rows.sortedByDescending { it.sizeBytes } else rows.sortedBy { it.name.lowercase() } }
     }
     val received = when (tab) {
-        "Received" -> history.filter { it.direction.equals("RECEIVE", true) && it.status != "DELETED" }
-        "Sent" -> history.filter { it.direction.equals("SEND", true) && it.status != "DELETED" }
+        "Received" -> history.filter { it.direction.equals("RECEIVE", true) && it.status != "DELETED" && it.displayName.contains(searchText.trim(), true) }
+        "Sent" -> history.filter { it.direction.equals("SEND", true) && it.status != "DELETED" && it.displayName.contains(searchText.trim(), true) }
         else -> emptyList()
     }
 
@@ -157,6 +158,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
     val documentPickerNeeded = tab == "Files" || tab == "Documents"
 
     Column(Modifier.fillMaxSize()) {
+        if (showCategoryTabs) {
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -181,7 +183,8 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                 )
             }
         }
-        if (tab != "Received" && tab != "Sent") {
+        }
+        if (showSearch && tab != "Received" && tab != "Sent") {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
