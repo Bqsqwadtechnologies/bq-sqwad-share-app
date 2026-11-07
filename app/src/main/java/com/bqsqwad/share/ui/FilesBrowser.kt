@@ -23,6 +23,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -156,13 +164,13 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                     label = { Text(label) },
                     leadingIcon = {
                         val icon = when (label) {
-                            "Apps" -> androidx.compose.material.icons.Icons.Filled.Apps
-                            "Photos" -> androidx.compose.material.icons.Icons.Filled.PhotoLibrary
-                            "Videos" -> androidx.compose.material.icons.Icons.Filled.VideoLibrary
-                            "Music" -> androidx.compose.material.icons.Icons.Filled.MusicNote
-                            "Received" -> androidx.compose.material.icons.Icons.Filled.Download
-                            "Sent" -> androidx.compose.material.icons.Icons.Filled.Send
-                            else -> androidx.compose.material.icons.Icons.Filled.FolderOpen
+                            "Apps" -> Icons.Filled.Apps
+                            "Photos" -> Icons.Filled.PhotoLibrary
+                            "Videos" -> Icons.Filled.VideoLibrary
+                            "Music" -> Icons.Filled.MusicNote
+                            "Received" -> Icons.Filled.Download
+                            "Sent" -> Icons.Filled.Send
+                            else -> Icons.Filled.FolderOpen
                         }
                         androidx.compose.material3.Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
                     },
@@ -294,7 +302,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                                     Image(appIcon, contentDescription = app.label, modifier = Modifier.size(48.dp))
                                 } else {
                                     androidx.compose.material3.Icon(
-                                        androidx.compose.material.icons.Icons.Filled.Apps,
+                                        Icons.Filled.Apps,
                                         contentDescription = "App icon",
                                         modifier = Modifier.size(48.dp),
                                     )
@@ -361,8 +369,8 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                                 } else {
                                     androidx.compose.material3.Icon(
                                         imageVector = when (tab) {
-                                            "Music" -> androidx.compose.material.icons.Icons.Filled.MusicNote
-                                            else -> androidx.compose.material.icons.Icons.Filled.FolderOpen
+                                            "Music" -> Icons.Filled.MusicNote
+                                            else -> Icons.Filled.FolderOpen
                                         },
                                         contentDescription = null,
                                         modifier = Modifier.size(42.dp),

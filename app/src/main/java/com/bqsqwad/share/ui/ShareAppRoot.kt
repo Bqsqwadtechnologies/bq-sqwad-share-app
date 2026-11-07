@@ -1131,7 +1131,7 @@ private fun Cleaner(vm: ShareViewModel) {
         history.filter { it.bytes > 50_000_000 }.take(20).forEach { item ->
             Text("• ${item.displayName} · ${MediaRepository.formatBytes(item.bytes)}")
         }
-        dupes.take(20).forEach { (name, rows) ->
+        dupes.entries.take(20).forEach { (name, rows) ->
             Text("• $name appears ${rows.size} times in transfer history")
         }
         Text("Largest files stored by this app", style = MaterialTheme.typography.titleMedium)
