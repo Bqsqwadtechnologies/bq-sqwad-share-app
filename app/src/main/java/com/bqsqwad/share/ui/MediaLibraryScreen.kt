@@ -65,7 +65,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-fun MediaLibraryScreen(initialKind: String = "music") {
+fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false) {
     val context = LocalContext.current
     var kind by remember { mutableStateOf(initialKind.takeIf { it == "photos" || it == "videos" || it == "music" } ?: "music") }
     var selectedPhoto by remember { mutableStateOf<ShareMediaItem?>(null) }
@@ -208,29 +208,33 @@ fun MediaLibraryScreen(initialKind: String = "music") {
     }
 
     Column(
-        Modifier.fillMaxSize().pointerInput(kind) {
-            var drag = 0f
-            detectHorizontalDragGestures(
-                onHorizontalDrag = { _, amount -> drag += amount },
-                onDragEnd = {
-                    if (drag < -72f) switchMediaPage(1)
-                    else if (drag > 72f) switchMediaPage(-1)
-                    drag = 0f
-                },
-            )
-        }.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        Modifier.fillMaxSize().then(
+            if (compact) Modifier else Modifier.pointerInput(kind) {
+                var drag = 0f
+                detectHorizontalDragGestures(
+                    onHorizontalDrag = { _, amount -> drag += amount },
+                    onDragEnd = {
+                        if (drag < -72f) switchMediaPage(1)
+                        else if (drag > 72f) switchMediaPage(-1)
+                        drag = 0f
+                    },
+                )
+            },
+        ).padding(if (compact) 8.dp else 16.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp),
     ) {
-        Text(when (kind) { "music" -> "Music"; "videos" -> "Videos"; else -> "Photos" }, style = MaterialTheme.typography.headlineMedium)
-        Text("Swipe left or right to switch between your media.")
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text(when (kind) { "music" -> "Search music"; "photos" -> "Search photos"; else -> "Search videos" }) },
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!compact) {
+            Text(when (kind) { "music" -> "Music"; "videos" -> "Videos"; else -> "Photos" }, style = MaterialTheme.typography.headlineMedium)
+            Text("Swipe left or right to switch between your media.")
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text(when (kind) { "music" -> "Search music"; "photos" -> "Search photos"; else -> "Search videos" }) },
+            )
+        }
+        if (!compact) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = kind == "music",
                 onClick = { kind = "music" },
@@ -303,67 +307,31 @@ fun MediaLibraryScreen(initialKind: String = "music") {
             ) { Text("Video speed · ${playbackSpeed}×") }
         } else if (activePlayer != null && kind == "music") {
             Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        BrandLogo(Modifier.size(48.dp), "BQ Sqwad Share artwork")
-                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text("BQ Sqwad Music", style = MaterialTheme.typography.labelMedium)
-                            Text(
-                                activePlayer.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Now playing",
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 2,
-                            )
-                        }
-                    }
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        OutlinedButton(onClick = { activePlayer.seekToPreviousMediaItem() }) { Text("Previous") }
-                        Button(onClick = { if (activePlayer.isPlaying) activePlayer.pause() else activePlayer.play() }) {
-                            Text(if (isPlaying) "Pause" else "Play")
-                        }
-                        OutlinedButton(onClick = { activePlayer.seekToNextMediaItem() }) { Text("Next") }
-                        OutlinedButton(onClick = {
-                            activePlayer.stop()
-                            activePlayer.clearMediaItems()
-                        }) { Text("Stop") }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        FilterChip(
-                            selected = shuffle,
-                            onClick = { activePlayer.shuffleModeEnabled = !activePlayer.shuffleModeEnabled },
-                            label = { Text("Shuffle") },
-                        )
-                        FilterChip(
-                            selected = repeatMode != Player.REPEAT_MODE_OFF,
-                            onClick = {
-                                activePlayer.repeatMode = when (activePlayer.repeatMode) {
-                                    Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                                    Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                                    else -> Player.REPEAT_MODE_OFF
-                                }
-                            },
-                            label = { Text(when (repeatMode) {
-                                Player.REPEAT_MODE_ALL -> "Repeat all"
-                                Player.REPEAT_MODE_ONE -> "Repeat one"
-                                else -> "Repeat off"
-                            }) },
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    androidx.compose.material3.Icon(
+                        Icons.Filled.MusicNote,
+                        contentDescription = "Music artwork",
+                        modifier = Modifier.size(34.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text("Now playing", style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            activePlayer.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Choose a song",
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 1,
                         )
                     }
-                    OutlinedButton(
-                        onClick = {
-                            playbackSpeed = when (playbackSpeed) {
-                                1f -> 1.25f
-                                1.25f -> 1.5f
-                                1.5f -> 2f
-                                else -> 1f
-                            }
-                            activePlayer.setPlaybackSpeed(playbackSpeed)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Playback speed · ${playbackSpeed}×") }
+                    TextButton(onClick = { activePlayer.seekToPreviousMediaItem() }) { Text("‹") }
+                    Button(
+                        onClick = { if (activePlayer.isPlaying) activePlayer.pause() else activePlayer.play() },
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    ) { Text(if (isPlaying) "Pause" else "Play") }
+                    TextButton(onClick = { activePlayer.seekToNextMediaItem() }) { Text("›") }
                 }
             }
         }
@@ -371,7 +339,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
         if (permissionGranted && visibleMedia.isNotEmpty()) {
             Text("${visibleMedia.size} ${when (kind) { "music" -> "songs"; "photos" -> "photos"; else -> "videos" }}", style = MaterialTheme.typography.titleMedium)
             if (kind == "photos") {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     itemsIndexed(visibleMedia.chunked(4), key = { _, row -> row.first().key }) { _, row ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             row.forEach { photo -> AsyncImage(model = photo.uri, contentDescription = photo.name, modifier = Modifier.weight(1f).height(96.dp).clickable { selectedPhoto = photo }) }
@@ -384,7 +352,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
                     itemsIndexed(visibleMedia, key = { _, item -> item.key }) { index, item ->
                         Card(Modifier.fillMaxWidth()) {
                             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                if (kind == "videos") AsyncImage(model = item.uri, contentDescription = item.name, modifier = Modifier.size(width = 104.dp, height = 64.dp).clickable { selectedVideo = item; playFrom(index) }) else BrandLogo(Modifier.size(42.dp), "Music artwork")
+                                if (kind == "videos") AsyncImage(model = item.uri, contentDescription = item.name, modifier = Modifier.size(width = 104.dp, height = 64.dp).clickable { selectedVideo = item; playFrom(index) }) else androidx.compose.material3.Icon(Icons.Filled.MusicNote, contentDescription = "Music", modifier = Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
                                 Column(Modifier.weight(1f)) {
                                     Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, modifier = Modifier.clickable { if (kind == "videos") { selectedVideo = item; playFrom(index) } else playFrom(index) })
                                     Text(if (kind == "videos") MediaRepository.formatDuration(item.durationMs) else "Audio", style = MaterialTheme.typography.bodySmall, maxLines = 1)
