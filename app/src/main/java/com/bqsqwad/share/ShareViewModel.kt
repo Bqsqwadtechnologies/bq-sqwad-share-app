@@ -430,8 +430,6 @@ class ShareViewModel @Inject constructor(
 
     fun newComputerPin(): String = SessionCrypto.sixDigitCode()
 
-    fun ownApk(): File = File(context.applicationInfo.sourceDir)
-
     fun ownApkFiles(): List<File> = buildList {
         add(File(context.applicationInfo.sourceDir))
         context.applicationInfo.splitSourceDirs?.forEach { add(File(it)) }
