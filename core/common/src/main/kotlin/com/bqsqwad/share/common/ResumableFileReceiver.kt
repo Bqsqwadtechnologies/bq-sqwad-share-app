@@ -20,7 +20,17 @@ import java.util.concurrent.ConcurrentHashMap
  * 1 MiB boundaries (and at file completion). If the process restarts, uncommitted
  * tail bytes are truncated and the sender resumes from the last durable checkpoint.
  */
-class ResumableFileReceiver(private val root: File) {
+class ResumableFileReceiver(
+    private val root: File,
+    private val maxPendingBytes: Long = Long.MAX_VALUE,
+    private val minFreeBytes: Long = DEFAULT_MIN_FREE_BYTES,
+    private val checkpointTtlMillis: Long = DEFAULT_CHECKPOINT_TTL_MILLIS,
+) {
+    init {
+        require(maxPendingBytes > 0L)
+        require(minFreeBytes >= 0L)
+        require(checkpointTtlMillis > 0L)
+    }
     data class Offer(
         val transferId: String,
         val displayName: String,
@@ -36,11 +46,13 @@ class ResumableFileReceiver(private val root: File) {
 
     private val activeSessions = ConcurrentHashMap<String, ActiveSession>()
 
-    fun begin(offer: Offer): Long {
+    fun begin(offer: Offer, nowMillis: Long = System.currentTimeMillis()): Long {
         validateOffer(offer)
         if (!root.exists()) check(root.mkdirs()) { "Unable to create transfer staging directory." }
+        require(root.isDirectory) { "Transfer staging path is not a directory." }
         val previous = activeSessions.remove(offer.transferId)
         if (previous != null) synchronized(previous) { Unit }
+        expireStale(nowMillis)
 
         val metadata = metadataFile(offer.transferId)
         val partial = partialFile(offer.transferId)
@@ -53,15 +65,34 @@ class ResumableFileReceiver(private val root: File) {
             require(partial.isFile) { "Transfer checkpoint exists but its partial file is missing." }
             require(partial.length() >= saved.committedOffset) { "Partial file is shorter than its committed checkpoint." }
             RandomAccessFile(partial, "rw").use { it.setLength(saved.committedOffset) }
-            activeSessions[offer.transferId] = ActiveSession(saved, saved.committedOffset, saved.committedOffset)
-            return saved.committedOffset
+            val resumed = saved.copy(lastActivityAtMillis = nowMillis)
+            writeMetadata(metadata, resumed)
+            activeSessions[offer.transferId] = ActiveSession(resumed, resumed.committedOffset, resumed.committedOffset)
+            return resumed.committedOffset
+        }
+
+        // Reserve space for unfinished transfers before accepting another offer.
+        val reservedBytes = pendingReservedBytes()
+        val quotaRemaining = (maxPendingBytes - reservedBytes).coerceAtLeast(0L)
+        val diskRemaining = (root.usableSpace - minFreeBytes).coerceAtLeast(0L)
+        val unreservedDiskRemaining = (diskRemaining - reservedBytes).coerceAtLeast(0L)
+        require(offer.totalBytes <= minOf(quotaRemaining, unreservedDiskRemaining)) {
+            "Not enough reserved storage for this transfer. Finish or cancel another pending transfer first."
         }
 
         // A crash before the first metadata checkpoint can leave an untracked .part file.
         // It contains no durable progress, so discard it and start this transfer cleanly.
         if (partial.exists()) check(partial.delete()) { "Unable to remove an untracked partial transfer file." }
         check(partial.createNewFile()) { "Unable to create partial transfer file." }
-        val initial = Saved(offer.transferId, safeName(offer.displayName), offer.totalBytes, offer.sha256.copyOf(), 0L)
+        val initial = Saved(
+            offer.transferId,
+            safeName(offer.displayName),
+            offer.totalBytes,
+            offer.sha256.copyOf(),
+            0L,
+            nowMillis,
+            nowMillis,
+        )
         try {
             writeMetadata(metadata, initial)
         } catch (failure: Throwable) {
@@ -72,11 +103,13 @@ class ResumableFileReceiver(private val root: File) {
         return 0L
     }
 
-    fun resumeOffset(transferId: String): Long {
+    fun resumeOffset(transferId: String, nowMillis: Long = System.currentTimeMillis()): Long {
         validateTransferId(transferId)
         val previous = activeSessions.remove(transferId)
         if (previous != null) synchronized(previous) { Unit }
-        val saved = readMetadata(metadataFile(transferId))
+        expireStale(nowMillis)
+        val metadata = metadataFile(transferId)
+        val saved = readMetadata(metadata)
         val partial = partialFile(transferId)
         require(partial.isFile && partial.length() >= saved.committedOffset) {
             "Transfer checkpoint is incomplete."
@@ -84,8 +117,10 @@ class ResumableFileReceiver(private val root: File) {
         if (partial.length() > saved.committedOffset) {
             RandomAccessFile(partial, "rw").use { it.setLength(saved.committedOffset) }
         }
-        activeSessions[transferId] = ActiveSession(saved, saved.committedOffset, saved.committedOffset)
-        return saved.committedOffset
+        val resumed = saved.copy(lastActivityAtMillis = nowMillis)
+        writeMetadata(metadata, resumed)
+        activeSessions[transferId] = ActiveSession(resumed, resumed.committedOffset, resumed.committedOffset)
+        return resumed.committedOffset
     }
 
     fun appendChunk(transferId: String, offset: Long, bytes: ByteArray, expectedChunkSha256: ByteArray): Long {
@@ -110,10 +145,12 @@ class ResumableFileReceiver(private val root: File) {
                 output.write(bytes)
                 if (next - session.committedOffset >= CHECKPOINT_INTERVAL_BYTES || next == saved.totalBytes) {
                     output.fd.sync()
-                    val checkpoint = saved.copy(committedOffset = next)
+                    val checkpoint = saved.copy(committedOffset = next, lastActivityAtMillis = System.currentTimeMillis())
                     writeMetadata(metadata, checkpoint)
                     session.saved = checkpoint
                     session.committedOffset = next
+                } else {
+                    session.saved = saved.copy(lastActivityAtMillis = System.currentTimeMillis())
                 }
             }
             session.nextOffset = next
@@ -137,7 +174,7 @@ class ResumableFileReceiver(private val root: File) {
 
             if (session.committedOffset < saved.totalBytes) {
                 RandomAccessFile(partial, "rw").use { it.fd.sync() }
-                saved = saved.copy(committedOffset = saved.totalBytes)
+                saved = saved.copy(committedOffset = saved.totalBytes, lastActivityAtMillis = System.currentTimeMillis())
                 writeMetadata(metadata, saved)
                 session.saved = saved
                 session.committedOffset = saved.totalBytes
@@ -167,6 +204,8 @@ class ResumableFileReceiver(private val root: File) {
         val totalBytes: Long,
         val sha256: ByteArray,
         val committedOffset: Long,
+        val createdAtMillis: Long,
+        val lastActivityAtMillis: Long,
     )
 
     private fun validateOffer(offer: Offer) {
@@ -206,13 +245,18 @@ class ResumableFileReceiver(private val root: File) {
 
     private fun writeMetadata(file: File, saved: Saved) {
         val temporary = File(root, file.name + ".tmp")
-        DataOutputStream(BufferedOutputStream(FileOutputStream(temporary))).use { output ->
+        FileOutputStream(temporary).use { raw ->
+            val output = DataOutputStream(BufferedOutputStream(raw))
             output.writeInt(MAGIC)
             output.writeUTF(saved.transferId)
             output.writeUTF(saved.displayName)
             output.writeLong(saved.totalBytes)
             output.write(saved.sha256)
             output.writeLong(saved.committedOffset)
+            output.writeLong(saved.createdAtMillis)
+            output.writeLong(saved.lastActivityAtMillis)
+            output.flush()
+            raw.fd.sync()
         }
         Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
     }
@@ -226,11 +270,48 @@ class ResumableFileReceiver(private val root: File) {
             val size = input.readLong()
             val hash = ByteArray(32).also(input::readFully)
             val offset = input.readLong()
+            val timestamps = when (input.available()) {
+                0 -> System.currentTimeMillis() to System.currentTimeMillis()
+                16 -> input.readLong() to input.readLong()
+                else -> error("Invalid transfer checkpoint timestamps.")
+            }
             require(input.read() == -1) { "Invalid transfer checkpoint data." }
             require(id.matches(Regex("[A-Za-z0-9_-]{1,80}")) && size >= 0L && offset in 0..size) {
                 "Invalid transfer checkpoint values."
             }
-            Saved(id, name, size, hash, offset)
+            require(timestamps.first > 0L && timestamps.second >= timestamps.first) {
+                "Invalid transfer checkpoint timestamps."
+            }
+            Saved(id, name, size, hash, offset, timestamps.first, timestamps.second)
+        }
+    }
+
+    private fun metadataFiles(): List<File> =
+        root.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".meta") }
+
+    private fun pendingReservedBytes(): Long =
+        metadataFiles().sumOf { metadata ->
+            val saved = runCatching { readMetadata(metadata) }.getOrNull() ?: return@sumOf 0L
+            val partial = partialFile(saved.transferId)
+            (saved.totalBytes - partial.length().coerceAtMost(saved.totalBytes)).coerceAtLeast(0L)
+        }
+
+    private fun expireStale(nowMillis: Long) {
+        metadataFiles().forEach { metadata ->
+            val saved = runCatching { readMetadata(metadata) }.getOrNull()
+            val id = saved?.transferId ?: metadata.name.removeSuffix(".meta")
+            if (activeSessions.containsKey(id)) return@forEach
+            if (saved == null || nowMillis - saved.lastActivityAtMillis >= checkpointTtlMillis) {
+                partialFile(id).delete()
+                metadata.delete()
+            }
+        }
+        root.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".tmp") }.forEach { temporary ->
+            if (nowMillis - temporary.lastModified() >= checkpointTtlMillis) temporary.delete()
+        }
+        root.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".part") }.forEach { partial ->
+            val id = partial.name.removeSuffix(".part")
+            if (!metadataFile(id).exists() && !activeSessions.containsKey(id)) partial.delete()
         }
     }
 
@@ -248,6 +329,8 @@ class ResumableFileReceiver(private val root: File) {
     }
 
     companion object {
+        const val DEFAULT_MIN_FREE_BYTES = 128L * 1024L * 1024L
+        const val DEFAULT_CHECKPOINT_TTL_MILLIS = 30L * 24L * 60L * 60L * 1000L
         private const val MAGIC = 0x42515231 // BQR1
         private const val CHECKPOINT_INTERVAL_BYTES = 1024L * 1024L
     }
