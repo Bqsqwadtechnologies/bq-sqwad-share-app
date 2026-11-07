@@ -1244,11 +1244,11 @@ private fun Computer(vm: ShareViewModel) {
                     )
                 }
             },
-            enabled = !sharing && (selectedUris.isNotEmpty() || includeInstaller),
+            enabled = !sharing,
             modifier = Modifier.fillMaxWidth(),
         ) {
             if (sharing) CircularProgressIndicator(modifier = Modifier.size(18.dp))
-            else Text(stringResource(R.string.continue_label))
+            else Text("Start local sharing")
         }
         message?.let { Text(it, color = MaterialTheme.colorScheme.secondary) }
         url?.let {
