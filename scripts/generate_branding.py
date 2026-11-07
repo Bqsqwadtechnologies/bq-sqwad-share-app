@@ -1,11 +1,11 @@
 
 #!/usr/bin/env python3
-"""Build Android brand assets from branding/logo/logo.png."""
+"""Build Android app brand assets from branding/app-identity/app-icon.png."""
 from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "branding" / "logo" / "logo.png"
+SRC = ROOT / "branding" / "app-identity" / "app-icon.png"
 
 def silhouette(im: Image.Image, size: int) -> Image.Image:
     im = im.resize((size, size), Image.Resampling.LANCZOS)
@@ -26,7 +26,7 @@ def main() -> None:
     if not SRC.exists():
         raise SystemExit(f"Missing {SRC}")
     src = Image.open(SRC).convert("RGBA")
-    src.resize((512, 512), Image.Resampling.LANCZOS).save(ROOT / "branding" / "logo" / "play_store_512.png")
+    src.resize((512, 512), Image.Resampling.LANCZOS).save(ROOT / "branding" / "app-identity" / "play_store_512.png")
     nodpi = ROOT / "app" / "src" / "main" / "res" / "drawable-nodpi"
     nodpi.mkdir(parents=True, exist_ok=True)
     src.resize((512, 512), Image.Resampling.LANCZOS).save(nodpi / "brand_logo.png")

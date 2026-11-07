@@ -358,6 +358,10 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
     val history by vm.history.collectAsState()
     var search by remember { mutableStateOf("") }
     var quickActionsExpanded by remember { mutableStateOf(false) }
+    var systemAppsExpanded by remember { mutableStateOf(false) }
+    var systemApps by remember { mutableStateOf<List<ShareAppItem>>(emptyList()) }
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { systemApps = withContext(Dispatchers.IO) { MediaRepository.loadApps(context, true) } }
     val tiles = listOf(
         Triple("Send", "send", Icons.Filled.Send),
         Triple("Receive", "receive", Icons.Filled.QrCodeScanner),
@@ -416,11 +420,11 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                 placeholder = { Text("Photos, music, videos, files…") },
             )
         }
-        itemsIndexed(tiles.chunked(2)) { _, pair ->
+        itemsIndexed(tiles.chunked(4)) { _, pair ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 pair.forEach { (label, route, icon) ->
                     Card(
-                        Modifier.weight(1f).height(132.dp).clickable {
+                        Modifier.weight(1f).height(112.dp).clickable {
                             nav.navigate(route) { launchSingleTop = true }
                         },
                     ) {
@@ -444,6 +448,44 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
             }
         }
         if (search.isBlank()) {
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("System apps", style = MaterialTheme.typography.titleMedium)
+                                Text("${systemApps.size} built-in apps", style = MaterialTheme.typography.bodySmall)
+                            }
+                            TextButton(onClick = { systemAppsExpanded = !systemAppsExpanded }) {
+                                Text(if (systemAppsExpanded) "Hide" else "Show")
+                            }
+                        }
+                        if (systemAppsExpanded) {
+                            systemApps.chunked(4).forEach { appRow ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    appRow.forEach { app ->
+                                        val appIcon = remember(app.packageName) {
+                                            runCatching { context.packageManager.getApplicationIcon(app.packageName).toBitmap().asImageBitmap() }.getOrNull()
+                                        }
+                                        Column(
+                                            Modifier.weight(1f).height(92.dp).clickable {
+                                                context.packageManager.getLaunchIntentForPackage(app.packageName)?.let(context::startActivity)
+                                            }.padding(4.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center,
+                                        ) {
+                                            if (appIcon != null) Image(appIcon, contentDescription = app.label, modifier = Modifier.size(34.dp))
+                                            else androidx.compose.material3.Icon(Icons.Filled.PhoneAndroid, contentDescription = app.label, modifier = Modifier.size(34.dp))
+                                            Text(app.label, style = MaterialTheme.typography.labelSmall, maxLines = 2)
+                                        }
+                                    }
+                                    repeat(4 - appRow.size) { Spacer(Modifier.weight(1f)) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             item {
                 Text("Recent transfers", style = MaterialTheme.typography.titleLarge)
             }

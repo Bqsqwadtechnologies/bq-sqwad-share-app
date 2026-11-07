@@ -2,6 +2,7 @@ package com.bqsqwad.share.ui
 
 import android.Manifest
 import android.content.ComponentName
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -72,7 +73,6 @@ fun MediaLibraryScreen(initialKind: String = "music") {
     var kind by remember { mutableStateOf(initialKind.takeIf { it == "photos" || it == "videos" || it == "music" } ?: "music") }
     var selectedPhoto by remember { mutableStateOf<ShareMediaItem?>(null) }
     var selectedVideo by remember { mutableStateOf<ShareMediaItem?>(null) }
-    var detailsItem by remember { mutableStateOf<ShareMediaItem?>(null) }
     var media by remember { mutableStateOf<List<ShareMediaItem>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var permissionGranted by remember { mutableStateOf(false) }
@@ -179,6 +179,15 @@ fun MediaLibraryScreen(initialKind: String = "music") {
         } else if (kind != "music") {
             player?.pause()
         }
+    }
+
+    fun shareMedia(item: ShareMediaItem) {
+        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+            type = item.mimeType
+            putExtra(Intent.EXTRA_STREAM, item.uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(sendIntent, "Share with Bluetooth or another app"))
     }
 
     fun switchMediaPage(direction: Int) {
@@ -374,10 +383,10 @@ fun MediaLibraryScreen(initialKind: String = "music") {
             Text("${visibleMedia.size} ${when (kind) { "music" -> "songs"; "photos" -> "photos"; else -> "videos" }}", style = MaterialTheme.typography.titleMedium)
             if (kind == "photos") {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    itemsIndexed(visibleMedia.chunked(3), key = { _, row -> row.first().key }) { _, row ->
+                    itemsIndexed(visibleMedia.chunked(4), key = { _, row -> row.first().key }) { _, row ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            row.forEach { photo -> AsyncImage(model = photo.uri, contentDescription = photo.name, modifier = Modifier.weight(1f).height(112.dp).clickable { selectedPhoto = photo }) }
-                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                            row.forEach { photo -> AsyncImage(model = photo.uri, contentDescription = photo.name, modifier = Modifier.weight(1f).height(96.dp).clickable { selectedPhoto = photo }) }
+                            repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
@@ -388,10 +397,10 @@ fun MediaLibraryScreen(initialKind: String = "music") {
                             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 if (kind == "videos") AsyncImage(model = item.uri, contentDescription = item.name, modifier = Modifier.size(width = 104.dp, height = 64.dp).clickable { selectedVideo = item; playFrom(index) }) else BrandLogo(Modifier.size(42.dp), "Music artwork")
                                 Column(Modifier.weight(1f)) {
-                                    Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, modifier = Modifier.clickable { if (kind == "videos") detailsItem = item else playFrom(index) })
+                                    Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, modifier = Modifier.clickable { if (kind == "videos") { selectedVideo = item; playFrom(index) } else playFrom(index) })
                                     Text(if (kind == "videos") MediaRepository.formatDuration(item.durationMs) else "Audio", style = MaterialTheme.typography.bodySmall, maxLines = 1)
                                 }
-                                TextButton(onClick = { detailsItem = item }) { Text("⋯") }
+                                TextButton(onClick = { shareMedia(item) }) { Text("Share") }
                             }
                         }
                     }
@@ -404,9 +413,10 @@ fun MediaLibraryScreen(initialKind: String = "music") {
             Dialog(onDismissRequest = { selectedPhoto = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
                 Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.Center) {
                     AsyncImage(model = photo.uri, contentDescription = photo.name, modifier = Modifier.fillMaxWidth().weight(1f))
-                    Text(photo.name, style = MaterialTheme.typography.titleMedium, maxLines = 1)
-                    Text(MediaRepository.formatBytes(photo.sizeBytes), style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = { selectedPhoto = null }, modifier = Modifier.fillMaxWidth()) { Text("Close preview") }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { shareMedia(photo) }, modifier = Modifier.weight(1f)) { Text("Share") }
+                        OutlinedButton(onClick = { selectedPhoto = null }, modifier = Modifier.weight(1f)) { Text("Close") }
+                    }
                 }
             }
         }
@@ -415,19 +425,6 @@ fun MediaLibraryScreen(initialKind: String = "music") {
                 Box(Modifier.fillMaxSize()) {
                     AndroidView(modifier = Modifier.fillMaxSize(), factory = { viewContext -> PlayerView(viewContext).apply { player = controller; useController = true; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING) } }, update = { it.player = controller })
                     OutlinedButton(onClick = { selectedVideo = null }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) { Text("Close") }
-                }
-            }
-        }
-        detailsItem?.let { item ->
-            Dialog(onDismissRequest = { detailsItem = null }) {
-                Card {
-                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(item.name, style = MaterialTheme.typography.titleMedium)
-                        Text("Type · ${item.mimeType}")
-                        Text("Size · ${MediaRepository.formatBytes(item.sizeBytes)}")
-                        if (item.category == "videos") Text("Duration · ${MediaRepository.formatDuration(item.durationMs)}")
-                        OutlinedButton(onClick = { detailsItem = null }) { Text("Close") }
-                    }
                 }
             }
         }
