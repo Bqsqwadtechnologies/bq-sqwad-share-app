@@ -77,6 +77,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
+import com.bqsqwad.share.vault.PrivateVaultScreen
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -183,6 +185,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                                 "Clean" to "cleaner",
                                 "Favorites" to "favorites",
                                 "Chat" to "chat",
+                                "Private Vault" to "private-vault",
                             ).forEach { (label, route) ->
                                 NavigationDrawerItem(
                                     label = { Text(label) },
@@ -267,6 +270,11 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         composable("clone") { Gated(settings, ads, activity, vm, "clone") { Clone(vm) } }
                         composable("computer") { Gated(settings, ads, activity, vm, "computer") { Computer(vm) } }
                         composable("cleaner") { Cleaner(vm) }
+                        composable("private-vault") {
+                            val biometricActivity = activity as? FragmentActivity
+                            if (biometricActivity == null) Text("Private Vault requires a compatible Android activity.")
+                            else PrivateVaultScreen(biometricActivity)
+                        }
                         composable("favorites") { Favorites(vm) }
                         composable("chat") { Chat(vm) }
                         composable("more") { More() }
