@@ -50,7 +50,7 @@ fun StorageIntelligenceScreen(onOpenCleaner: () -> Unit, compact: Boolean = fals
             ) + listOfNotNull(
                 context.getExternalFilesDir(null)?.let { "External app files" to it },
                 context.externalCacheDir?.let { "External app cache" to it },
-            ).distinctBy { it.second.canonicalPath }
+            ).distinctBy { runCatching { it.second.canonicalPath }.getOrDefault(it.second.absolutePath) }
             val files = appRoots.flatMap { (_, root) ->
                 runCatching { if (root.exists()) root.walkTopDown().filter { it.isFile && it.canRead() }.toList() else emptyList() }.getOrDefault(emptyList())
             }
@@ -60,8 +60,8 @@ fun StorageIntelligenceScreen(onOpenCleaner: () -> Unit, compact: Boolean = fals
                 },
                 files.sortedByDescending { it.length() }.take(12),
                 longArrayOf(
-                    stat?.availableBlocksLong?.times(stat.blockSizeLong) ?: 0L,
-                    stat?.blockCountLong?.times(stat.blockSizeLong) ?: 0L,
+                    stat?.let { it.availableBlocksLong * it.blockSizeLong } ?: 0L,
+                    stat?.let { it.blockCountLong * it.blockSizeLong } ?: 0L,
                 ),
             )
         }
