@@ -102,7 +102,7 @@ class NearbyTransport @Inject constructor(
             callbackScope.launch {
                 val blocked = runCatching { settingsStore.settings.first().blocked }.getOrDefault(emptySet())
                 if (info.endpointName in blocked || endpointId in blocked) {
-                    client.rejectConnection(endpointId)
+                    runCatching { client.rejectConnection(endpointId) }
                     clearConnecting(endpointId)
                     _incoming.value = null
                     return@launch
