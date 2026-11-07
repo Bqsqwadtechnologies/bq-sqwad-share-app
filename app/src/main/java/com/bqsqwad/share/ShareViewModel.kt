@@ -369,18 +369,84 @@ class ShareViewModel @Inject constructor(
             .sortedBy { it.first.lowercase() }
     }
 
+    private val webStagedFiles = mutableListOf<File>()
+
     fun ownApk(): File = File(context.applicationInfo.sourceDir)
 
+    private fun createWebShareServer(files: List<File>, pin: String): WebShareServer {
+        val inbox = File(context.getExternalFilesDir(null) ?: context.filesDir, "FromComputer")
+        return WebShareServer(8787, pin, inbox, files) { uploaded ->
+            val mime = MimeTypeMap.getSingleton()
+                .getMimeTypeFromExtension(uploaded.extension.lowercase())
+                ?: "application/octet-stream"
+            record(uploaded.name, mime, uploaded.length(), "RECEIVE", "Computer (local network)", uploaded.absolutePath)
+        }
+    }
+
+    @Synchronized
     fun startWeb(files: List<File>, pin: String): String {
-        web?.stop()
-        val inbox = File(context.getExternalFilesDir(null), "FromComputer")
-        val server = WebShareServer(8787, pin, inbox, files)
+        stopWeb()
+        require(files.any { it.isFile && it.canRead() }) { "Choose at least one readable file to share." }
+        val server = createWebShareServer(files.filter { it.isFile && it.canRead() }, pin)
         server.start()
         web = server
         return server.lanAddress()
     }
 
-    fun stopWeb() { web?.stop(); web = null }
+    suspend fun startWebFromUris(
+        uris: List<Uri>,
+        pin: String,
+        includeAppInstaller: Boolean = false,
+    ): String = withContext(Dispatchers.IO) {
+        stopWeb()
+        val staged = mutableListOf<File>()
+        try {
+            uris.distinct().forEach { uri ->
+                var displayName = uri.lastPathSegment?.substringAfterLast('/') ?: "shared-file"
+                context.contentResolver.query(
+                    uri,
+                    arrayOf(OpenableColumns.DISPLAY_NAME),
+                    null,
+                    null,
+                    null,
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex >= 0) displayName = cursor.getString(nameIndex) ?: displayName
+                    }
+                }
+                val safeName = displayName.substringAfterLast('/').substringAfterLast('\\')
+                    .replace(Regex("[^A-Za-z0-9._ -]"), "_")
+                    .trim().take(120).ifBlank { "shared-file" }
+                val destination = File(context.cacheDir, "web-share-${java.util.UUID.randomUUID()}-$safeName")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    destination.outputStream().use { output -> input.copyTo(output) }
+                } ?: error("Unable to read selected file: $displayName")
+                staged += destination
+            }
+            val shared = staged.toMutableList()
+            if (includeAppInstaller) shared += ownApk()
+            require(shared.isNotEmpty()) { "Select at least one file or include the app installer." }
+            val server = createWebShareServer(shared, pin)
+            server.start()
+            synchronized(this@ShareViewModel) {
+                webStagedFiles.addAll(staged)
+                web = server
+            }
+            server.lanAddress()
+        } catch (failure: Throwable) {
+            staged.forEach { it.delete() }
+            throw failure
+        }
+    }
+
+    @Synchronized
+    fun stopWeb() {
+        web?.stop()
+        web = null
+        webStagedFiles.forEach { it.delete() }
+        webStagedFiles.clear()
+    }
 
     fun peers(): List<Peer> = nearby.peers.value
 
@@ -758,5 +824,11 @@ class ShareViewModel @Inject constructor(
         val secret = SessionCrypto.encrypt(sessionKey, text.toByteArray())
         nearby.sendBytes(endpointId, secret)
         record("clipboard.txt", "text/plain", text.length.toLong(), "SEND", endpointId, null)
+    }
+
+
+    override fun onCleared() {
+        stopWeb()
+        super.onCleared()
     }
 }
