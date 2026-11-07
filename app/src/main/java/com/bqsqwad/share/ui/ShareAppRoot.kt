@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
@@ -434,7 +435,7 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
     Column(
         Modifier.fillMaxSize().pointerInput(page) {
             var horizontalDrag = 0f
-            androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+            detectHorizontalDragGestures(
                 onHorizontalDrag = { _, amount -> horizontalDrag += amount },
                 onDragEnd = {
                     if (horizontalDrag < -64f) page = 1
