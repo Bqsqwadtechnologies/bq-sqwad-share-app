@@ -1156,8 +1156,9 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Notifications", style = MaterialTheme.typography.titleMedium)
-                    SwitchRow(stringResource(R.string.notifications), s.notifications) { vm.notif(it) }
+                    Text("Transfer completion notifications", style = MaterialTheme.typography.titleMedium)
+                    Text("Android still shows the required foreground status while a transfer or receive session is active. This setting controls the completion alert after it ends.", style = MaterialTheme.typography.bodySmall)
+                    SwitchRow("Show completion alert", s.notifications) { vm.notif(it) }
                 }
             }
         }
