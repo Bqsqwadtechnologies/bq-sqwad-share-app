@@ -77,6 +77,7 @@ public partial class MainWindow : Window
                 using var content = new StreamContent(stream);
                 content.Headers.ContentLength = stream.Length;
                 using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(_baseUri!, "upload?pin=" + Uri.EscapeDataString(_pin))) { Content = content };
+                request.Headers.TryAddWithoutValidation("X-File-Name", Uri.EscapeDataString(System.IO.Path.GetFileName(path)));
                 using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
                 response.EnsureSuccessStatusCode();
             }

@@ -126,7 +126,17 @@ class WebShareServer(
             write(out, 413, "text/plain", "File exceeds the local sharing size limit.")
             return
         }
-        val destination = File(inbox, "upload-${System.currentTimeMillis()}-${java.util.UUID.randomUUID()}.bin")
+        val requestedName = headers["x-file-name"]?.let { encoded ->
+            runCatching { URLDecoder.decode(encoded, StandardCharsets.UTF_8) }.getOrNull()
+        }.orEmpty()
+        val leafName = requestedName.substringAfterLast('/').substringAfterLast('\\')
+        val safeName = leafName.filter { it.isLetterOrDigit() || it in " ._()-[]" }.trim().trim('.').take(180)
+            .ifBlank { "received-${System.currentTimeMillis()}.bin" }
+        val base = safeName.substringBeforeLast('.', safeName)
+        val extension = safeName.substringAfterLast('.', "").takeIf { safeName.contains('.') }?.let { ".$it" }.orEmpty()
+        var destination = File(inbox, safeName)
+        var suffix = 1
+        while (destination.exists()) { destination = File(inbox, "$base ($suffix)$extension"); suffix++ }
         val temporary = File(inbox, destination.name + ".part")
         try {
             temporary.outputStream().use { fileOut ->
