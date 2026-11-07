@@ -50,12 +50,16 @@ fun QrScanner(onCodeScanned: (String) -> Unit) {
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
     val executor = remember { Executors.newSingleThreadExecutor() }
     val scanner: BarcodeScanner = remember { BarcodeScanning.getClient() }
+    var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    var scannerActive by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         if (!granted) permission.launch(Manifest.permission.CAMERA)
     }
     DisposableEffect(Unit) {
         onDispose {
+            scannerActive = false
+            cameraProvider?.unbindAll()
             scanner.close()
             executor.shutdown()
         }
@@ -77,6 +81,11 @@ fun QrScanner(onCodeScanned: (String) -> Unit) {
                 val providerFuture = ProcessCameraProvider.getInstance(ctx)
                 providerFuture.addListener({
                     val provider = providerFuture.get()
+                    if (!scannerActive) {
+                        provider.unbindAll()
+                        return@addListener
+                    }
+                    cameraProvider = provider
                     val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
                     val analysis = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
