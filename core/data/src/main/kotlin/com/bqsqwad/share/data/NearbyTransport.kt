@@ -52,6 +52,18 @@ class NearbyTransport @Inject constructor(
     private val _connected = MutableStateFlow<Set<String>>(emptySet())
     val connected: StateFlow<Set<String>> = _connected
 
+    // Track pending Nearby handshakes so the UI can show live connection progress.
+    private val _connecting = MutableStateFlow<Set<String>>(emptySet())
+    val connecting: StateFlow<Set<String>> = _connecting
+
+    private fun markConnecting(endpointId: String) {
+        _connecting.value = _connecting.value + endpointId
+    }
+
+    private fun clearConnecting(endpointId: String) {
+        _connecting.value = _connecting.value - endpointId
+    }
+
     private val _payloads = MutableSharedFlow<PayloadEvent>(extraBufferCapacity = 64)
     val payloads: SharedFlow<PayloadEvent> = _payloads
 
@@ -75,10 +87,12 @@ class NearbyTransport @Inject constructor(
 
     private val connectionCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
+            markConnecting(endpointId)
             callbackScope.launch {
                 val blocked = runCatching { settingsStore.settings.first().blocked }.getOrDefault(emptySet())
                 if (info.endpointName in blocked || endpointId in blocked) {
                     client.rejectConnection(endpointId)
+                    clearConnecting(endpointId)
                     _incoming.value = null
                     return@launch
                 }
@@ -88,6 +102,7 @@ class NearbyTransport @Inject constructor(
                         client.acceptConnection(endpointId, payloadCallback)
                     } else {
                         client.rejectConnection(endpointId)
+                        clearConnecting(endpointId)
                     }
                     _incoming.value = null
                 } else {
@@ -96,6 +111,7 @@ class NearbyTransport @Inject constructor(
             }
         }
         override fun onConnectionResult(endpointId: String, resolution: ConnectionResolution) {
+            clearConnecting(endpointId)
             if (resolution.status.statusCode == ConnectionsStatusCodes.STATUS_OK) {
                 _connected.value = _connected.value + endpointId
             } else {
@@ -104,6 +120,7 @@ class NearbyTransport @Inject constructor(
             _incoming.value = null
         }
         override fun onDisconnected(endpointId: String) {
+            clearConnecting(endpointId)
             _connected.value = _connected.value - endpointId
         }
     }
@@ -132,8 +149,12 @@ class NearbyTransport @Inject constructor(
     fun stopAdvertising() { client.stopAdvertising() }
 
     fun requestConnection(endpointId: String, name: String) {
+        markConnecting(endpointId)
         client.requestConnection(name, endpointId, connectionCallback)
-            .addOnFailureListener { lastError = it.message }
+            .addOnFailureListener {
+                clearConnecting(endpointId)
+                lastError = it.message
+            }
     }
 
     fun accept(endpointId: String) {
@@ -142,11 +163,13 @@ class NearbyTransport @Inject constructor(
     }
 
     fun reject(endpointId: String) {
+        clearConnecting(endpointId)
         client.rejectConnection(endpointId)
         _incoming.value = null
     }
 
     fun disconnect(endpointId: String) {
+        clearConnecting(endpointId)
         client.disconnectFromEndpoint(endpointId)
         _connected.value = _connected.value - endpointId
     }

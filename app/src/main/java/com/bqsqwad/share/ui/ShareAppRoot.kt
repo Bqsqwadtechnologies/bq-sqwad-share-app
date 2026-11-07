@@ -55,6 +55,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -417,6 +418,8 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
 @Composable
 private fun Send(nav: NavHostController, vm: ShareViewModel) {
     val peers by vm.nearby.peers.collectAsState()
+    val connected by vm.nearby.connected.collectAsState()
+    val connecting by vm.nearby.connecting.collectAsState()
     val scannedCode by vm.scannedReceiveCode.collectAsState()
     var receiveCode by remember { mutableStateOf(scannedCode) }
     LaunchedEffect(scannedCode) { if (scannedCode.isNotBlank()) receiveCode = scannedCode }
@@ -444,16 +447,62 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (matchingPeers.isEmpty()) Text("No nearby devices found. Keep both devices close and try again.", modifier = Modifier.padding(vertical = 12.dp))
+        if (connecting.isNotEmpty()) {
+            Card(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
+                    Column {
+                        Text("Connecting to device…", style = MaterialTheme.typography.titleSmall)
+                        Text("Keep both devices nearby while the connection is established.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+        if (connected.isNotEmpty()) {
+            Text("${connected.size} device(s) connected", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+        }
+        if (matchingPeers.isEmpty()) Text("Searching for nearby devices… Keep both devices close and Bluetooth/Wi-Fi enabled.", modifier = Modifier.padding(vertical = 12.dp))
         if (receiveCode.length != 6) {
             Text("Enter or scan the receiver’s six-digit code before connecting.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
         }
         matchingPeers.forEach { peer ->
-            Card(Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable(enabled = receiveCode.length == 6) {
-                val displayName = "BQ Sqwad Share code $receiveCode"
-                vm.nearby.requestConnection(peer.endpointId, displayName)
-                nav.navigate("picker")
-            }) { Text(peer.name, modifier = Modifier.padding(16.dp)) }
+            val isConnected = peer.endpointId in connected
+            val isConnecting = peer.endpointId in connecting
+            Card(
+                Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable(
+                    enabled = receiveCode.length == 6 && !isConnected && !isConnecting,
+                ) {
+                    val displayName = "BQ Sqwad Share code $receiveCode"
+                    vm.nearby.requestConnection(peer.endpointId, displayName)
+                },
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(peer.name, style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            when {
+                                isConnected -> "Connected · ready to share"
+                                isConnecting -> "Connecting…"
+                                else -> "Nearby device · tap to connect"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    when {
+                        isConnected -> TextButton(onClick = { nav.navigate("picker") }) { Text("Continue") }
+                        isConnecting -> CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        else -> Text("Connect", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
         }
         Button(onClick = { nav.navigate("scan") }, modifier = Modifier.height(48.dp)) { Text(stringResource(R.string.scan_qr)) }
     }
@@ -463,6 +512,7 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
 private fun Receive(vm: ShareViewModel) {
     val context = LocalContext.current
     val incoming by vm.nearby.incoming.collectAsState()
+    val connecting by vm.nearby.connecting.collectAsState()
     val incomingMessage by vm.incomingTransferMessage.collectAsState()
     val expiresAt by vm.receiveExpiresAt.collectAsState()
     var remainingSeconds by remember { mutableStateOf(0L) }
@@ -498,6 +548,21 @@ private fun Receive(vm: ShareViewModel) {
     val payload = if (code.isNotBlank()) "bqsqwad://share?code=$code&expires=$expiresAt&key=${vm.keyText}&v=${vm.verification}" else ""
     Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(stringResource(R.string.show_qr), style = MaterialTheme.typography.titleLarge)
+        if (connecting.isNotEmpty()) {
+            Card(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(26.dp), strokeWidth = 3.dp)
+                    Column {
+                        Text("Connecting to sender…", style = MaterialTheme.typography.titleSmall)
+                        Text("Keep this screen open while the devices establish their connection.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
         if (incomingMessage.isNotBlank()) {
             Card(Modifier.fillMaxWidth()) {
                 Row(
