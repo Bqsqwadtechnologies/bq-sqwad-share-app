@@ -143,7 +143,8 @@ class WebShareServer(
                     if (file == null || !file.isFile) write(out, 404, "text/plain", "Missing")
                     else {
                         val safeName = file.name.replace("\\", "_").replace("\"", "_").replace("\r", "_").replace("\n", "_")
-                        val header = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: ${file.length()}\r\nContent-Disposition: attachment; filename=\"$safeName\"\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n"
+                        val encodedName = urlEncode(file.name).replace("+", "%20")
+                        val header = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: ${file.length()}\r\nContent-Disposition: attachment; filename=\"$safeName\"; filename*=UTF-8''$encodedName\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n"
                         out.write(header.toByteArray(StandardCharsets.US_ASCII))
                         file.inputStream().use { it.copyTo(out) }
                     }
@@ -324,7 +325,10 @@ class WebShareServer(
             507 -> "Insufficient Storage"
             else -> "Error"
         }
-        val header = "HTTP/1.1 $code $msg\r\nContent-Type: $type; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n"
+        val contentSecurityPolicy = if (type == "text/html") {
+            "Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'\\r\\n"
+        } else ""
+        val header = "HTTP/1.1 $code $msg\r\nContent-Type: $type; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nX-Frame-Options: DENY\r\n$contentSecurityPolicyConnection: close\r\n\r\n"
         out.write(header.toByteArray(StandardCharsets.US_ASCII))
         out.write(bytes)
     }
