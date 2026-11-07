@@ -418,163 +418,105 @@ private fun BrandHeader() {
 
 @Composable
 private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adFree: Boolean, onMenu: () -> Unit) {
-    val adsAllowed by ads.canRequestAdsState.collectAsState()
-    val history by vm.history.collectAsState()
-    var search by remember { mutableStateOf("") }
-    var quickActionsExpanded by remember { mutableStateOf(false) }
-    var systemAppsExpanded by remember { mutableStateOf(false) }
-    var systemApps by remember { mutableStateOf<List<ShareAppItem>>(emptyList()) }
+    var page by remember { mutableStateOf(0) }
+    var installedApps by remember { mutableStateOf<List<ShareAppItem>>(emptyList()) }
     val context = LocalContext.current
-    LaunchedEffect(Unit) { systemApps = withContext(Dispatchers.IO) { MediaRepository.loadApps(context, true) } }
-    val tiles = listOf(
-        Triple("Send", "send", Icons.Filled.Send),
-        Triple("Receive", "receive", Icons.Filled.QrCodeScanner),
-        Triple("Photos", "media/photos", Icons.Filled.PhotoLibrary),
-        Triple("Videos", "media/videos", Icons.Filled.VideoLibrary),
-        Triple("Music", "media/music", Icons.Filled.MusicNote),
-        Triple("Files", "files", Icons.Filled.FolderOpen),
-        Triple("Apps", "library/apps", Icons.Filled.Apps),
-        Triple("History", "history", Icons.Filled.History),
-    ).filter { it.first.contains(search.trim(), ignoreCase = true) }
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+
+    LaunchedEffect(Unit) {
+        installedApps = withContext(Dispatchers.IO) {
+            (MediaRepository.loadApps(context, false) + MediaRepository.loadApps(context, true))
+                .distinctBy { it.packageName }
+                .sortedBy { it.label.lowercase() }
+        }
+    }
+
+    Column(
+        Modifier.fillMaxSize().pointerInput(page) {
+            var horizontalDrag = 0f
+            androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+                onHorizontalDrag = { _, amount -> horizontalDrag += amount },
+                onDragEnd = {
+                    if (horizontalDrag < -64f) page = 1
+                    else if (horizontalDrag > 64f) page = 0
+                    horizontalDrag = 0f
+                },
+            )
+        },
     ) {
-        item {
-            Row(
-                Modifier.fillMaxWidth().padding(bottom = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.size(58.dp).clickable { quickActionsExpanded = true }) {
-                    BrandLogo(Modifier.fillMaxSize(), "BQ Sqwad Share")
-                }
-                DropdownMenu(
-                    expanded = quickActionsExpanded,
-                    onDismissRequest = { quickActionsExpanded = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("↑  Send") },
-                        onClick = {
-                            quickActionsExpanded = false
-                            nav.navigate("send") { launchSingleTop = true }
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("↓  Receive") },
-                        onClick = {
-                            quickActionsExpanded = false
-                            nav.navigate("receive") { launchSingleTop = true }
-                        },
-                    )
-                }
-                Column(Modifier.padding(start = 12.dp)) {
-                    Text("BQ Sqwad Share", style = MaterialTheme.typography.titleLarge)
-                    Text("Share everything. Simply.", style = MaterialTheme.typography.bodySmall)
-                }
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = onMenu) { Text("Menu") }
-            }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(if (page == 0) "Apps" else "Music", style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = onMenu) { Text("Menu") }
         }
-        itemsIndexed(tiles.chunked(4)) { _, pair ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                pair.forEach { (label, route, icon) ->
-                    Card(
-                        Modifier.weight(1f).height(112.dp).clickable {
-                            nav.navigate(route) { launchSingleTop = true }
-                        },
-                    ) {
-                        Column(
-                            Modifier.fillMaxSize().padding(14.dp),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            androidx.compose.material3.Icon(
-                                icon,
-                                contentDescription = label,
-                                modifier = Modifier.size(38.dp),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            Text(label, style = MaterialTheme.typography.titleMedium)
-                        }
-                    }
-                }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
-        if (!adFree && adsAllowed) {
-            item { if (adsAllowed) NativeSlot(adsAllowed, AdUnits.HOME_NATIVE) }
-        }
-        item {
-            OutlinedTextField(
-                value = search,
-                onValueChange = { search = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Search apps and sections") },
-                placeholder = { Text("Photos, music, videos, files…") },
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilterChip(selected = page == 0, onClick = { page = 0 }, label = { Text("Apps") })
+            Spacer(Modifier.size(8.dp))
+            FilterChip(
+                selected = page == 1,
+                onClick = { page = 1 },
+                label = { Text("Music") },
+                leadingIcon = { androidx.compose.material3.Icon(Icons.Filled.MusicNote, null) },
             )
         }
-        if (search.isBlank()) {
-            item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("System apps", style = MaterialTheme.typography.titleMedium)
-                                Text("${systemApps.size} built-in apps", style = MaterialTheme.typography.bodySmall)
-                            }
-                            TextButton(onClick = { systemAppsExpanded = !systemAppsExpanded }) {
-                                Text(if (systemAppsExpanded) "Hide" else "Show")
-                            }
-                        }
-                        if (systemAppsExpanded) {
-                            systemApps.chunked(4).forEach { appRow ->
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    appRow.forEach { app ->
-                                        val appIcon = remember(app.packageName) {
-                                            runCatching { context.packageManager.getApplicationIcon(app.packageName).toBitmap().asImageBitmap() }.getOrNull()
-                                        }
-                                        Column(
-                                            Modifier.weight(1f).height(92.dp).clickable {
-                                                context.packageManager.getLaunchIntentForPackage(app.packageName)?.let { launchIntent -> context.startActivity(launchIntent) }
-                                            }.padding(4.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.Center,
-                                        ) {
-                                            if (appIcon != null) Image(appIcon, contentDescription = app.label, modifier = Modifier.size(34.dp))
-                                            else androidx.compose.material3.Icon(Icons.Filled.PhoneAndroid, contentDescription = app.label, modifier = Modifier.size(34.dp))
-                                            Text(app.label, style = MaterialTheme.typography.labelSmall, maxLines = 2)
-                                        }
+
+        if (page == 0) {
+            when {
+                installedApps.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+                else -> LazyColumn(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    itemsIndexed(installedApps.chunked(4)) { _, appRow ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            appRow.forEach { app ->
+                                val appIcon = remember(app.packageName) {
+                                    runCatching {
+                                        context.packageManager.getApplicationIcon(app.packageName).toBitmap().asImageBitmap()
+                                    }.getOrNull()
+                                }
+                                Column(
+                                    Modifier.weight(1f).height(88.dp).clickable {
+                                        val launchIntent = context.packageManager.getLaunchIntentForPackage(app.packageName)
+                                        if (launchIntent != null) runCatching { context.startActivity(launchIntent) }
+                                    }.padding(horizontal = 3.dp, vertical = 5.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center,
+                                ) {
+                                    if (appIcon != null) {
+                                        Image(appIcon, contentDescription = app.label, modifier = Modifier.size(42.dp))
+                                    } else {
+                                        androidx.compose.material3.Icon(
+                                            Icons.Filled.PhoneAndroid,
+                                            contentDescription = app.label,
+                                            modifier = Modifier.size(42.dp),
+                                        )
                                     }
-                                    repeat(4 - appRow.size) { Spacer(Modifier.weight(1f)) }
+                                    Text(
+                                        app.label,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                    )
                                 }
                             }
+                            repeat(4 - appRow.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
             }
-            item {
-                Text("Recent transfers", style = MaterialTheme.typography.titleLarge)
+        } else {
+            Box(Modifier.fillMaxSize()) {
+                MediaLibraryScreen(initialKind = "music")
             }
-            if (history.isEmpty()) item { Text(stringResource(R.string.empty_recent)) }
-            itemsIndexed(history.take(5), key = { _, item -> item.id }) { _, item ->
-                Card(Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        androidx.compose.material3.Icon(
-                            if (item.direction.equals("SEND", true)) Icons.Filled.Send else Icons.Filled.FolderOpen,
-                            contentDescription = null,
-                        )
-                        Column(Modifier.padding(start = 10.dp)) {
-                            Text(item.displayName, style = MaterialTheme.typography.titleSmall)
-                            Text("${item.direction} · ${item.status}", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
-        } else if (tiles.isEmpty()) {
-            item { Text("No matching section found.") }
         }
     }
 }
