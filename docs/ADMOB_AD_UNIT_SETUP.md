@@ -47,4 +47,28 @@ These names reserve a clear inventory for later AdMob setup. They are not live p
 
 Provide the AdMob App ID (contains ~) and each production ad-unit ID (contains /). Do not replace the Google sample IDs with guessed IDs.
 
-The app currently uses Google's sample test IDs. The banner is integrated as a shared test unit; interstitial, rewarded, and App Open use shared test units. The NativeSlot is currently a placeholder and is not a production native-ad implementation. Additional placements above are inventory names only until separately configured and integrated.
+## Production IDs supplied and mapped
+
+- App ID: ca-app-pub-2748789567113929~9250342978
+- Home banner: ca-app-pub-2748789567113929/3184852834
+- Home native: ca-app-pub-2748789567113929/4105208956
+- History banner: ca-app-pub-2748789567113929/2610137763
+- Apps native: ca-app-pub-2748789567113929/7661310589
+- History native: ca-app-pub-2748789567113929/8792402730
+- Transfer interstitial: ca-app-pub-2748789567113929/9483714054
+- Ad-free rewarded: ca-app-pub-2748789567113929/4525854668
+- Premium rewarded: ca-app-pub-2748789567113929/5498181672
+- App Open: ca-app-pub-2748789567113929/1843851002
+- Photos native: ca-app-pub-2748789567113929/2764207122
+- Videos native: ca-app-pub-2748789567113929/4334282970
+- Music native: ca-app-pub-2748789567113929/1586856824
+- Files native: ca-app-pub-2748789567113929/5399952630
+- Favorites native: ca-app-pub-2748789567113929/1460707621
+- More banner: ca-app-pub-2748789567113929/8081956290
+- Storage tools banner: ca-app-pub-2748789567113929/5786965443
+- Team sharing native: ca-app-pub-2748789567113929/2726734014
+- Folder transfer complete: ca-app-pub-2748789567113929/6647611818
+
+The app manifest now uses the production App ID. Home and History banners use their own production units. Home, History and Apps native placements use Native Advanced ads with a real NativeAdView and registered assets. Rewarded ad-free and premium actions load separate rewarded units. The remaining supplied IDs are mapped in AdUnits for the corresponding feature rollout; they are not falsely described as active placements until those screens are integrated and tested.
+
+Full-screen interstitial and App Open inventory is deliberately not shown automatically. The previous transfer flow attempted to show an interstitial immediately after the user pressed Send, before the transfer was confirmed complete. That behaviour has been removed to prevent interruptions. Folder completion interstitial remains reserved until the app has a verified successful completion callback. Google sample IDs above remain development references only.
