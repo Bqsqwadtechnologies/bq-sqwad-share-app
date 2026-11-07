@@ -11,13 +11,14 @@ import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Durable receiver-side checkpoint store for chunked transfers.
  *
- * Each accepted chunk is fsynced before its committed offset is atomically recorded.
- * On restart, uncommitted tail bytes are discarded and the sender can resume at
- * [resumeOffset]. The transport must exchange RESUME/ACK frames and call appendChunk.
+ * Chunks are acknowledged as they arrive, while disk checkpoints are fsynced at
+ * 1 MiB boundaries (and at file completion). If the process restarts, uncommitted
+ * tail bytes are truncated and the sender resumes from the last durable checkpoint.
  */
 class ResumableFileReceiver(private val root: File) {
     data class Offer(
@@ -27,9 +28,20 @@ class ResumableFileReceiver(private val root: File) {
         val sha256: ByteArray,
     )
 
+    private data class ActiveSession(
+        var saved: Saved,
+        var nextOffset: Long,
+        var committedOffset: Long,
+    )
+
+    private val activeSessions = ConcurrentHashMap<String, ActiveSession>()
+
     fun begin(offer: Offer): Long {
         validateOffer(offer)
         if (!root.exists()) check(root.mkdirs()) { "Unable to create transfer staging directory." }
+        val previous = activeSessions.remove(offer.transferId)
+        if (previous != null) synchronized(previous) { Unit }
+
         val metadata = metadataFile(offer.transferId)
         val partial = partialFile(offer.transferId)
         if (metadata.exists()) {
@@ -41,20 +53,29 @@ class ResumableFileReceiver(private val root: File) {
             require(partial.isFile) { "Transfer checkpoint exists but its partial file is missing." }
             require(partial.length() >= saved.committedOffset) { "Partial file is shorter than its committed checkpoint." }
             RandomAccessFile(partial, "rw").use { it.setLength(saved.committedOffset) }
+            activeSessions[offer.transferId] = ActiveSession(saved, saved.committedOffset, saved.committedOffset)
             return saved.committedOffset
         }
-        require(!partial.exists()) { "Untracked partial transfer file already exists." }
+
+        // A crash before the first metadata checkpoint can leave an untracked .part file.
+        // It contains no durable progress, so discard it and start this transfer cleanly.
+        if (partial.exists()) check(partial.delete()) { "Unable to remove an untracked partial transfer file." }
         check(partial.createNewFile()) { "Unable to create partial transfer file." }
+        val initial = Saved(offer.transferId, safeName(offer.displayName), offer.totalBytes, offer.sha256.copyOf(), 0L)
         try {
-            writeMetadata(metadata, Saved(offer.transferId, safeName(offer.displayName), offer.totalBytes, offer.sha256.copyOf(), 0L))
+            writeMetadata(metadata, initial)
         } catch (failure: Throwable) {
             partial.delete()
             throw failure
         }
+        activeSessions[offer.transferId] = ActiveSession(initial, 0L, 0L)
         return 0L
     }
 
     fun resumeOffset(transferId: String): Long {
+        validateTransferId(transferId)
+        val previous = activeSessions.remove(transferId)
+        if (previous != null) synchronized(previous) { Unit }
         val saved = readMetadata(metadataFile(transferId))
         val partial = partialFile(transferId)
         require(partial.isFile && partial.length() >= saved.committedOffset) {
@@ -63,45 +84,79 @@ class ResumableFileReceiver(private val root: File) {
         if (partial.length() > saved.committedOffset) {
             RandomAccessFile(partial, "rw").use { it.setLength(saved.committedOffset) }
         }
+        activeSessions[transferId] = ActiveSession(saved, saved.committedOffset, saved.committedOffset)
         return saved.committedOffset
     }
 
     fun appendChunk(transferId: String, offset: Long, bytes: ByteArray, expectedChunkSha256: ByteArray): Long {
+        validateTransferId(transferId)
         require(bytes.isNotEmpty() && bytes.size <= TransferProtocol.MAX_CHUNK) { "Invalid transfer chunk size." }
         require(expectedChunkSha256.size == 32) { "Invalid chunk checksum." }
         require(TransferProtocol.sha256(bytes).contentEquals(expectedChunkSha256)) { "Chunk checksum mismatch." }
-        val metadata = metadataFile(transferId)
-        val saved = readMetadata(metadata)
-        val partial = partialFile(transferId)
-        require(partial.isFile) { "Partial transfer file is missing." }
-        require(partial.length() == saved.committedOffset) { "Partial file does not match its saved checkpoint." }
-        require(offset == saved.committedOffset) { "Chunk offset does not match the next expected byte." }
-        val next = Math.addExact(offset, bytes.size.toLong())
-        require(next <= saved.totalBytes) { "Chunk exceeds the advertised file size." }
-        RandomAccessFile(partial, "rw").use { output ->
-            output.seek(offset)
-            output.write(bytes)
-            output.fd.sync()
+        val session = activeSessions[transferId]
+            ?: throw IllegalStateException("Receive session was not initialized. Send the transfer offer again.")
+        synchronized(session) {
+            val saved = session.saved
+            val metadata = metadataFile(transferId)
+            val partial = partialFile(transferId)
+            require(partial.isFile) { "Partial transfer file is missing." }
+            require(partial.length() == session.nextOffset) { "Partial file does not match its active offset." }
+            require(offset == session.nextOffset) { "Chunk offset does not match the next expected byte." }
+            val next = Math.addExact(offset, bytes.size.toLong())
+            require(next <= saved.totalBytes) { "Chunk exceeds the advertised file size." }
+
+            RandomAccessFile(partial, "rw").use { output ->
+                output.seek(offset)
+                output.write(bytes)
+                if (next - session.committedOffset >= CHECKPOINT_INTERVAL_BYTES || next == saved.totalBytes) {
+                    output.fd.sync()
+                    val checkpoint = saved.copy(committedOffset = next)
+                    writeMetadata(metadata, checkpoint)
+                    session.saved = checkpoint
+                    session.committedOffset = next
+                }
+            }
+            session.nextOffset = next
+            return next
         }
-        writeMetadata(metadata, saved.copy(committedOffset = next))
-        return next
     }
 
     fun complete(transferId: String): File {
-        val metadata = metadataFile(transferId)
-        val saved = readMetadata(metadata)
-        val partial = partialFile(transferId)
-        require(partial.isFile && partial.length() == saved.totalBytes && saved.committedOffset == saved.totalBytes) {
-            "Transfer is not complete yet."
+        validateTransferId(transferId)
+        val session = activeSessions[transferId]
+            ?: throw IllegalStateException("Receive session was not initialized. Send the transfer offer again.")
+        synchronized(session) {
+            var saved = session.saved
+            val metadata = metadataFile(transferId)
+            val partial = partialFile(transferId)
+            require(
+                partial.isFile &&
+                    partial.length() == saved.totalBytes &&
+                    session.nextOffset == saved.totalBytes,
+            ) { "Transfer is not complete yet." }
+
+            if (session.committedOffset < saved.totalBytes) {
+                RandomAccessFile(partial, "rw").use { it.fd.sync() }
+                saved = saved.copy(committedOffset = saved.totalBytes)
+                writeMetadata(metadata, saved)
+                session.saved = saved
+                session.committedOffset = saved.totalBytes
+            }
+            val durable = readMetadata(metadata)
+            require(durable.committedOffset == durable.totalBytes) { "Final transfer checkpoint was not committed." }
+            require(sha256(partial).contentEquals(durable.sha256)) { "Completed file failed SHA-256 verification." }
+            val destination = File(root, uniqueName(durable.displayName))
+            check(partial.renameTo(destination)) { "Unable to finalize received file." }
+            metadata.delete()
+            activeSessions.remove(transferId, session)
+            return destination
         }
-        require(sha256(partial).contentEquals(saved.sha256)) { "Completed file failed SHA-256 verification." }
-        val destination = File(root, uniqueName(saved.displayName))
-        check(partial.renameTo(destination)) { "Unable to finalize received file." }
-        metadata.delete()
-        return destination
     }
 
     fun discard(transferId: String) {
+        validateTransferId(transferId)
+        val session = activeSessions.remove(transferId)
+        if (session != null) synchronized(session) { Unit }
         partialFile(transferId).delete()
         metadataFile(transferId).delete()
     }
@@ -194,5 +249,6 @@ class ResumableFileReceiver(private val root: File) {
 
     companion object {
         private const val MAGIC = 0x42515231 // BQR1
+        private const val CHECKPOINT_INTERVAL_BYTES = 1024L * 1024L
     }
 }
