@@ -188,6 +188,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                                 "Chat" to "chat",
                                 "Folder Transfer" to "folder-transfer",
                                 "Device Hub" to "device-hub",
+                                "Team Sharing" to "team-sharing",
                                 "Private Vault" to "private-vault",
                             ).forEach { (label, route) ->
                                 NavigationDrawerItem(
@@ -283,6 +284,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         }
                         composable("favorites") { Favorites(vm) }
                         composable("chat") { Chat(vm) }
+                        composable("team-sharing") { TeamSharingScreen(vm) }
                         composable("more") { More() }
                         composable("debug") { Debug(ads) }
                     }
