@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -135,42 +136,47 @@ class ShareViewModel @Inject constructor(
         val pendingIncoming = java.util.concurrent.ConcurrentHashMap<Pair<String, Long>, File>()
         val incomingManifests = java.util.concurrent.ConcurrentHashMap<Pair<String, Long>, TransferProtocol.FileManifest>()
         val completedIncoming = java.util.concurrent.ConcurrentHashMap.newKeySet<Pair<String, Long>>()
+        val nonFilePayloads = java.util.concurrent.ConcurrentHashMap.newKeySet<Pair<String, Long>>()
+
+        fun scheduleMissingManifestTimeout(key: Pair<String, Long>) {
+            viewModelScope.launch {
+                delay(15_000)
+                if (completedIncoming.contains(key) && !incomingManifests.containsKey(key)) {
+                    pendingIncoming.remove(key)?.let { file -> withContext(Dispatchers.IO) { runCatching { file.delete() } } }
+                    completedIncoming.remove(key)
+                    incomingTransferMessage.value =
+                        "A received file was not saved because sender verification data was missing. Update both devices and retry."
+                }
+            }
+        }
 
         fun persistCompletedPayload(key: Pair<String, Long>) {
             val incomingFile = pendingIncoming.remove(key) ?: return
-            val manifest = incomingManifests.remove(key)
+            val manifest = incomingManifests.remove(key) ?: run {
+                pendingIncoming[key] = incomingFile
+                return
+            }
             completedIncoming.remove(key)
             val endpointId = key.first
             viewModelScope.launch {
                 try {
                     val receivedName = withContext(Dispatchers.IO) {
-                        if (manifest != null) {
-                            require(incomingFile.length() == manifest.size) {
-                                "The received file size does not match the sender's manifest."
-                            }
-                            require(FileUtilities.sha256(incomingFile).equals(
-                                manifest.sha256.joinToString("") { "%02x".format(it) },
-                                ignoreCase = true,
-                            )) {
-                                "The received file failed the sender's SHA-256 integrity check."
-                            }
+                        require(incomingFile.length() == manifest.size) {
+                            "The received file size does not match the sender's manifest."
                         }
-                        val name = FileUtilities.safeFileName(manifest?.name ?: incomingFile.name)
-                        val extension = name.substringAfterLast('.', "").lowercase()
-                        val mime = manifest?.mime
-                            ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
-                            ?: "application/octet-stream"
+                        val expectedHash = manifest.sha256.joinToString("") { "%02x".format(it.toInt() and 0xff) }
+                        require(FileUtilities.sha256(incomingFile).equals(expectedHash, ignoreCase = true)) {
+                            "The received file failed the sender's SHA-256 integrity check."
+                        }
+                        val name = FileUtilities.safeFileName(manifest.name)
+                        val mime = manifest.mime
                         val kind = kindForMime(mime, name)
                         val directory = File(context.getExternalFilesDir(null), folderFor(kind))
                         val destination = FileUtilities.copyToUniqueDestination(incomingFile, directory, name)
                         record(destination.name, mime, destination.length(), "RECEIVE", endpointId, destination.absolutePath)
                         destination.name
                     }
-                    incomingTransferMessage.value = if (manifest != null) {
-                        "Received and verified: $receivedName"
-                    } else {
-                        "Received: $receivedName (sender verification unavailable)"
-                    }
+                    incomingTransferMessage.value = "Received and verified: $receivedName"
                 } catch (failure: Exception) {
                     incomingTransferMessage.value = failure.message?.takeIf { it.contains("integrity", true) || it.contains("manifest", true) }
                         ?: "The transfer finished, but this file could not be saved. Check available storage and try again."
@@ -187,13 +193,14 @@ class ShareViewModel @Inject constructor(
                 val key = event.endpointId to payload.id
                 when (payload.type) {
                     Payload.Type.BYTES -> {
+                        nonFilePayloads.add(key)
                         val manifest = payload.asBytes()?.let { bytes ->
                             runCatching { TransferProtocol.parseFileManifest(bytes) }.getOrNull()
                         }
                         if (manifest != null) {
                             val manifestKey = event.endpointId to manifest.filePayloadId
                             incomingManifests[manifestKey] = manifest
-                            if (pendingIncoming.containsKey(manifestKey) && completedIncoming.remove(manifestKey)) {
+                            if (pendingIncoming.containsKey(manifestKey) && completedIncoming.contains(manifestKey)) {
                                 persistCompletedPayload(manifestKey)
                             }
                         }
@@ -201,9 +208,12 @@ class ShareViewModel @Inject constructor(
                     Payload.Type.FILE -> {
                         val incomingFile = runCatching { payload.asFile()?.asJavaFile() }.getOrNull() ?: return@collect
                         pendingIncoming[key] = incomingFile
-                        if (completedIncoming.remove(key)) persistCompletedPayload(key)
+                        if (completedIncoming.contains(key)) {
+                            if (incomingManifests.containsKey(key)) persistCompletedPayload(key)
+                            else scheduleMissingManifestTimeout(key)
+                        }
                     }
-                    else -> Unit
+                    else -> nonFilePayloads.add(key)
                 }
             }
         }
@@ -212,10 +222,12 @@ class ShareViewModel @Inject constructor(
             nearby.progress.collect { event ->
                 val key = event.endpointId to event.payloadId
                 if (event.status == PayloadTransferUpdate.Status.SUCCESS) {
+                    if (nonFilePayloads.remove(key)) return@collect
                     if (pendingIncoming.containsKey(key) && incomingManifests.containsKey(key)) {
                         persistCompletedPayload(key)
                     } else {
                         completedIncoming.add(key)
+                        scheduleMissingManifestTimeout(key)
                     }
                 } else if (event.status != PayloadTransferUpdate.Status.IN_PROGRESS) {
                     pendingIncoming.remove(key)?.let { file -> runCatching { file.delete() } }
