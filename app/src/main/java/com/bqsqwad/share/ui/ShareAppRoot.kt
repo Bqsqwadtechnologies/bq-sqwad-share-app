@@ -96,6 +96,7 @@ import com.bqsqwad.share.data.TransferEntity
 import com.bqsqwad.share.ads.AdManager
 import com.bqsqwad.share.ads.BannerSlot
 import com.bqsqwad.share.ads.NativeSlot
+import com.bqsqwad.share.ads.AdUnits
 import com.bqsqwad.share.media.SharePlaybackService
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -238,6 +239,13 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                             )
                             BannerSlot(
                                 enabled = !adFree && ads.canRequestAds && currentRoute in adVisibleRoutes,
+                                adUnitId = when (currentRoute) {
+                                    "home" -> AdUnits.HOME_BANNER
+                                    "history" -> AdUnits.HISTORY_BANNER
+                                    "more" -> AdUnits.MORE_BANNER
+                                    "storage-intelligence" -> AdUnits.STORAGE_BANNER
+                                    else -> AdUnits.HOME_BANNER
+                                },
                                 modifier = Modifier.navigationBarsPadding(),
                             )
                         }
@@ -745,7 +753,7 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
         val endpointId = connected.firstOrNull()
         if (autoSend && endpointId != null && (queued.isNotEmpty() || queuedLocal.isNotEmpty())) {
             vm.sendQueuedFiles(endpointId)
-            ads.onTaskCompleted(ctx as Activity, adFree)
+            
             nav.popBackStack()
         }
     }
@@ -767,6 +775,7 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
                         })
                     }
                 }
+                if (!adFree && ads.canRequestAds) NativeSlot(true, AdUnits.APPS_NATIVE)
             }
             "clip" -> {
                 var text by remember { mutableStateOf("") }
@@ -791,7 +800,7 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
                 Toast.makeText(ctx, "Connect to a nearby device first, then send the selected files.", Toast.LENGTH_LONG).show()
             } else if (queued.isNotEmpty() || queuedLocal.isNotEmpty() || picked.value.isNotEmpty()) {
                 vm.sendQueuedFiles(endpointId)
-                ads.onTaskCompleted(ctx as Activity, adFree)
+                
                 nav.popBackStack()
             } else {
                 Toast.makeText(ctx, "Choose at least one file to send.", Toast.LENGTH_SHORT).show()
@@ -820,7 +829,7 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
                 Button(onClick = {
                     confirmGroupSend = false
                     vm.sendQueuedFilesToAll()
-                    ads.onTaskCompleted(ctx as Activity, adFree)
+                    
                     nav.popBackStack()
                 }) { Text("Send to all") }
             },
@@ -849,7 +858,8 @@ private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
                     }
                 }
             }
-            itemsIndexed(history, key = { _, it -> it.id }) { _, item ->
+            itemsIndexed(history, key = { _, it -> it.id }) { index, item ->
+                if (index == 6 && !adFree && ads.canRequestAds) NativeSlot(true, AdUnits.HISTORY_NATIVE)
                 Card(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(item.displayName, style = MaterialTheme.typography.titleSmall)
@@ -1087,10 +1097,10 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Ads and rewards", style = MaterialTheme.typography.titleMedium)
                     Text("Watch five rewarded videos to unlock 24 hours without ads (${s.adFreeRewardCount}/5).")
-                    Button(onClick = { ads.showRewarded(activity) { vm.rewardAdFreeProgress() } }, modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = { ads.showAdFreeRewarded(activity) { vm.rewardAdFreeProgress() } }, modifier = Modifier.fillMaxWidth()) {
                         Text("Watch rewarded video")
                     }
-                    OutlinedButton(onClick = { ads.showRewarded(activity) { vm.premiumDay() } }, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { ads.showPremiumRewarded(activity) { vm.premiumDay() } }, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.unlock_premium))
                     }
                     TextButton(onClick = { ads.privacyOptions(activity) }) { Text(stringResource(R.string.privacy_options)) }
@@ -1359,8 +1369,8 @@ private fun Debug(ads: AdManager) {
         Text("consent=${ads.consentResolved} canRequest=${ads.canRequestAds}")
         Text("banner=home,history native=every 8 interstitial=after 3 tasks rewarded=settings app-open=4h")
         Text("interstitialLoaded=${ads.interstitialLoaded} rewardedLoaded=${ads.rewardedLoaded} appOpenLoaded=${ads.appOpenLoaded}")
-        BannerSlot(true)
-        NativeSlot(true)
+        BannerSlot(true, AdUnits.HOME_BANNER)
+        NativeSlot(true, AdUnits.HOME_NATIVE)
     }
 }
 
