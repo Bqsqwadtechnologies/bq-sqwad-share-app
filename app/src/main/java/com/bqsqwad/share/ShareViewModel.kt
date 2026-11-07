@@ -358,9 +358,31 @@ class ShareViewModel @Inject constructor(
     fun moveToDeleted(item: TransferEntity) = viewModelScope.launch { dao.update(item.copy(status = "DELETED")) }
     fun restoreFromDeleted(item: TransferEntity) = viewModelScope.launch { dao.update(item.copy(status = "DONE")) }
     fun permanentlyDelete(item: TransferEntity) = viewModelScope.launch {
-        item.localPath?.let { path -> runCatching { File(path).takeIf { it.isFile }?.delete() } }
+        if (item.direction.equals("RECEIVE", true) && !item.localPath.isNullOrBlank()) {
+            val file = File(item.localPath)
+            if (file.exists() && !isManagedReceivedFile(file)) {
+                incomingTransferMessage.value = "This file is outside BQ Sqwad Share's received-file folders; its record was kept."
+                return@launch
+            }
+            val deleted = withContext(Dispatchers.IO) { !file.exists() || file.delete() }
+            if (!deleted) {
+                incomingTransferMessage.value = "Could not delete ${item.displayName}. The transfer record was kept."
+                return@launch
+            }
+        }
         dao.delete(item.id)
     }
+
+    private fun isManagedReceivedFile(file: File): Boolean = runCatching {
+        val allowedFolders = setOf("Photos", "Videos", "Music", "Documents", "Apps", "Clipboard", "Folders", "Files", "FromComputer")
+        val roots = listOfNotNull(context.getExternalFilesDir(null), context.filesDir)
+        val canonicalPath = file.canonicalPath
+        roots.any { root ->
+            val prefix = root.canonicalPath.trimEnd(File.separatorChar) + File.separator
+            if (!canonicalPath.startsWith(prefix)) false
+            else canonicalPath.removePrefix(prefix).substringBefore(File.separator) in allowedFolders
+        }
+    }.getOrDefault(false)
 
     fun storage(): Pair<Long, Long> {
         val stat = StatFs(context.filesDir.absolutePath)
