@@ -62,7 +62,7 @@ class WebShareServer(
                     }
                     Thread({
                         try {
-                            client.soTimeout = 15_000
+                            client.soTimeout = 120_000
                             handle(client)
                         } finally {
                             clientSlots.release()
