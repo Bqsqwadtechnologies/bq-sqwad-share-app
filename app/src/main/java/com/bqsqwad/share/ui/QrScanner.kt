@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.bqsqwad.share.common.SessionCrypto
 import com.bqsqwad.share.design.QR_SIZE
 import com.bqsqwad.share.design.ScanFrame
 import com.google.mlkit.vision.barcode.BarcodeScanner
@@ -92,15 +93,25 @@ fun QrScanner(onCodeScanned: (String) -> Unit) {
                                     val uri = runCatching { Uri.parse(raw) }.getOrNull()
                                     val code = uri?.getQueryParameter("code")
                                     val expires = uri?.getQueryParameter("expires")?.toLongOrNull() ?: 0L
-                                    if (uri?.scheme == "bqsqwad" && code != null && code.length == 6 && code.all { it.isDigit() }) {
-                                        if (expires > System.currentTimeMillis()) {
-                                            completed = true
-                                            ContextCompat.getMainExecutor(ctx).execute { onCodeScanned(code) }
-                                        } else {
-                                            error = "This receive QR code has expired."
-                                        }
+                                    val encodedKey = uri?.getQueryParameter("key")
+                                    val fingerprint = uri?.getQueryParameter("v")
+                                    val keyValid = if (!encodedKey.isNullOrBlank() && !fingerprint.isNullOrBlank()) {
+                                        runCatching {
+                                            val key = SessionCrypto.keyFromString(encodedKey)
+                                            key.encoded.size == 32 && SessionCrypto.fingerprint(key) == fingerprint
+                                        }.getOrDefault(false)
+                                    } else false
+                                    if (uri?.scheme == "bqsqwad" && code != null && code.length == 6 &&
+                                        code.all { it.isDigit() } && expires > System.currentTimeMillis() && keyValid
+                                    ) {
+                                        completed = true
+                                        ContextCompat.getMainExecutor(ctx).execute { onCodeScanned(raw) }
                                     } else {
-                                        error = "This is not a BQ Sqwad Share receive code."
+                                        error = if (expires > 0L && expires <= System.currentTimeMillis()) {
+                                            "This receive QR code has expired."
+                                        } else {
+                                            "This is not a valid BQ Sqwad Share receive QR code."
+                                        }
                                     }
                                 }
                                 .addOnFailureListener { error = it.localizedMessage ?: "Unable to read QR code." }
