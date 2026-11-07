@@ -312,7 +312,6 @@ class ShareViewModel @Inject constructor(
         chatSessionReady.value = true
         chatReadyEndpoints.value = emptySet()
         chatMessages.value = emptyList()
-        nearby.stopAdvertising()
         receiveExpiresAt.value = System.currentTimeMillis() + 10 * 60 * 1000L
         nearby.setExpectedReceiveCode(next)
         nearby.startAdvertising("BQ Sqwad Share code $next")
@@ -322,8 +321,10 @@ class ShareViewModel @Inject constructor(
     fun expireReceiveSessionIfNeeded(now: Long = System.currentTimeMillis()) {
         if (receiveExpiresAt.value > 0L && now >= receiveExpiresAt.value) {
             sessionCode = ""
+            receiveExpiresAt.value = 0L
             chatSessionReady.value = false
             chatReadyEndpoints.value = emptySet()
+            chatMessages.value = emptyList()
             nearby.setExpectedReceiveCode("")
             nearby.stopAdvertising()
         }
@@ -510,7 +511,7 @@ class ShareViewModel @Inject constructor(
             server.lanAddress()
         } catch (failure: Throwable) {
             staged.forEach { it.delete() }
-            shareDirectory.deleteRecursively()
+            shareDirectory.delete()
             throw failure
         }
     }
