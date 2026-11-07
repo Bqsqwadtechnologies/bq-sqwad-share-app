@@ -1,6 +1,7 @@
 package com.bqsqwad.share.ui
 
 import android.os.StatFs
+import android.os.Environment
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,12 +26,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import java.io.File
 
 private data class StorageArea(val label: String, val bytes: Long)
 
 @Composable
-fun StorageIntelligenceScreen(onOpenCleaner: () -> Unit) {
+fun StorageIntelligenceScreen(onOpenCleaner: () -> Unit, compact: Boolean = false) {
     val context = LocalContext.current
     var areas by remember { mutableStateOf<List<StorageArea>>(emptyList()) }
     var largest by remember { mutableStateOf<List<File>>(emptyList()) }
@@ -41,7 +43,7 @@ fun StorageIntelligenceScreen(onOpenCleaner: () -> Unit) {
     LaunchedEffect(context) {
         scanning = true
         val result = withContext(Dispatchers.IO) {
-            val stat = StatFs(context.filesDir.absolutePath)
+            val stat = runCatching { StatFs(context.filesDir.absolutePath) }.getOrNull()
             val appRoots = listOf(
                 "App files" to context.filesDir,
                 "App cache" to context.cacheDir,
@@ -50,16 +52,16 @@ fun StorageIntelligenceScreen(onOpenCleaner: () -> Unit) {
                 context.externalCacheDir?.let { "External app cache" to it },
             ).distinctBy { it.second.canonicalPath }
             val files = appRoots.flatMap { (_, root) ->
-                if (root.exists()) root.walkTopDown().filter { it.isFile && it.canRead() }.toList() else emptyList()
+                runCatching { if (root.exists()) root.walkTopDown().filter { it.isFile && it.canRead() }.toList() else emptyList() }.getOrDefault(emptyList())
             }
             Triple(
                 appRoots.map { (label, root) ->
-                    StorageArea(label, if (root.exists()) root.walkTopDown().filter { it.isFile }.sumOf { it.length() } else 0L)
+                    StorageArea(label, runCatching { if (root.exists()) root.walkTopDown().filter { it.isFile }.sumOf { it.length() } else 0L }.getOrDefault(0L))
                 },
                 files.sortedByDescending { it.length() }.take(12),
                 longArrayOf(
-                    stat.availableBlocksLong * stat.blockSizeLong,
-                    stat.blockCountLong * stat.blockSizeLong,
+                    stat?.availableBlocksLong?.times(stat.blockSizeLong) ?: 0L,
+                    stat?.blockCountLong?.times(stat.blockSizeLong) ?: 0L,
                 ),
             )
         }
@@ -68,6 +70,47 @@ fun StorageIntelligenceScreen(onOpenCleaner: () -> Unit) {
         available = result.third[0]
         total = result.third[1]
         scanning = false
+    }
+
+    suspend fun refreshDeviceStorage() {
+        val values = withContext(Dispatchers.IO) {
+            runCatching {
+                val root = Environment.getExternalStorageDirectory()
+                val stat = StatFs(if (root.exists()) root.absolutePath else Environment.getDataDirectory().absolutePath)
+                longArrayOf(stat.availableBlocksLong * stat.blockSizeLong, stat.blockCountLong * stat.blockSizeLong)
+            }.getOrDefault(longArrayOf(0L, 0L))
+        }
+        available = values[0]
+        total = values[1]
+    }
+
+    LaunchedEffect(context) {
+        while (true) {
+            refreshDeviceStorage()
+            delay(2_000L)
+        }
+    }
+
+    if (compact) {
+        val used = (total - available).coerceIn(0L, total.coerceAtLeast(0L))
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Phone storage", style = MaterialTheme.typography.titleLarge)
+                Text(MediaRepository.formatBytes(available), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
+                Text("available of ${MediaRepository.formatBytes(total)}")
+                if (total > 0L) LinearProgressIndicator(
+                    progress = { (used.toFloat() / total.toFloat()).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Used ${MediaRepository.formatBytes(used)}", style = MaterialTheme.typography.bodySmall)
+                    Text("Free ${MediaRepository.formatBytes(available)}", style = MaterialTheme.typography.bodySmall)
+                }
+                Text("Updates automatically", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                OutlinedButton(onClick = onOpenCleaner, modifier = Modifier.fillMaxWidth()) { Text("Storage tools") }
+            }
+        }
+        return
     }
 
     Column(
@@ -84,7 +127,7 @@ fun StorageIntelligenceScreen(onOpenCleaner: () -> Unit) {
                     progress = { ((total - available).toFloat() / total.toFloat()).coerceIn(0f, 1f) },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text("This is the Android app-data storage volume, not a scan of every personal file on your phone.")
+                Text("Phone storage is read from Android shared storage. App-owned folders below are scanned separately.")
             }
         }
         Text("BQ Sqwad Share storage", style = MaterialTheme.typography.titleMedium)
