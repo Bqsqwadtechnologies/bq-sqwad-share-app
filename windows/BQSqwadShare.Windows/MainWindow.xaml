@@ -2,7 +2,7 @@
   <Grid Margin="22"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <StackPanel><TextBlock Text="BQ Sqwad Share" FontSize="28" FontWeight="Bold" Foreground="#173B91"/><TextBlock Text="Local Wi-Fi companion · files stay on your local network" Margin="0,4,0,16" Foreground="#52627D"/></StackPanel>
     <Grid Grid.Row="1" Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-      <TextBox x:Name="AddressBox" Grid.Column="0" Height="36" Margin="0,0,8,0" VerticalContentAlignment="Center" Text="http://192.168.1.2:8765"/>
+      <TextBox x:Name="AddressBox" Grid.Column="0" Height="36" Margin="0,0,8,0" VerticalContentAlignment="Center" ToolTip="Enter the exact local address shown on the phone."/>
       <PasswordBox x:Name="PinBox" Grid.Column="1" Height="36" Margin="0,0,8,0" VerticalContentAlignment="Center"/>
       <Button Grid.Column="2" Content="Connect" Padding="18,6" Margin="0,0,8,0" Click="Connect_Click"/>
       <Button Grid.Column="3" Content="Refresh" Padding="18,6" Click="Refresh_Click"/>
