@@ -589,6 +589,7 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
     LaunchedEffect(scannedCode) { if (scannedCode.isNotBlank()) receiveCode = scannedCode }
     val matchingPeers = peers
     val discoveryError by vm.nearby.discoveryError.collectAsState()
+    val connectionError by vm.nearby.connectionError.collectAsState()
     val requiredPermissions = remember {
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.NEARBY_WIFI_DEVICES)
@@ -625,6 +626,14 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
                     Text("Nearby discovery could not start")
                     Text(error, style = MaterialTheme.typography.bodySmall)
                     OutlinedButton(onClick = { vm.nearby.startDiscovery() }) { Text("Retry discovery") }
+                }
+            }
+        }
+        connectionError?.let { error ->
+            Card(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Nearby connection could not be completed", style = MaterialTheme.typography.titleSmall)
+                    Text(error, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -734,6 +743,7 @@ private fun Receive(vm: ShareViewModel) {
     val incoming by vm.nearby.incoming.collectAsState()
     val connecting by vm.nearby.connecting.collectAsState()
     val incomingMessage by vm.incomingTransferMessage.collectAsState()
+    val connectionError by vm.nearby.connectionError.collectAsState()
     val expiresAt by vm.receiveExpiresAt.collectAsState()
     val advertising by vm.nearby.advertising.collectAsState()
     val advertisingError by vm.nearby.advertisingError.collectAsState()
@@ -798,6 +808,14 @@ private fun Receive(vm: ShareViewModel) {
                 ) {
                     Text(incomingMessage, modifier = Modifier.weight(1f))
                     TextButton(onClick = { vm.dismissIncomingTransferMessage() }) { Text("Dismiss") }
+                }
+            }
+        }
+        connectionError?.let { error ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Nearby connection could not be completed", style = MaterialTheme.typography.titleSmall)
+                    Text(error, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
