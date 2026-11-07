@@ -1,6 +1,7 @@
 package com.bqsqwad.share.ui
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -39,104 +40,137 @@ import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 @Composable
 fun QrScanner(onCodeScanned: (String) -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var granted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var completed by remember { mutableStateOf(false) }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
-    val executor = remember { Executors.newSingleThreadExecutor() }
-    val scanner: BarcodeScanner = remember { BarcodeScanning.getClient() }
-    var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
-    var scannerActive by remember { mutableStateOf(true) }
-
-    LaunchedEffect(Unit) {
-        if (!granted) permission.launch(Manifest.permission.CAMERA)
+    var granted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED,
+        )
     }
-    DisposableEffect(Unit) {
-        onDispose {
-            scannerActive = false
-            cameraProvider?.unbindAll()
-            scanner.close()
-            executor.shutdown()
-        }
+    var error by remember { mutableStateOf<String?>(null) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        granted = it
+        if (!it) error = "Camera permission was not granted."
+    }
+
+    LaunchedEffect(granted) {
+        if (!granted) permission.launch(Manifest.permission.CAMERA)
     }
 
     if (!granted) {
-        Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Text("Camera permission is required to scan a BQ Sqwad Share QR code.")
             Button(onClick = { permission.launch(Manifest.permission.CAMERA) }) { Text("Allow camera") }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
         return
+    }
+
+    val executor = remember { Executors.newSingleThreadExecutor() }
+    val scanner: BarcodeScanner = remember { BarcodeScanning.getClient() }
+    val active = remember { AtomicBoolean(true) }
+    val completed = remember { AtomicBoolean(false) }
+    var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+
+    DisposableEffect(lifecycleOwner, scanner, executor) {
+        active.set(true)
+        onDispose {
+            active.set(false)
+            cameraProvider?.unbindAll()
+            cameraProvider = null
+            executor.shutdownNow()
+            scanner.close()
+        }
     }
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
-            factory = { ctx ->
-                val previewView = PreviewView(ctx)
-                val providerFuture = ProcessCameraProvider.getInstance(ctx)
-                providerFuture.addListener({
-                    val provider = providerFuture.get()
-                    if (!scannerActive) {
-                        provider.unbindAll()
-                        return@addListener
-                    }
-                    cameraProvider = provider
-                    val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
-                    val analysis = ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .build()
-                    analysis.setAnalyzer(executor) { proxy ->
-                        val image = proxy.image
-                        if (image == null || completed) {
-                            proxy.close()
-                        } else {
-                            val input = InputImage.fromMediaImage(image, proxy.imageInfo.rotationDegrees)
-                            scanner.process(input)
-                                .addOnSuccessListener { barcodes ->
-                                    val raw = barcodes.firstOrNull()?.rawValue ?: return@addOnSuccessListener
-                                    val uri = runCatching { Uri.parse(raw) }.getOrNull()
-                                    val code = uri?.getQueryParameter("code")
-                                    val expires = uri?.getQueryParameter("expires")?.toLongOrNull() ?: 0L
-                                    val encodedKey = uri?.getQueryParameter("key")
-                                    val fingerprint = uri?.getQueryParameter("v")
-                                    val keyValid = if (!encodedKey.isNullOrBlank() && !fingerprint.isNullOrBlank()) {
-                                        runCatching {
-                                            val key = SessionCrypto.keyFromString(encodedKey)
-                                            key.encoded.size == 32 && SessionCrypto.fingerprint(key) == fingerprint
-                                        }.getOrDefault(false)
-                                    } else false
-                                    if (uri?.scheme == "bqsqwad" && code != null && code.length == 6 &&
-                                        code.all { it.isDigit() } && expires > System.currentTimeMillis() && keyValid
-                                    ) {
-                                        completed = true
-                                        ContextCompat.getMainExecutor(ctx).execute { onCodeScanned(raw) }
-                                    } else {
-                                        error = if (expires > 0L && expires <= System.currentTimeMillis()) {
-                                            "This receive QR code has expired."
-                                        } else {
-                                            "This is not a valid BQ Sqwad Share receive QR code."
+            factory = { viewContext ->
+                PreviewView(viewContext).apply {
+                    scaleType = PreviewView.ScaleType.FILL_CENTER
+                    implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                    val providerFuture = ProcessCameraProvider.getInstance(viewContext.applicationContext)
+                    providerFuture.addListener({
+                        if (!active.get()) return@addListener
+                        runCatching {
+                            val provider = providerFuture.get()
+                            cameraProvider = provider
+                            val preview = Preview.Builder().build().also {
+                                it.setSurfaceProvider(surfaceProvider)
+                            }
+                            val analysis = ImageAnalysis.Builder()
+                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                .build()
+                            analysis.setAnalyzer(executor) { proxy ->
+                                val mediaImage = proxy.image
+                                if (mediaImage == null || !active.get() || completed.get()) {
+                                    proxy.close()
+                                } else {
+                                    val input = InputImage.fromMediaImage(mediaImage, proxy.imageInfo.rotationDegrees)
+                                    scanner.process(input)
+                                        .addOnSuccessListener(ContextCompat.getMainExecutor(viewContext)) { barcodes ->
+                                            if (!active.get() || completed.get()) return@addOnSuccessListener
+                                            val raw = barcodes.firstOrNull()?.rawValue ?: return@addOnSuccessListener
+                                            val uri = runCatching { Uri.parse(raw) }.getOrNull()
+                                            val code = uri?.getQueryParameter("code")
+                                            val expires = uri?.getQueryParameter("expires")?.toLongOrNull() ?: 0L
+                                            val encodedKey = uri?.getQueryParameter("key")
+                                            val fingerprint = uri?.getQueryParameter("v")
+                                            val keyValid = if (!encodedKey.isNullOrBlank() && !fingerprint.isNullOrBlank()) {
+                                                runCatching {
+                                                    val key = SessionCrypto.keyFromString(encodedKey)
+                                                    key.encoded.size == 32 && SessionCrypto.fingerprint(key) == fingerprint
+                                                }.getOrDefault(false)
+                                            } else false
+                                            if (
+                                                uri?.scheme == "bqsqwad" &&
+                                                code != null && code.length == 6 && code.all(Char::isDigit) &&
+                                                expires > System.currentTimeMillis() && keyValid
+                                            ) {
+                                                if (completed.compareAndSet(false, true)) onCodeScanned(raw)
+                                            } else {
+                                                error = if (expires > 0L && expires <= System.currentTimeMillis()) {
+                                                    "This receive QR code has expired."
+                                                } else {
+                                                    "This is not a valid BQ Sqwad Share receive QR code."
+                                                }
+                                            }
                                         }
-                                    }
+                                        .addOnFailureListener(ContextCompat.getMainExecutor(viewContext)) {
+                                            if (active.get()) error = it.localizedMessage ?: "Unable to read QR code."
+                                        }
+                                        .addOnCompleteListener { proxy.close() }
                                 }
-                                .addOnFailureListener { error = it.localizedMessage ?: "Unable to read QR code." }
-                                .addOnCompleteListener { proxy.close() }
+                            }
+                            provider.unbindAll()
+                            provider.bindToLifecycle(
+                                lifecycleOwner,
+                                CameraSelector.DEFAULT_BACK_CAMERA,
+                                preview,
+                                analysis,
+                            )
+                        }.onFailure {
+                            if (active.get()) error = it.localizedMessage ?: "Unable to start the camera."
                         }
-                    }
-                    runCatching {
-                        provider.unbindAll()
-                        provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
-                    }.onFailure { error = it.localizedMessage ?: "Unable to start camera." }
-                }, ContextCompat.getMainExecutor(ctx))
-                previewView
+                    }, ContextCompat.getMainExecutor(viewContext))
+                }
             },
         )
         ScanFrame(Modifier.size(QR_SIZE))
-        Column(Modifier.align(Alignment.BottomCenter).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Text("Place the receive QR code inside the square", color = MaterialTheme.colorScheme.onSurface)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
