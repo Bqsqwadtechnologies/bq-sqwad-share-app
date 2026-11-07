@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -292,11 +293,7 @@ private fun AgeGate(onYes: () -> Unit) {
 @Composable
 private fun BrandHeader() {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
-        Image(
-            painter = painterResource(R.drawable.brand_logo),
-            contentDescription = stringResource(R.string.app_name),
-            modifier = Modifier.size(56.dp),
-        )
+        BrandLogo(Modifier.size(56.dp), stringResource(R.string.app_name))
         Column(Modifier.padding(start = 12.dp)) {
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
             Text(stringResource(R.string.company))
@@ -329,11 +326,9 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                 Modifier.fillMaxWidth().padding(bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Image(
-                    painter = painterResource(R.drawable.brand_logo),
-                    contentDescription = "BQ Sqwad Share",
-                    modifier = Modifier.size(58.dp).clickable { quickActionsExpanded = true },
-                )
+                Box(Modifier.size(58.dp).clickable { quickActionsExpanded = true }) {
+                    BrandLogo(Modifier.fillMaxSize(), "BQ Sqwad Share")
+                }
                 DropdownMenu(
                     expanded = quickActionsExpanded,
                     onDismissRequest = { quickActionsExpanded = false },
@@ -857,6 +852,13 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
     val settings by vm.settings.collectAsState(initial = null)
     val s = settings ?: return
     val ctx = LocalContext.current
+    val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching { ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            ctx.getSharedPreferences("bq_brand_assets", Activity.MODE_PRIVATE).edit().putString("logo_uri", uri.toString()).apply()
+            Toast.makeText(ctx, "Brand logo updated.", Toast.LENGTH_SHORT).show()
+        }
+    }
     val (freeBytes, totalBytes) = vm.storage()
     val connectedDevices by vm.nearby.connected.collectAsState()
     val discoveredPeers by vm.nearby.peers.collectAsState()
@@ -923,6 +925,11 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Appearance", style = MaterialTheme.typography.titleMedium)
+                    BrandLogo(Modifier.size(72.dp), "Current BQ Sqwad Share logo")
+                    OutlinedButton(onClick = { logoPicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Upload brand logo")
+                    }
+                    Text("This single upload updates the in-app logo and music artwork. Android launcher and notification icons are separate installed system resources.")
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("light", "dark").forEach { mode ->
                             FilterChip(selected = s.themeMode == mode, onClick = { vm.theme(mode) }, label = { Text(mode) })
