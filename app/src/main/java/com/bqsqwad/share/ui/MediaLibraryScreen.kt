@@ -149,25 +149,8 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false) 
 
     val visibleMedia = media.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
 
-    LaunchedEffect(kind, permissionGranted, media, controller) {
-        val player = controller
-        if (permissionGranted && player != null && kind == "music" && media.isNotEmpty()) {
-            val queue = media.map { item ->
-                MediaItem.Builder()
-                    .setUri(item.uri)
-                    .setMediaMetadata(
-                        MediaMetadata.Builder().setTitle(item.name).setArtist("BQ Sqwad Share").build(),
-                    )
-                    .build()
-            }
-            player.setMediaItems(queue, 0, 0L)
-            player.shuffleModeEnabled = false
-            player.repeatMode = Player.REPEAT_MODE_OFF
-            player.prepare()
-            player.play()
-        } else if (kind != "music") {
-            player?.pause()
-        }
+    LaunchedEffect(kind) {
+        if (kind != "music") controller?.pause()
     }
 
     fun shareMedia(item: ShareMediaItem) {
