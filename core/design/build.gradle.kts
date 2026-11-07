@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
-android {
+extensions.configure<com.android.build.api.dsl.LibraryExtension> {
     namespace = "com.bqsqwad.share.design"
     compileSdk = 36
     defaultConfig { minSdk = 26 }
