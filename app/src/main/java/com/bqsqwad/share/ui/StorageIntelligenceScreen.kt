@@ -40,8 +40,21 @@ fun StorageIntelligenceScreen(onOpenCleaner: () -> Unit, compact: Boolean = fals
     var total by remember { mutableStateOf(0L) }
     var scanning by remember { mutableStateOf(true) }
 
-    LaunchedEffect(context) {
+    LaunchedEffect(context, compact) {
         scanning = true
+        if (compact) {
+            val values = withContext(Dispatchers.IO) {
+                runCatching {
+                    val root = Environment.getExternalStorageDirectory()
+                    val stat = StatFs(if (root.exists()) root.absolutePath else Environment.getDataDirectory().absolutePath)
+                    longArrayOf(stat.availableBlocksLong * stat.blockSizeLong, stat.blockCountLong * stat.blockSizeLong)
+                }.getOrDefault(longArrayOf(0L, 0L))
+            }
+            available = values[0]
+            total = values[1]
+            scanning = false
+            return@LaunchedEffect
+        }
         val result = withContext(Dispatchers.IO) {
             val stat = runCatching { StatFs(context.filesDir.absolutePath) }.getOrNull()
             val appRoots = listOf(
