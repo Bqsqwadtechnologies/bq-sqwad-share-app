@@ -2,6 +2,7 @@ package com.bqsqwad.share.ui
 
 import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -199,6 +200,7 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, 
                     MediaMetadata.Builder()
                         .setTitle(item.name)
                         .setArtist("BQ Sqwad Share")
+                        .setArtworkUri(Uri.parse("android.resource://" + context.packageName + "/" + R.drawable.brand_logo))
                         .build(),
                 )
                 .build()
