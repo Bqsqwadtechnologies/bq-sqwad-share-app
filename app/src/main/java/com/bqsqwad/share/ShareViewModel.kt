@@ -437,7 +437,9 @@ class ShareViewModel @Inject constructor(
         stopWeb()
         val generation = webSessionGeneration.get()
         val staged = mutableListOf<File>()
+        val shareDirectory = File(context.cacheDir, "web-share")
         try {
+            check(shareDirectory.exists() || shareDirectory.mkdirs()) { "Could not prepare temporary sharing storage." }
             uris.distinct().forEach { uri ->
                 var displayName = uri.lastPathSegment?.substringAfterLast('/') ?: "shared-file"
                 context.contentResolver.query(
@@ -452,10 +454,15 @@ class ShareViewModel @Inject constructor(
                         if (nameIndex >= 0) displayName = cursor.getString(nameIndex) ?: displayName
                     }
                 }
-                val safeName = displayName.substringAfterLast('/').substringAfterLast('\\')
-                    .replace(Regex("[^A-Za-z0-9._ -]"), "_")
-                    .trim().take(120).ifBlank { "shared-file" }
-                val destination = File(context.cacheDir, "web-share-${java.util.UUID.randomUUID()}-$safeName")
+                val safeName = FileUtilities.safeFileName(displayName).take(120).ifBlank { "shared-file" }
+                val baseName = safeName.substringBeforeLast('.', safeName)
+                val extension = if (safeName.contains('.')) ".${safeName.substringAfterLast('.')}" else ""
+                var destination = File(shareDirectory, safeName)
+                var duplicate = 1
+                while (destination.exists()) {
+                    destination = File(shareDirectory, "$baseName ($duplicate)$extension")
+                    duplicate++
+                }
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     destination.outputStream().use { output -> input.copyTo(output) }
                 } ?: error("Unable to read selected file: $displayName")
@@ -476,6 +483,7 @@ class ShareViewModel @Inject constructor(
             server.lanAddress()
         } catch (failure: Throwable) {
             staged.forEach { it.delete() }
+            shareDirectory.delete()
             throw failure
         }
     }
@@ -487,6 +495,7 @@ class ShareViewModel @Inject constructor(
         web = null
         webStagedFiles.forEach { it.delete() }
         webStagedFiles.clear()
+        File(context.cacheDir, "web-share").delete()
     }
 
     fun peers(): List<Peer> = nearby.peers.value
