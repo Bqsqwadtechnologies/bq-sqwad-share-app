@@ -1188,19 +1188,79 @@ private fun Clone(vm: ShareViewModel) {
 @Composable
 private fun Computer(vm: ShareViewModel) {
     var url by remember { mutableStateOf<String?>(null) }
+    var selectedUris by remember { mutableStateOf(emptyList<Uri>()) }
+    var includeInstaller by remember { mutableStateOf(false) }
+    var sharing by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
     val pin = remember { vm.sessionCode }
-    Column(Modifier.padding(16.dp)) {
+    val scope = rememberCoroutineScope()
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        selectedUris = uris
+        message = null
+    }
+    DisposableEffect(vm) {
+        onDispose { vm.stopWeb() }
+    }
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text(stringResource(R.string.computer), style = MaterialTheme.typography.titleLarge)
+        Text("Choose files to make available to a computer browser on the same Wi-Fi network or your own hotspot.")
+        Button(
+            onClick = { picker.launch(arrayOf("*/*")) },
+            enabled = !sharing,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Select files") }
+        Text("${selectedUris.size} file(s) selected")
+        SwitchRow("Include the BQ Sqwad Share installer", includeInstaller) { includeInstaller = it }
         Text("${stringResource(R.string.pin_label)} $pin")
-        Button(onClick = {
-            val apk = vm.ownApk()
-            url = vm.startWeb(listOf(apk), pin) + "/?pin=$pin"
-        }) { Text(stringResource(R.string.continue_label)) }
+        Button(
+            onClick = {
+                scope.launch {
+                    sharing = true
+                    message = "Preparing selected files and starting local sharing…"
+                    val result = runCatching {
+                        vm.startWebFromUris(selectedUris, pin, includeInstaller)
+                    }
+                    sharing = false
+                    result.fold(
+                        { address ->
+                            url = "$address/?pin=$pin"
+                            message = "Local sharing is ready. Scan the QR code from a computer on this same Wi-Fi or hotspot."
+                        },
+                        { failure ->
+                            url = null
+                            message = failure.message ?: "Could not start local sharing."
+                        },
+                    )
+                }
+            },
+            enabled = !sharing && (selectedUris.isNotEmpty() || includeInstaller),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            if (sharing) CircularProgressIndicator(modifier = Modifier.size(18.dp))
+            else Text(stringResource(R.string.continue_label))
+        }
+        message?.let { Text(it, color = MaterialTheme.colorScheme.secondary) }
         url?.let {
             Text(it)
-            Image(bitmap = qrBitmap(it).asImageBitmap(), contentDescription = it, modifier = Modifier.size(200.dp))
+            Image(
+                bitmap = qrBitmap(it).asImageBitmap(),
+                contentDescription = "QR code for this phone's local sharing page",
+                modifier = Modifier.size(220.dp),
+            )
+            Text("The computer can download the selected files and upload files back to the phone. Uploads are saved in FromComputer and added to transfer history.")
         }
-        OutlinedButton(onClick = { vm.stopWeb(); url = null }) { Text(stringResource(R.string.disconnect)) }
+        Text(
+            "Use a trusted private Wi-Fi network or your own hotspot. The browser connection uses local HTTP and is not suitable for public Wi-Fi.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        OutlinedButton(
+            onClick = { vm.stopWeb(); url = null; message = "Local sharing stopped." },
+            enabled = url != null || sharing,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(stringResource(R.string.disconnect)) }
     }
 }
 
