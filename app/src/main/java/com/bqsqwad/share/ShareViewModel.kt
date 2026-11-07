@@ -404,6 +404,8 @@ class ShareViewModel @Inject constructor(
     private val webStagedFiles = mutableListOf<File>()
     private val webSessionGeneration = AtomicLong(0L)
 
+    fun newComputerPin(): String = SessionCrypto.sixDigitCode()
+
     fun ownApk(): File = File(context.applicationInfo.sourceDir)
 
     private fun createWebShareServer(files: List<File>, pin: String): WebShareServer {
