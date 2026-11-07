@@ -1399,6 +1399,7 @@ private fun More() {
 
 @Composable
 private fun Debug(ads: AdManager) {
+    val adsAllowed by ads.canRequestAdsState.collectAsState()
     Column(Modifier.padding(16.dp)) {
         Text(stringResource(R.string.debug_ads), style = MaterialTheme.typography.titleLarge)
         Text("consent=${ads.consentResolved} canRequest=${adsAllowed}")
