@@ -223,7 +223,7 @@ class ShareViewModel @Inject constructor(
                         val name = FileUtilities.safeFileName(manifest.name)
                         val mime = manifest.mime
                         val kind = kindForMime(mime, name)
-                        val directory = File(context.getExternalFilesDir(null), folderFor(kind))
+                        val directory = File(context.getExternalFilesDir(null) ?: context.filesDir, folderFor(kind))
                         val destination = FileUtilities.copyToUniqueDestination(incomingFile, directory, name)
                         record(destination.name, mime, destination.length(), "RECEIVE", endpointId, destination.absolutePath)
                         destination.name
