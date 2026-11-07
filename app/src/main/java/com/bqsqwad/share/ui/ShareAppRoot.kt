@@ -547,10 +547,10 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                         }
                     }
                 }
-                1 -> MediaLibraryScreen(initialKind = "music", compact = true, initialSearchQuery = searchQuery)
-                2 -> MediaLibraryScreen(initialKind = "photos", compact = true, initialSearchQuery = searchQuery)
+                1 -> MediaLibraryScreen(initialKind = "music", compact = true, initialSearchQuery = searchQuery, activePage = pagerState.currentPage == page)
+                2 -> MediaLibraryScreen(initialKind = "photos", compact = true, initialSearchQuery = searchQuery, activePage = pagerState.currentPage == page)
                 3 -> FilesBrowser(nav, vm, initialTab = "files", showCategoryTabs = false, showSearch = false, externalSearchQuery = searchQuery)
-                4 -> MediaLibraryScreen(initialKind = "videos", compact = true, initialSearchQuery = searchQuery)
+                4 -> MediaLibraryScreen(initialKind = "videos", compact = true, initialSearchQuery = searchQuery, activePage = pagerState.currentPage == page)
                 5 -> FilesBrowser(nav, vm, initialTab = "sent", showCategoryTabs = false, showSearch = false, externalSearchQuery = searchQuery)
                 else -> FilesBrowser(nav, vm, initialTab = "received", showCategoryTabs = false, showSearch = false, externalSearchQuery = searchQuery)
             }
