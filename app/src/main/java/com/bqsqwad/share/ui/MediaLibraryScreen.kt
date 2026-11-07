@@ -284,7 +284,8 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, 
 
 
         val activePlayer = controller
-        if (activePlayer != null && kind == "videos") {
+        val activeVideo = activePlayer?.currentMediaItem?.mediaId?.startsWith("videos:") == true
+        if (activePlayer != null && kind == "videos" && activeVideo) {
             AndroidView(
                 modifier = Modifier.fillMaxWidth().height(220.dp),
                 factory = { viewContext ->
@@ -308,6 +309,8 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, 
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Video speed · ${playbackSpeed}×") }
+        } else if (kind == "videos") {
+            Text("Select a video to play here.", style = MaterialTheme.typography.bodySmall)
         } else if (activePlayer != null && kind == "music") {
             Card(Modifier.fillMaxWidth()) {
                 Row(
@@ -324,14 +327,21 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, 
                     Column(Modifier.weight(1f)) {
                         Text("Now playing", style = MaterialTheme.typography.labelSmall)
                         Text(
-                            activePlayer.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Choose a song",
+                            if (activePlayer.currentMediaItem?.mediaId?.startsWith("music:") == true)
+                                activePlayer.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Choose a song"
+                            else "Choose a song",
                             style = MaterialTheme.typography.titleSmall,
                             maxLines = 1,
                         )
                     }
                     TextButton(onClick = { activePlayer.seekToPreviousMediaItem() }) { Text("‹") }
                     Button(
-                        onClick = { if (activePlayer.isPlaying) activePlayer.pause() else activePlayer.play() },
+                        onClick = {
+                            if (activePlayer.currentMediaItem?.mediaId?.startsWith("music:") == true) {
+                                if (activePlayer.isPlaying) activePlayer.pause() else activePlayer.play()
+                            }
+                        },
+                        enabled = activePlayer.currentMediaItem?.mediaId?.startsWith("music:") == true,
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     ) { Text(if (isPlaying) "Pause" else "Play") }
                     TextButton(onClick = { activePlayer.seekToNextMediaItem() }) { Text("›") }
