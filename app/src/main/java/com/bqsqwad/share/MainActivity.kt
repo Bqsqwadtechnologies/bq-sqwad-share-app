@@ -17,8 +17,6 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
     @Inject lateinit var ads: AdManager
-    private var backgroundAt: Long = 0L
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -33,14 +31,4 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    override fun onPause() {
-        backgroundAt = System.currentTimeMillis()
-        super.onPause()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // App-open inventory is configured but not shown automatically: transfers and
-        // user tasks must never be interrupted by a full-screen ad.
-    }
 }
