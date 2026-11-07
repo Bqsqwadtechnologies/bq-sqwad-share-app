@@ -1398,7 +1398,7 @@ private fun Debug(ads: AdManager) {
     Column(Modifier.padding(16.dp)) {
         Text(stringResource(R.string.debug_ads), style = MaterialTheme.typography.titleLarge)
         Text("consent=${ads.consentResolved} canRequest=${ads.canRequestAds}")
-        Text("banner=home,history native=every 8 interstitial=after 3 tasks rewarded=settings app-open=4h")
+        Text("Banners: Home, History, More and Storage. Native ads: Home, History, Apps, Photos, Videos, Music, Files and Favorites. Rewarded: Ad-Free and Premium.")
         Text("interstitialLoaded=${ads.interstitialLoaded} rewardedLoaded=${ads.rewardedLoaded} appOpenLoaded=${ads.appOpenLoaded}")
         BannerSlot(true, AdUnits.HOME_BANNER)
         NativeSlot(true, AdUnits.HOME_NATIVE)
