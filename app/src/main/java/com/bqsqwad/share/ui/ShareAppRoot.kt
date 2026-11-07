@@ -263,6 +263,8 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         modifier = Modifier.padding(adPadding),
                     ) {
                         composable("home") { Home(nav, vm, ads, adFree) { scope.launch { drawerState.open() } } }
+                        composable("search") { SearchScreen(nav, vm) }
+                        composable("clone-picker") { FilesBrowser(nav, vm, initialTab = "files", showCategoryTabs = false, showSearch = false) }
                         composable("files") {
                             AdSupportedBrowsePage(!adFree && adsAllowed, AdUnits.FILES_NATIVE) {
                                 FilesBrowser(nav, vm)
@@ -409,7 +411,7 @@ private fun BrandHeader() {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adFree: Boolean, onMenu: () -> Unit) {
-    val pageLabels = listOf("Apps", "Music", "Photos", "Files", "Videos", "Sent", "Received")
+    val pageLabels = listOf("Apps", "Music", "Photos", "Files", "Videos", "Sent", "Received", "Storage")
     val pageIcons = listOf(
         Icons.Filled.Apps,
         Icons.Filled.MusicNote,
@@ -418,12 +420,11 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
         Icons.Filled.VideoLibrary,
         Icons.Filled.Send,
         Icons.Filled.Download,
+        Icons.Filled.PhoneAndroid,
     )
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { pageLabels.size })
     val scope = rememberCoroutineScope()
     var installedApps by remember { mutableStateOf<List<ShareAppItem>>(emptyList()) }
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -444,36 +445,19 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
             }
             Text("BQ Sqwad Share", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.weight(1f))
-            androidx.compose.material3.IconButton(
-                onClick = {
-                    searchExpanded = !searchExpanded
-                    if (!searchExpanded) searchQuery = ""
-                },
-            ) {
-                androidx.compose.material3.Icon(
-                    if (searchExpanded) Icons.Filled.Close else Icons.Filled.Search,
-                    contentDescription = if (searchExpanded) "Close search" else "Search",
-                )
+            androidx.compose.material3.IconButton(onClick = { nav.navigate("search") { launchSingleTop = true } }) {
+                androidx.compose.material3.Icon(Icons.Filled.Search, contentDescription = "Open search")
             }
         }
-        if (searchExpanded) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                singleLine = true,
-                placeholder = { Text("Search ${pageLabels[pagerState.currentPage].lowercase()}") },
-            )
-        }
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             pageLabels.forEachIndexed { index, label ->
                 val selected = pagerState.currentPage == index
                 Column(
-                    Modifier.weight(1f).clickable { scope.launch { pagerState.animateScrollToPage(index) } }.padding(vertical = 4.dp),
+                    Modifier.width(58.dp).clickable { scope.launch { pagerState.animateScrollToPage(index) } }.padding(vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
@@ -517,42 +501,37 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                         }
                         else -> LazyColumn(
                             Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
-                            itemsIndexed(visibleApps.chunked(4)) { _, appRow ->
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    appRow.forEach { app ->
-                                        val appIcon = remember(app.packageName) {
-                                            runCatching {
-                                                context.packageManager.getApplicationIcon(app.packageName).toBitmap().asImageBitmap()
-                                            }.getOrNull()
-                                        }
-                                        Column(
-                                            Modifier.weight(1f).height(88.dp).clickable {
-                                                val launchIntent = context.packageManager.getLaunchIntentForPackage(app.packageName)
-                                                if (launchIntent != null) runCatching { context.startActivity(launchIntent) }
-                                            }.padding(horizontal = 3.dp, vertical = 5.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.Center,
-                                        ) {
-                                            if (appIcon != null) Image(appIcon, contentDescription = app.label, modifier = Modifier.size(42.dp))
-                                            else androidx.compose.material3.Icon(Icons.Filled.PhoneAndroid, contentDescription = app.label, modifier = Modifier.size(42.dp))
-                                            Text(app.label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-                                        }
-                                    }
-                                    repeat(4 - appRow.size) { Spacer(Modifier.weight(1f)) }
+                            itemsIndexed(visibleApps, key = { _, app -> app.packageName }) { _, app ->
+                                val appIcon = remember(app.packageName) {
+                                    runCatching { context.packageManager.getApplicationIcon(app.packageName).toBitmap().asImageBitmap() }.getOrNull()
                                 }
+                                Row(
+                                    Modifier.fillMaxWidth().height(64.dp).clickable {
+                                        val launchIntent = context.packageManager.getLaunchIntentForPackage(app.packageName)
+                                        if (launchIntent != null) runCatching { context.startActivity(launchIntent) }
+                                    }.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                ) {
+                                    if (appIcon != null) Image(appIcon, contentDescription = app.label, modifier = Modifier.size(38.dp))
+                                    else androidx.compose.material3.Icon(Icons.Filled.PhoneAndroid, contentDescription = app.label, modifier = Modifier.size(38.dp))
+                                    Text(app.label, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
                             }
                         }
-                    }
                 }
-                1 -> MediaLibraryScreen(initialKind = "music", compact = true, initialSearchQuery = searchQuery, activePage = pagerState.currentPage == page)
-                2 -> MediaLibraryScreen(initialKind = "photos", compact = true, initialSearchQuery = searchQuery, activePage = pagerState.currentPage == page)
-                3 -> FilesBrowser(nav, vm, initialTab = "files", showCategoryTabs = false, showSearch = false, externalSearchQuery = searchQuery)
-                4 -> MediaLibraryScreen(initialKind = "videos", compact = true, initialSearchQuery = searchQuery, activePage = pagerState.currentPage == page)
-                5 -> FilesBrowser(nav, vm, initialTab = "sent", showCategoryTabs = false, showSearch = false, externalSearchQuery = searchQuery)
-                else -> FilesBrowser(nav, vm, initialTab = "received", showCategoryTabs = false, showSearch = false, externalSearchQuery = searchQuery)
+                1 -> MediaLibraryScreen(initialKind = "music", compact = true, activePage = pagerState.currentPage == page)
+                2 -> MediaLibraryScreen(initialKind = "photos", compact = true, activePage = pagerState.currentPage == page)
+                3 -> FilesBrowser(nav, vm, initialTab = "files", showCategoryTabs = false, showSearch = false)
+                4 -> MediaLibraryScreen(initialKind = "videos", compact = true, activePage = pagerState.currentPage == page)
+                5 -> FilesBrowser(nav, vm, initialTab = "sent", showCategoryTabs = false, showSearch = false)
+                6 -> FilesBrowser(nav, vm, initialTab = "received", showCategoryTabs = false, showSearch = false)
+                else -> StorageIntelligenceScreen(onOpenCleaner = { nav.navigate("cleaner") }, compact = true)
+            }
             }
         }
     }
@@ -1343,7 +1322,7 @@ private fun Clone(nav: NavHostController) {
         Text("Move selected photos, videos, music, documents, folders and APK installers to another nearby Android phone.")
         Text("This is a file migration tool, not a full phone backup. Android does not allow this app to copy another app's private data, account credentials or system settings.")
         Text("Choose the items first, then connect to the receiving phone. Transfers remain local and require both devices to be nearby.")
-        Button(onClick = { nav.navigate("files") }, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { nav.navigate("clone-picker") }, modifier = Modifier.fillMaxWidth()) {
             Text("Choose files and apps")
         }
         Button(onClick = { nav.navigate("send") }, modifier = Modifier.fillMaxWidth()) {
