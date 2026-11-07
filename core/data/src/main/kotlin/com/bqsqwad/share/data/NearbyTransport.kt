@@ -48,6 +48,10 @@ class NearbyTransport @Inject constructor(
     val peers: StateFlow<List<Peer>> = _peers
     private val _discoveryError = MutableStateFlow<String?>(null)
     val discoveryError: StateFlow<String?> = _discoveryError
+    private val _advertising = MutableStateFlow(false)
+    val advertising: StateFlow<Boolean> = _advertising
+    private val _advertisingError = MutableStateFlow<String?>(null)
+    val advertisingError: StateFlow<String?> = _advertisingError
 
     private val _incoming = MutableStateFlow<IncomingRequest?>(null)
     private val remoteIdentities = java.util.concurrent.ConcurrentHashMap<String, TransferProtocol.DeviceIdentity>()
@@ -169,11 +173,28 @@ class NearbyTransport @Inject constructor(
     }
 
     fun startAdvertising(name: String) {
-        client.startAdvertising(name, serviceId, connectionCallback, AdvertisingOptions.Builder().setStrategy(strategy).build())
-            .addOnFailureListener { lastError = it.message }
+        _advertising.value = false
+        _advertisingError.value = null
+        try {
+            client.startAdvertising(name, serviceId, connectionCallback, AdvertisingOptions.Builder().setStrategy(strategy).build())
+                .addOnSuccessListener { _advertising.value = true }
+                .addOnFailureListener {
+                    val reason = it.message ?: "Nearby advertising could not start."
+                    lastError = reason
+                    _advertisingError.value = reason
+                }
+        } catch (failure: SecurityException) {
+            val reason = failure.message ?: "Nearby advertising permission is missing."
+            lastError = reason
+            _advertisingError.value = reason
+        }
     }
 
-    fun stopAdvertising() { client.stopAdvertising() }
+    fun stopAdvertising() {
+        client.stopAdvertising()
+        _advertising.value = false
+        _advertisingError.value = null
+    }
 
     fun requestConnection(endpointId: String, name: String) {
         markConnecting(endpointId)
