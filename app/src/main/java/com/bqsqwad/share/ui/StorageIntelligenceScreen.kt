@@ -64,14 +64,31 @@ fun StorageIntelligenceScreen(onOpenCleaner: () -> Unit, compact: Boolean = fals
                 context.getExternalFilesDir(null)?.let { "External app files" to it },
                 context.externalCacheDir?.let { "External app cache" to it },
             ).distinctBy { runCatching { it.second.canonicalPath }.getOrDefault(it.second.absolutePath) }
-            val files = appRoots.flatMap { (_, root) ->
-                runCatching { if (root.exists()) root.walkTopDown().filter { it.isFile && it.canRead() }.toList() else emptyList() }.getOrDefault(emptyList())
+            val largestFiles = mutableListOf<File>()
+            val areaStats = appRoots.map { (label, root) ->
+                var bytes = 0L
+                runCatching {
+                    if (root.exists()) {
+                        root.walkTopDown().forEach { file ->
+                            if (file.isFile) {
+                                val length = runCatching { file.length() }.getOrDefault(0L)
+                                bytes += length
+                                if (file.canRead()) {
+                                    largestFiles.add(file)
+                                    if (largestFiles.size > 12) {
+                                        largestFiles.sortByDescending { candidate -> runCatching { candidate.length() }.getOrDefault(0L) }
+                                        largestFiles.removeAt(largestFiles.lastIndex)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                StorageArea(label, bytes)
             }
             Triple(
-                appRoots.map { (label, root) ->
-                    StorageArea(label, runCatching { if (root.exists()) root.walkTopDown().filter { it.isFile }.sumOf { it.length() } else 0L }.getOrDefault(0L))
-                },
-                files.sortedByDescending { it.length() }.take(12),
+                areaStats,
+                largestFiles.sortedByDescending { runCatching { it.length() }.getOrDefault(0L) },
                 longArrayOf(
                     stat?.let { it.availableBlocksLong * it.blockSizeLong } ?: 0L,
                     stat?.let { it.blockCountLong * it.blockSizeLong } ?: 0L,
