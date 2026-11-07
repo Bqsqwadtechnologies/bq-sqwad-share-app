@@ -251,7 +251,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                             // Keep ads on browsing/information pages only. Never show them
                             // during pairing, QR scanning, sending, receiving, or transfer flows.
                             val adVisibleRoutes = setOf(
-                                "home", "files", "history", "settings", "favorites", "more", "storage-intelligence",
+                                "files", "history", "settings", "favorites", "more", "storage-intelligence",
                                 "library/{section}", "media/{kind}",
                             )
                             BannerSlot(
