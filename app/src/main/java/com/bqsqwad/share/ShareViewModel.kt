@@ -77,6 +77,7 @@ class ShareViewModel @Inject constructor(
     private val pumpingQueue = java.util.concurrent.atomic.AtomicBoolean(false)
     private val maxConcurrentPayloads = 3
     private val activeResumableTransfers = java.util.concurrent.ConcurrentHashMap<Long, Job>()
+    private val incomingTransferMimes = java.util.concurrent.ConcurrentHashMap<String, String>()
     private val resumableReceiver by lazy { ResumableFileReceiver(File(context.filesDir, "resumable-incoming")) }
 
     init {
@@ -631,6 +632,7 @@ class ShareViewModel @Inject constructor(
             when (frame.type) {
                 TransferProtocol.TYPE_OFFER -> {
                     val offer = TransferProtocol.parseResumableOffer(frame.body)
+                    incomingTransferMimes[offer.transferId] = offer.mime
                     val offset = withContext(Dispatchers.IO) {
                         resumableReceiver.begin(ResumableFileReceiver.Offer(
                             transferId = offer.transferId,
@@ -661,7 +663,8 @@ class ShareViewModel @Inject constructor(
                     val completed = withContext(Dispatchers.IO) { resumableReceiver.complete(transferId) }
                     try {
                         val name = FileUtilities.safeFileName(completed.name)
-                        val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(completed.extension.lowercase())
+                        val mime = incomingTransferMimes.remove(transferId)
+                            ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(completed.extension.lowercase())
                             ?: "application/octet-stream"
                         val kind = kindForMime(mime, name)
                         val directory = File(context.getExternalFilesDir(null), folderFor(kind))
@@ -682,6 +685,7 @@ class ShareViewModel @Inject constructor(
                 TransferProtocol.TYPE_CANCEL -> {
                     val transferId = TransferProtocol.parseTransferId(frame.body)
                     withContext(Dispatchers.IO) { resumableReceiver.discard(transferId) }
+                    incomingTransferMimes.remove(transferId)
                     true
                 }
                 else -> false
