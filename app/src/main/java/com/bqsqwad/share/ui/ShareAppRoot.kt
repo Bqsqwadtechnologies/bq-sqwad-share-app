@@ -516,7 +516,7 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
             }
         } else {
             Box(Modifier.fillMaxSize()) {
-                MediaLibraryScreen(initialKind = "music")
+                MediaLibraryScreen(initialKind = "music", compact = true)
             }
         }
     }
