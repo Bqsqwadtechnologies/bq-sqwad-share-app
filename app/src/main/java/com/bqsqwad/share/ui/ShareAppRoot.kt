@@ -1003,7 +1003,7 @@ private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adF
                         }
                     }
                 }
-                if (section == "deleted") Text("Moving a record here keeps its file on this phone. Restore returns it to Received; Delete file and record permanently removes both.")
+                if (section == "deleted") Text("Moving a record here keeps its file on this phone. Restore returns it to the list. Deleting a received record also deletes its received file; removing a sent record only removes its history entry.")
                 else if (section != "memory" && section != "apps") Text("Long-press a transfer record to move it to Deleted.")
             }
             itemsIndexed(rows, key = { _, item -> item.id }) { _, item ->
