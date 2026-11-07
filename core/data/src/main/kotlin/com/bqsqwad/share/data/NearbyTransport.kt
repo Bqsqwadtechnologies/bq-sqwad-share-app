@@ -52,6 +52,8 @@ class NearbyTransport @Inject constructor(
     val advertising: StateFlow<Boolean> = _advertising
     private val _advertisingError = MutableStateFlow<String?>(null)
     val advertisingError: StateFlow<String?> = _advertisingError
+    private val _connectionError = MutableStateFlow<String?>(null)
+    val connectionError: StateFlow<String?> = _connectionError
 
     private val _incoming = MutableStateFlow<IncomingRequest?>(null)
     private val remoteIdentities = java.util.concurrent.ConcurrentHashMap<String, TransferProtocol.DeviceIdentity>()
@@ -107,11 +109,13 @@ class NearbyTransport @Inject constructor(
                 }
                 val expected = expectedReceiveCode
                 if (expected.length == 6 && info.endpointName != "BQ Sqwad Share code $expected") {
+                    _connectionError.value = "The receive code did not match. Check the code and try again."
                     client.rejectConnection(endpointId)
                     clearConnecting(endpointId)
                     _incoming.value = null
                     return@launch
                 }
+                _connectionError.value = null
 
                 // The receive code identifies the intended session, but it is not
                 // authentication: Nearby advertises the endpoint name to local peers.
@@ -123,10 +127,13 @@ class NearbyTransport @Inject constructor(
         override fun onConnectionResult(endpointId: String, resolution: ConnectionResolution) {
             clearConnecting(endpointId)
             if (resolution.status.statusCode == ConnectionsStatusCodes.STATUS_OK) {
+                _connectionError.value = null
                 _connected.value = _connected.value + endpointId
                 callbackScope.launch { sendDeviceIdentity(endpointId) }
             } else {
-                lastError = resolution.status.statusMessage ?: "Connection declined"
+                val reason = resolution.status.statusMessage ?: "Connection declined."
+                lastError = reason
+                _connectionError.value = reason
             }
             _incoming.value = null
         }
@@ -159,17 +166,23 @@ class NearbyTransport @Inject constructor(
     fun startDiscovery() {
         _discoveryError.value = null
         _peers.value = emptyList()
-        client.startDiscovery(serviceId, discoveryCallback, DiscoveryOptions.Builder().setStrategy(strategy).build())
-            .addOnSuccessListener { _discoveryError.value = null }
-            .addOnFailureListener {
-                val reason = it.message ?: "Nearby discovery could not start."
-                lastError = reason
-                _discoveryError.value = reason
-            }
+        try {
+            client.startDiscovery(serviceId, discoveryCallback, DiscoveryOptions.Builder().setStrategy(strategy).build())
+                .addOnSuccessListener { _discoveryError.value = null }
+                .addOnFailureListener {
+                    val reason = it.message ?: "Nearby discovery could not start."
+                    lastError = reason
+                    _discoveryError.value = reason
+                }
+        } catch (failure: SecurityException) {
+            val reason = failure.message ?: "Nearby discovery permission is missing."
+            lastError = reason
+            _discoveryError.value = reason
+        }
     }
 
     fun stopDiscovery() {
-        client.stopDiscovery()
+        runCatching { client.stopDiscovery() }
     }
 
     fun startAdvertising(name: String) {
@@ -191,34 +204,58 @@ class NearbyTransport @Inject constructor(
     }
 
     fun stopAdvertising() {
-        client.stopAdvertising()
+        runCatching { client.stopAdvertising() }
         _advertising.value = false
         _advertisingError.value = null
     }
 
     fun requestConnection(endpointId: String, name: String) {
         markConnecting(endpointId)
-        client.requestConnection(name, endpointId, connectionCallback)
-            .addOnFailureListener {
-                clearConnecting(endpointId)
-                lastError = it.message
-            }
+        _connectionError.value = null
+        try {
+            client.requestConnection(name, endpointId, connectionCallback)
+                .addOnFailureListener {
+                    clearConnecting(endpointId)
+                    val reason = it.message ?: "Nearby connection could not be requested."
+                    lastError = reason
+                    _connectionError.value = reason
+                }
+        } catch (failure: SecurityException) {
+            clearConnecting(endpointId)
+            val reason = failure.message ?: "Nearby connection permission is missing."
+            lastError = reason
+            _connectionError.value = reason
+        }
     }
 
     fun accept(endpointId: String) {
-        client.acceptConnection(endpointId, payloadCallback)
-        _incoming.value = null
+        try {
+            client.acceptConnection(endpointId, payloadCallback)
+                .addOnSuccessListener {
+                    _incoming.value = null
+                    _connectionError.value = null
+                }
+                .addOnFailureListener {
+                    val reason = it.message ?: "The connection could not be accepted."
+                    lastError = reason
+                    _connectionError.value = reason
+                }
+        } catch (failure: SecurityException) {
+            val reason = failure.message ?: "Nearby connection permission is missing."
+            lastError = reason
+            _connectionError.value = reason
+        }
     }
 
     fun reject(endpointId: String) {
         clearConnecting(endpointId)
-        client.rejectConnection(endpointId)
+        runCatching { client.rejectConnection(endpointId) }
         _incoming.value = null
     }
 
     fun disconnect(endpointId: String) {
         clearConnecting(endpointId)
-        client.disconnectFromEndpoint(endpointId)
+        runCatching { client.disconnectFromEndpoint(endpointId) }
         _connected.value = _connected.value - endpointId
     }
 
