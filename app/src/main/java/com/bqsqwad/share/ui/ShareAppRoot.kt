@@ -185,6 +185,8 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                                 "Clean" to "cleaner",
                                 "Favorites" to "favorites",
                                 "Chat" to "chat",
+                                "Folder Transfer" to "folder-transfer",
+                                "Device Hub" to "device-hub",
                                 "Private Vault" to "private-vault",
                             ).forEach { (label, route) ->
                                 NavigationDrawerItem(
@@ -270,6 +272,8 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         composable("clone") { Gated(settings, ads, activity, vm, "clone") { Clone(vm) } }
                         composable("computer") { Gated(settings, ads, activity, vm, "computer") { Computer(vm) } }
                         composable("cleaner") { Cleaner(vm) }
+                        composable("folder-transfer") { FolderTransferScreen(nav, vm) }
+                        composable("device-hub") { DeviceHubScreen(nav, vm) }
                         composable("private-vault") {
                             val biometricActivity = activity as? FragmentActivity
                             if (biometricActivity == null) Text("Private Vault requires a compatible Android activity.")
