@@ -105,6 +105,7 @@ class ShareViewModel @Inject constructor(
         // A process restart cannot resume a Nearby payload in place. Mark unfinished
         // rows as recoverable so the user can retry instead of leaving them stuck.
         viewModelScope.launch {
+            withContext(Dispatchers.IO) { resumableReceiver.cleanupExpired() }
             val transferRows = dao.observeAll().first()
             FileUtilities.cleanupOrphanedOutgoingFiles(
                 context.cacheDir,
