@@ -298,7 +298,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                             }
                         }
                         composable("settings") { Settings(nav, vm, ads, activity) }
-                        composable("clone") { Gated(settings, ads, activity, vm, "clone") { Clone(nav, vm) } }
+                        composable("clone") { Gated(settings, ads, activity, vm, "clone") { Clone(nav) } }
                         composable("computer") { Gated(settings, ads, activity, vm, "computer") { Computer(vm) } }
                         composable("storage-intelligence") { StorageIntelligenceScreen { nav.navigate("cleaner") } }
                         composable("cleaner") { Cleaner(vm) }
@@ -1208,7 +1208,7 @@ private fun Gated(settings: UserSettings, ads: AdManager, activity: Activity, vm
 }
 
 @Composable
-private fun Clone(nav: NavHostController, vm: ShareViewModel) {
+private fun Clone(nav: NavHostController) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
