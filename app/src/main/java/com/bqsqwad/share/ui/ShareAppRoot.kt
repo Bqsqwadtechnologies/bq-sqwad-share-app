@@ -772,23 +772,30 @@ private fun Receive(vm: ShareViewModel) {
             }
         }
         if (code.isNotBlank()) {
-            Image(
-                bitmap = qrBitmap(payload).asImageBitmap(),
-                contentDescription = stringResource(R.string.show_qr),
-                modifier = Modifier.size(QR_SIZE),
-            )
+            Box(
+                Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    bitmap = qrBitmap(payload).asImageBitmap(),
+                    contentDescription = stringResource(R.string.show_qr),
+                    modifier = Modifier.size(QR_SIZE),
+                )
+            }
             Text(stringResource(R.string.qr_help))
             Text("${stringResource(R.string.manual_code)}: $code", style = MaterialTheme.typography.headlineSmall)
             Text("Code expires in %02d:%02d".format(remainingSeconds / 60, remainingSeconds % 60))
         } else {
-            Text(
-                when {
-                    advertisingError != null -> "The receive code is unavailable until Nearby advertising starts."
-                    nearbyPermissionsGranted && expiresAt > 0L -> "Starting Nearby advertising…"
-                    nearbyPermissionsGranted -> "No active receive session. Generate a new code to receive files."
-                    else -> "Grant Nearby permissions to create a receive code."
-                }
-            )
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text(
+                    when {
+                        advertisingError != null -> "The receive code is unavailable until Nearby advertising starts."
+                        nearbyPermissionsGranted && expiresAt > 0L -> "Starting Nearby advertising…"
+                        nearbyPermissionsGranted -> "No active receive session. Generate a new code to receive files."
+                        else -> "Grant Nearby permissions to create a receive code."
+                    }
+                )
+            }
         }
         if (nearbyPermissionsGranted) {
             Button(onClick = { vm.startReceiveSession() }) {
