@@ -44,7 +44,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.RandomAccessFile
 import java.util.concurrent.atomic.AtomicLong
-import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 private data class OutgoingShareFile(val file: File, val mime: String, val bytes: Long, val displayName: String)
