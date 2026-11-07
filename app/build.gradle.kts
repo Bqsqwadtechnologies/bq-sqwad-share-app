@@ -46,8 +46,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
-                ?: signingConfigs.getByName("debug")
+            // Never publish a release signed with the public debug key.
+            // Without a configured keystore the release artifact remains unsigned.
         }
         debug {
             isMinifyEnabled = false
