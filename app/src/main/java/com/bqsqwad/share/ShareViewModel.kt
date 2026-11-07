@@ -43,6 +43,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.RandomAccessFile
+import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 private data class OutgoingShareFile(val file: File, val mime: String, val bytes: Long, val displayName: String)
@@ -400,6 +402,7 @@ class ShareViewModel @Inject constructor(
     }
 
     private val webStagedFiles = mutableListOf<File>()
+    private val webSessionGeneration = AtomicLong(0L)
 
     fun ownApk(): File = File(context.applicationInfo.sourceDir)
 
@@ -429,6 +432,7 @@ class ShareViewModel @Inject constructor(
         includeAppInstaller: Boolean = false,
     ): String = withContext(Dispatchers.IO) {
         stopWeb()
+        val generation = webSessionGeneration.get()
         val staged = mutableListOf<File>()
         try {
             uris.distinct().forEach { uri ->
@@ -459,6 +463,10 @@ class ShareViewModel @Inject constructor(
             val server = createWebShareServer(shared, pin)
             server.start()
             synchronized(this@ShareViewModel) {
+                if (generation != webSessionGeneration.get()) {
+                    server.stop()
+                    throw CancellationException("Local sharing was stopped before it finished starting.")
+                }
                 webStagedFiles.addAll(staged)
                 web = server
             }
@@ -471,6 +479,7 @@ class ShareViewModel @Inject constructor(
 
     @Synchronized
     fun stopWeb() {
+        webSessionGeneration.incrementAndGet()
         web?.stop()
         web = null
         webStagedFiles.forEach { it.delete() }
