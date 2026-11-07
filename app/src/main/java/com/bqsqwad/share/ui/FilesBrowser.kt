@@ -2,6 +2,8 @@ package com.bqsqwad.share.ui
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.net.Uri
 import java.io.File
 import android.widget.Toast
@@ -339,7 +341,7 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                                     TextButton(
                                         onClick = { openReceivedFile(context, item) },
                                         enabled = item.localPath?.let { File(it).isFile && File(it).canRead() } == true,
-                                    ) { Text("Open") }
+                                    ) { Text(receivedActionLabel(context, item)) }
                                     TextButton(onClick = { deleteReceivedItem = item }) { Text("Delete") }
                                 }
                                 if (isSelected) Text("✓")
@@ -575,6 +577,34 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
 }
 
 
+
+private fun receivedActionLabel(context: Context, item: TransferEntity): String {
+    val file = item.localPath?.let(::File)
+    if (file?.extension.equals("apk", ignoreCase = true)) {
+        val packageName = runCatching {
+            file?.let { context.packageManager.getPackageArchiveInfo(it.absolutePath, 0)?.packageName }
+        }.getOrNull()
+        val installed = packageName?.let { name ->
+            runCatching {
+                if (Build.VERSION.SDK_INT >= 33) {
+                    context.packageManager.getPackageInfo(name, PackageManager.PackageInfoFlags.of(0))
+                } else {
+                    @Suppress("DEPRECATION")
+                    context.packageManager.getPackageInfo(name, 0)
+                }
+            }.isSuccess
+        } ?: false
+        return if (installed) "Installed" else "Install"
+    }
+    return when {
+        item.mime.startsWith("video/") -> "Watch"
+        item.mime.startsWith("image/") -> "View"
+        item.mime.startsWith("audio/") -> "Play"
+        item.mime == "application/pdf" || item.mime.startsWith("text/") -> "Read"
+        else -> "Open"
+    }
+}
+
 internal fun openReceivedFile(context: Context, item: TransferEntity) {
     val file = item.localPath?.let(::File)
     if (file == null || !file.isFile || !file.canRead()) {
@@ -582,8 +612,28 @@ internal fun openReceivedFile(context: Context, item: TransferEntity) {
         return
     }
     runCatching {
+        if (file.extension.equals("apk", ignoreCase = true)) {
+            val packageName = context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)?.packageName
+            val installed = packageName?.let { name ->
+                runCatching {
+                    if (Build.VERSION.SDK_INT >= 33) {
+                        context.packageManager.getPackageInfo(name, PackageManager.PackageInfoFlags.of(0))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        context.packageManager.getPackageInfo(name, 0)
+                    }
+                }.isSuccess
+            } ?: false
+            if (installed && packageName != null) {
+                val launch = context.packageManager.getLaunchIntentForPackage(packageName)
+                if (launch != null) {
+                    context.startActivity(launch)
+                    return
+                }
+            }
+        }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
-        val mime = item.mime.takeIf { it.isNotBlank() && it != "application/octet-stream" } ?: "*/*"
+        val mime = item.mime.takeIf { it.isNotBlank() && it != "application/octet-stream" } ?: if (file.extension.equals("apk", true)) "application/vnd.android.package-archive" else "*/*"
         val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         context.startActivity(Intent.createChooser(intent, "Open with"))
