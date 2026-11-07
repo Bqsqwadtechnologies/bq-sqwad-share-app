@@ -84,27 +84,19 @@ fun MediaLibraryScreen(initialKind: String = "music") {
     var searchQuery by remember { mutableStateOf("") }
     var playbackSpeed by remember { mutableStateOf(1f) }
 
-    fun requiredMediaPermission(): String =
-        if (Build.VERSION.SDK_INT >= 33) {
-            when (kind) { "music" -> Manifest.permission.READ_MEDIA_AUDIO; "photos" -> Manifest.permission.READ_MEDIA_IMAGES; else -> Manifest.permission.READ_MEDIA_VIDEO }
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-
-    fun hasMediaPermission(): Boolean =
-        ContextCompat.checkSelfPermission(context, requiredMediaPermission()) == PackageManager.PERMISSION_GRANTED
+    fun hasMediaPermission(): Boolean = MediaPermissions.hasMedia(context, kind)
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { grants ->
-        permissionGranted = grants[requiredMediaPermission()] == true || hasMediaPermission()
+    ) {
+        permissionGranted = hasMediaPermission()
     }
 
     fun requestMediaPermissions() {
         if (hasMediaPermission()) {
             permissionGranted = true
         } else {
-            permissionLauncher.launch(arrayOf(requiredMediaPermission()))
+            permissionLauncher.launch(MediaPermissions.list(kind))
         }
     }
 
