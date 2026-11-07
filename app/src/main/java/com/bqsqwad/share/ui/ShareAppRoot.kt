@@ -1015,7 +1015,7 @@ private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adF
                             if (section == "deleted") {
                                 TextButton(
                                     onClick = { vm.restoreFromDeleted(item) },
-                                    enabled = !item.localPath.isNullOrBlank(),
+                                    enabled = item.localPath?.let { File(it).isFile } == true,
                                 ) { Text("Restore") }
                                 TextButton(onClick = { vm.permanentlyDelete(item) }) {
                                     Text(if (item.direction.equals("RECEIVE", true) && !item.localPath.isNullOrBlank()) "Delete file and record" else "Remove record")
