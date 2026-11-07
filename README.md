@@ -18,7 +18,7 @@ Replace `branding/logo/logo.png`, then `python3 scripts/generate_branding.py`.
 
 ## Ad unit IDs
 
-Test IDs in `core/ads/.../Slots.kt` (`AdUnits`) and the AdMob app id in `AndroidManifest.xml`. Replace with your real IDs in one place only.
+Production AdMob IDs are mapped in `core/ads/.../Slots.kt` (`AdUnits`), and the production App ID is set in `AndroidManifest.xml`. Development test IDs are documented in `docs/AD_UNITS_CHECKLIST.md`.
 
 ## Transfer protocol
 
@@ -30,7 +30,7 @@ In-app **Share to a computer** starts a local PIN-gated HTTP server on the phone
 
 ## Release
 
-Keystore stays out of git. Secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. Tag or run Release workflow for signed APK/AAB.
+Keystore files and `keystore.properties` are ignored by git and must never be committed. For GitHub Actions signing, add `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD` as repository Actions secrets. The Release workflow decodes the keystore in the runner's temporary directory and signs only with that private key. Without the keystore, release artifacts remain unsigned.
 
 ## Docs
 
