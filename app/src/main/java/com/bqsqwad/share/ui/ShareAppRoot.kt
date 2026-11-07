@@ -411,14 +411,6 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onMenu) { Text("Menu") }
             }
-            OutlinedTextField(
-                value = search,
-                onValueChange = { search = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Search") },
-                placeholder = { Text("Photos, music, videos, files…") },
-            )
         }
         itemsIndexed(tiles.chunked(4)) { _, pair ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -446,6 +438,16 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                 }
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
+        }
+        item {
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Search apps and sections") },
+                placeholder = { Text("Photos, music, videos, files…") },
+            )
         }
         if (search.isBlank()) {
             item {
