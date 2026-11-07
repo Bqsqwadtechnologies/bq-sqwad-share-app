@@ -695,19 +695,23 @@ private fun Receive(vm: ShareViewModel) {
     val incomingMessage by vm.incomingTransferMessage.collectAsState()
     val expiresAt by vm.receiveExpiresAt.collectAsState()
     var remainingSeconds by remember { mutableStateOf(0L) }
-    val receivePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        if (result.values.all { it }) vm.startReceiveSession()
-        else Toast.makeText(context, "Nearby permissions are required to receive files.", Toast.LENGTH_LONG).show()
-    }
-    LaunchedEffect(Unit) {
-        val required = if (android.os.Build.VERSION.SDK_INT >= 33) {
+    var nearbyPermissionsGranted by remember { mutableStateOf(false) }
+    val requiredReceivePermissions = remember {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
             arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.NEARBY_WIFI_DEVICES)
         } else if (android.os.Build.VERSION.SDK_INT >= 31) {
             arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_ADVERTISE)
         } else {
             arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
         }
-        receivePermissions.launch(required)
+    }
+    val receivePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        nearbyPermissionsGranted = requiredReceivePermissions.all { result[it] == true }
+        if (nearbyPermissionsGranted) vm.startReceiveSession()
+        else Toast.makeText(context, "Nearby permissions are required to receive files.", Toast.LENGTH_LONG).show()
+    }
+    LaunchedEffect(Unit) {
+        receivePermissions.launch(requiredReceivePermissions)
     }
     DisposableEffect(Unit) {
         onDispose { vm.stopReceiveSession() }
@@ -766,7 +770,15 @@ private fun Receive(vm: ShareViewModel) {
         } else {
             Text(if (expiresAt == 0L) "Allow Nearby permissions to create a receive code." else "This receive code has expired. Generate a new one to receive files.")
         }
-        Button(onClick = { vm.startReceiveSession() }) { Text(if (code.isBlank()) "Generate new code" else "Regenerate code") }
+        if (nearbyPermissionsGranted) {
+            Button(onClick = { vm.startReceiveSession() }) {
+                Text(if (code.isBlank()) "Generate new code" else "Regenerate code")
+            }
+        } else {
+            Button(onClick = { receivePermissions.launch(requiredReceivePermissions) }) {
+                Text("Grant Nearby permissions")
+            }
+        }
         Text("${stringResource(R.string.verification)}: ${vm.verification}")
         incoming?.let { req ->
             Spacer(Modifier.height(12.dp))
