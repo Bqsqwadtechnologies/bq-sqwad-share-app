@@ -500,7 +500,6 @@ class ShareViewModel @Inject constructor(
     }
 
     fun clearScannedChatSession() {
-        scannedReceiveCode.value = ""
         nearby.setExpectedReceiveCode("")
         sessionKey = SessionCrypto.newKey()
         chatSessionReady.value = false
@@ -934,7 +933,7 @@ class ShareViewModel @Inject constructor(
 
     companion object {
         private const val CHAT_HELLO = "BQCHAT/HELLO"
-        private const val CHAT_MESSAGE_PREFIX = "BQCHAT/MSG\\n"
+        private const val CHAT_MESSAGE_PREFIX = "BQCHAT/MSG:"
         private const val MAX_CHAT_MESSAGE_BYTES = 4096
         private const val MAX_CHAT_HISTORY = 100
     }
