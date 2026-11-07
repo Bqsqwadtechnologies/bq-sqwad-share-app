@@ -1200,7 +1200,7 @@ private fun Computer(vm: ShareViewModel) {
     var includeInstaller by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    val pin = remember { vm.sessionCode }
+    var pin by remember { mutableStateOf(vm.newComputerPin()) }
     val scope = rememberCoroutineScope()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         selectedUris = uris
@@ -1265,7 +1265,7 @@ private fun Computer(vm: ShareViewModel) {
             style = MaterialTheme.typography.bodySmall,
         )
         OutlinedButton(
-            onClick = { vm.stopWeb(); url = null; message = "Local sharing stopped." },
+            onClick = { vm.stopWeb(); url = null; message = "Local sharing stopped."; pin = vm.newComputerPin() },
             enabled = url != null,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(stringResource(R.string.disconnect)) }
