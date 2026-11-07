@@ -972,6 +972,7 @@ class ShareViewModel @Inject constructor(
                             TransferProtocol.transferOffsetBody(transferId, completed.length()),
                         ))
                         incomingTransferMimes.remove(transferId)
+                        incomingTransferCount.value = incomingTransferMimes.size
                         incomingTransferEndpoints.remove(transferId)
                         updateTransferServiceIfIdle()
                     } finally {
@@ -983,6 +984,7 @@ class ShareViewModel @Inject constructor(
                     val transferId = TransferProtocol.parseTransferId(frame.body)
                     withContext(Dispatchers.IO) { resumableReceiver.discard(transferId) }
                     incomingTransferMimes.remove(transferId)
+                    incomingTransferCount.value = incomingTransferMimes.size
                     incomingTransferEndpoints.remove(transferId)
                     updateTransferServiceIfIdle()
                     true
