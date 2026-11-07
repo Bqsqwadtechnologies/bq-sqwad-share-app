@@ -67,6 +67,7 @@ class ShareViewModel @Inject constructor(
     val nearby: NearbyTransport,
 ) : ViewModel() {
     val settings = store.settings
+    private val notificationsEnabled = MutableStateFlow(true)
     val history = dao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val favorites = dao.observeFavorites().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val moved = dao.observeMovedBytes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
@@ -102,6 +103,9 @@ class ShareViewModel @Inject constructor(
     private val resumableReceiver by lazy { ResumableFileReceiver(File(context.filesDir, "resumable-incoming")) }
 
     init {
+        viewModelScope.launch {
+            store.settings.collect { notificationsEnabled.value = it.notifications }
+        }
         // A process restart cannot resume a Nearby payload in place. Mark unfinished
         // rows as recoverable so the user can retry instead of leaving them stuck.
         viewModelScope.launch {
@@ -208,7 +212,7 @@ class ShareViewModel @Inject constructor(
                     lastTransferNotificationAt.set(now)
                     if (complete) {
                         if (transferServiceActive.compareAndSet(true, false)) {
-                            TransferService.update(context, "Transfers complete", 0L, 0L, true, settings.value.notifications)
+                            TransferService.update(context, "Transfers complete", 0L, 0L, true, notificationsEnabled.value)
                         }
                     } else {
                         transferServiceActive.set(true)
