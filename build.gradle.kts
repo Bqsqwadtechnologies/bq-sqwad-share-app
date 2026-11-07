@@ -8,10 +8,8 @@ plugins {
     alias(libs.plugins.hilt) apply false
 }
 
-tasks.register("generateBranding") {
+tasks.register<Exec>("generateBranding") {
     group = "branding"
     description = "Regenerate launcher, splash, notification and Play icons from branding/logo/logo.png"
-    doLast {
-        exec { commandLine("python3", "$rootDir/scripts/generate_branding.py") }
-    }
+    commandLine("python3", "$rootDir/scripts/generate_branding.py")
 }
