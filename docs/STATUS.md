@@ -1,80 +1,48 @@
-# BQ Sqwad Share — status (6 November 2026)
+# BQ Sqwad Share — implementation status
 
-Package: `com.bqsqwad.share` · Target **1.1.0**
+Updated: 7 November 2026  
+Package: `com.bqsqwad.share`  
+Current release target: **1.1.0** · minSdk 26 · targetSdk 36  
+Current source scope: **offline/local sharing only**
 
-## Done
+## Product scope for this release
 
-- Multi-module scaffold: app, core:common, core:domain, core:data, core:design, core:ads
-- Kotlin, Compose, Material 3, Hilt, Room, DataStore, Navigation
-- compileSdk / targetSdk 36, minSdk 26
-- Age gate (13+), home Send/Receive, history, settings themes and accents
-- Nearby discovery/advertising shell (`NearbyTransport`)
-- QR payload + 6-digit session code + AES-GCM session crypto
-- Accept / decline / block connection prompt
-- File picker entry points, installed apps list (launcher queries only)
-- Local web share server with PIN (computer path)
-- Phone Clone and premium gates via rewarded ads (test IDs)
-- Transfer history Room model, favorites, cleaner list view
-- Clipboard / group send / nearby chat UI hooks
-- Logo pipeline under branding/logo/ and scripts/generate_branding.py
-- AdMob test IDs in AdUnits, UMP start, banner/native/interstitial/rewarded/app-open
-- Debug ad slot screen (debug builds)
-- Legal pages under docs/, Play and data-safety drafts
-- CI: debug.yml, release.yml, branding.yml
-- Signing config from env / keystore.properties (keystore not in git)
+BQ Sqwad Share supports direct transfers between nearby devices and a PIN-protected browser session on the same local Wi-Fi network or hotspot. File transfer does not use a BQ cloud, remote signaling service, WebRTC, TURN, or internet fallback. Internet access is used for third-party advertising/consent services, not for file delivery.
 
-## Half-done (needs device proof)
+The six-digit receive code is a nearby session identifier, not proof of device identity. It is visible to nearby devices. Both devices now show Nearby's connection verification digits and require explicit approval; users are instructed to compare the digits before accepting.
 
-- Parallel multi-file Nearby queue; interrupted transfers can be retried from the beginning, but byte-offset resume across process death is not implemented
-- CameraX + ML Kit QR scanner on send path
-- Full Photo/Video/Music/Document tab pickers via system pickers
-- In-app media players and organized receive folders end-to-end
-- Storage cleaner (SAF folders, on-disk duplicate hashing)
-- WorkManager tip notifications
-- TransferProtocol framing, metadata bounds checks, chunk checksums, and resume-offset helpers are unit-tested; these helpers are not yet wired into the Nearby file-payload path, so end-to-end receiver checksum verification and resumable Nearby transfers are not shipped
-- Baseline Profiles / Macrobenchmark
-- ktlint/detekt as failing CI gates
-- GitHub Pages enablement and Actions secrets (manual on the org)
+## Implemented in source — runtime proof still pending
 
-## Missing vs 1.1 brief (scaffolded or planned; not fully shipped)
+- **Nearby pairing:** discovery and advertising, permission-aware start/retry states, connection error reporting, explicit approval on both devices, and verification-digit guidance.
+- **Resumable file transfer:** stable transfer offers, 16 KB checksummed chunks, receiver-side durable checkpoints, 1 MiB checkpoint batching, final SHA-256 verification, cancellation, and retry from the receiver's committed offset. If Nearby assigns a different endpoint ID, the user must explicitly select the receiving device before resuming.
+- **Multi-file and Team Sharing:** selected files can be queued and sent to currently connected, user-selected recipients. Saved teams and background delivery are not included.
+- **Folder Transfer:** user-selected SAF folders are packaged into bounded ZIP archives while preserving relative folder paths, then sent through the Nearby flow.
+- **Private Vault:** imported files are encrypted with an Android Keystore AES-GCM key; strong biometric authentication is required for import, restore, and permanent deletion. Vault files are outside FileProvider's shared paths.
+- **Device Hub:** stable local installation identity and user-managed trusted-device records are stored locally. This is app-level identity, not hardware-backed device attestation.
+- **Share to computer:** a phone-hosted, PIN-gated HTTP server serves selected files to a browser on the same local network. The UI warns that the connection is HTTP and must only be used on a trusted private network.
+- **Media and storage:** Photos, Videos, Music and Files browsing; media preview; storage overview limited to BQ Sqwad Share-owned files; cache cleaning does not claim to clean the whole phone.
+- **Advertising:** UMP consent flow and privacy-options entry point; active banner/native placements; separate rewarded flows for ad-free and temporary premium access. Reward callbacks are only granted after the SDK reward callback. Transfer interstitial and App Open units are reserved and are not requested or displayed.
+- **Permissions and platform:** optional camera/Bluetooth hardware declarations, API-specific Nearby/media permissions, optional completion-notification permission, non-exported transfer service and FileProvider, backup disabled, and edge-to-edge activity setup.
+- **Release signing:** private keystore configuration is read from Actions secrets or local properties. Release packaging now fails closed if signing credentials are incomplete.
 
-- Cross-platform browser transfer polish, ZIP folders, HTTP Range resume
-- HEIC/HEVC conversion helpers
-- Share ID, trusted devices, multi-receiver send
-- Static web client under web/
-- Share-sheet intents, compress-before-send, widgets
-- Compose UI tests and multi-API emulator matrix
+## Explicitly not shipped in this release
 
-## Agent environment limits
+- Multi-hop offline relay forwarding, its Nearby scheduler, authenticated route/acknowledgement protocol, and Windows relay client. OfflineRelayStore and relay crypto code are foundations only and are not connected to the live Nearby transfer path.
+- Internet-based long-distance transfer, WebRTC, STUN/TURN, remote signaling, cloud file storage, or internet fallback.
+- Automatic App Open or transfer-completion interstitial ads.
+- Persistent saved teams or background team delivery.
 
-No Android SDK or emulator in the coding agent. Full assembleDebug and two-phone tests must run in GitHub Actions or Android Studio on your machine. See docs/VERIFICATION_REPORT.md.
+The `signaling/` directory is retained as a historical/future experiment only. It is not part of the Android app and must not be deployed for this offline-only release.
 
+## Known verification gaps
 
-## 7 November 2026 implementation update
+- The latest source commit has not yet completed a fresh Debug build, Release build, and full test run.
+- Two-device transfer, interruption/reconnect, cancellation, simultaneous multi-file send, low-storage behaviour, and API-level permission handling still require real-device tests.
+- Private Vault requires strong-biometric device testing, including cancellation, lockout, and biometric-enrolment changes.
+- The local browser bridge needs same-Wi-Fi/hotspot testing from Android, iOS Safari, and desktop browsers.
+- AdMob/UMP consent, privacy options, reward callbacks, and each active placement need test-device verification.
+- TalkBack, large font scaling, contrast, touch-target, and accessibility checks remain outstanding.
+- Public Privacy Policy and Terms URLs have not yet been verified. Legal pages and the Data Safety draft must be reconciled with the verified implementation before publication/submission.
+- Google Play Console declarations and final release signing/artifact verification remain outstanding.
 
-- Private Vault screen is now connected to the navigation drawer. It encrypts imported files with the Android Keystore AES-GCM key and requires strong biometric authentication for import, restore, and permanent deletion. Vault metadata (including the original filename) is inside the encrypted payload.
-- Folder Transfer now accepts a user-selected Storage Access Framework folder, packages its nested files into a ZIP while preserving relative folder paths, enforces entry/depth/size limits, and queues the archive for the existing Nearby Send flow.
-- Device Hub now lists currently discovered and connected Nearby peers and allows disconnecting active peers. It is a live-session manager, not yet a persistent trusted-device registry.
-- A durable receiver-side chunk checkpoint store and tests have been added. It fsyncs accepted chunks, atomically records committed offsets, truncates uncommitted tails after restart, and verifies the complete SHA-256 before finalizing. **It is not yet wired into the Nearby sender/receiver callbacks**, so current Nearby file transfers still restart from the beginning after interruption.
-- Android build, automated test execution, biometric-device verification, folder transfer verification, and two-device testing remain outstanding. Do not treat source commits as proof of runtime verification.
-
-
-## 7 November 2026 roadmap items 5–8
-
-- **Storage Intelligence:** added a storage overview for Android's app-data volume, BQ Sqwad Share-owned folders, and the largest app-owned files. It does not scan or delete the user's personal files. The separate Deep Clean screen still requires explicit confirmation and only clears app cache.
-- **Media Studio:** added a Photos mode to the existing media library with MediaStore browsing, search, thumbnails, and an in-app preview. Music/video playback remains separate. Photo access and preview still need runtime testing on Android 13–15, including Android 14 selected-photo permission behavior.
-- **BQ Relay / Windows Bridge:** added OfflineRelayStore, a local disk queue for opaque recipient-encrypted chunks with bounded chunk size, storage quota, expiry, duplicate suppression, digest verification, and verified-ack deletion. This is storage groundwork only: it is not connected to Nearby, has no multi-hop forwarding scheduler, opt-in participation settings, authenticated route/ack protocol, or Windows client. No cloud or internet transfer was added.
-- **Team Sharing:** added a session-scoped recipient picker and multi-file send to only the selected, currently connected peers. It reuses the existing Nearby file transfer path. Saved teams, persistent permissions/trusted memberships, and background delivery are not implemented.
-
-The new Android UI and relay queue have not been built or executed in this environment. Unit tests were added for the relay queue but have not been run. Android Studio/GitHub Actions and real multi-device testing are still required before release.
-
-
-## 7 November 2026 follow-up — resumable Nearby and Device Hub
-
-- **Live resumable transfers:** the sender now sends a stable transfer offer, waits for the receiver's durable checkpoint offset, sends checksummed 16 KB chunks one at a time, and persists acknowledged progress. The receiver fsyncs each accepted chunk before acknowledging it, verifies the final SHA-256, and only then saves the file. A retry/reconnect reuses the sender's stable device ID plus transfer-row ID so the receiver can return its saved offset. This replaces the normal outgoing Nearby file-payload path for new transfers; legacy incoming FILE payloads remain supported for compatibility.
-- **Cancellation:** an active sender sends a transfer-cancel control frame when the peer is still connected, allowing the receiver to discard that partial checkpoint.
-- **Persistent Device Hub history:** each installation creates a stable local UUID and exchanges it with the peer over the Nearby connection. Users explicitly approve or remove trust. Approved identities and display names are persisted locally using DataStore and remain visible after disconnect/restart. This is an app-level stable identity record, not hardware-backed device attestation; users should only trust devices they recognize.
-- **Still outstanding:** OfflineRelayStore remains a local opaque-chunk queue only. Multi-hop forwarding, relay participation/consent UI, route authentication and delivery scheduling are not implemented. A Windows companion client is also not included. These require a separately designed peer-to-peer protocol and Windows project; no cloud service has been introduced.
-- **Verification:** protocol codec tests were added. No Android Gradle build, unit-test execution, or two-device disconnect/reconnect test has been run in this environment. Do not treat these changes as release-verified until those checks pass.
-
-- **Recipient safety on resume:** reconnect retries are limited to the original Nearby endpoint. If Nearby assigns a new endpoint ID, the user must choose the receiving device explicitly in Transfer History before resuming; the app never silently redirects a pending file to a different connected device.
+See `docs/VERIFICATION_REPORT.md` for the current CI evidence and manual test plan. Source implementation is not proof of runtime correctness or policy approval.
