@@ -877,6 +877,7 @@ private fun Receive(vm: ShareViewModel) {
 
 @Composable
 private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
+    val adsAllowed by ads.canRequestAdsState.collectAsState()
     var tab by remember { mutableStateOf("files") }
     val ctx = LocalContext.current
     val picked = remember { mutableStateOf(listOf<Uri>()) }
@@ -976,6 +977,7 @@ private fun Picker(nav: NavHostController, vm: ShareViewModel, ads: AdManager, a
 
 @Composable
 private fun History(vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
+    val adsAllowed by ads.canRequestAdsState.collectAsState()
     val history by vm.history.collectAsState()
     val connected by vm.nearby.connected.collectAsState()
     val peers by vm.nearby.peers.collectAsState()
