@@ -1254,7 +1254,7 @@ private fun Computer(vm: ShareViewModel) {
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Select files") }
         Text("${selectedUris.size} file(s) selected")
-        SwitchRow("Include the BQ Sqwad Share installer", includeInstaller) { includeInstaller = it }
+        SwitchRow("Include BQ Sqwad Share APK files (base and installed splits)", includeInstaller) { includeInstaller = it }
         Text("${stringResource(R.string.pin_label)} $pin")
         Button(
             onClick = {
