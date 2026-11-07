@@ -102,17 +102,18 @@ class NearbyTransport @Inject constructor(
                     return@launch
                 }
                 val expected = expectedReceiveCode
-                if (expected.length == 6) {
-                    if (info.endpointName == "BQ Sqwad Share code $expected") {
-                        client.acceptConnection(endpointId, payloadCallback)
-                    } else {
-                        client.rejectConnection(endpointId)
-                        clearConnecting(endpointId)
-                    }
+                if (expected.length == 6 && info.endpointName != "BQ Sqwad Share code $expected") {
+                    client.rejectConnection(endpointId)
+                    clearConnecting(endpointId)
                     _incoming.value = null
-                } else {
-                    _incoming.value = IncomingRequest(endpointId, info.endpointName, info.authenticationDigits)
+                    return@launch
                 }
+
+                // The receive code identifies the intended session, but it is not
+                // authentication: Nearby advertises the endpoint name to local peers.
+                // Require explicit approval on both devices and let users compare
+                // Nearby's authentication digits before accepting the connection.
+                _incoming.value = IncomingRequest(endpointId, info.endpointName, info.authenticationDigits)
             }
         }
         override fun onConnectionResult(endpointId: String, resolution: ConnectionResolution) {
