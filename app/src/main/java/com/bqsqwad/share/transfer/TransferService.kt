@@ -1,15 +1,19 @@
 package com.bqsqwad.share.transfer
 
 import android.app.NotificationChannel
+import android.app.PendingIntent
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.bqsqwad.share.R
+import com.bqsqwad.share.MainActivity
 
 class TransferService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
@@ -27,6 +31,18 @@ class TransferService : Service() {
         val complete = intent?.getBooleanExtra(EXTRA_COMPLETE, false) ?: false
         val builder = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_notify)
+            .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.brand_logo))
+            .setColor(Color.rgb(10, 77, 255))
+            .setColorized(true)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setContentIntent(
+                PendingIntent.getActivity(
+                    this,
+                    42,
+                    Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                ),
+            )
             .setContentTitle(title)
             .setContentText(text)
             .setOnlyAlertOnce(true)
