@@ -101,6 +101,7 @@ class ShareViewModel @Inject constructor(
         private set
     val receiveExpiresAt = MutableStateFlow(0L)
     val incomingTransferMessage = MutableStateFlow("")
+    val incomingTransferCount = MutableStateFlow(0)
     val pendingUris = MutableStateFlow<List<Uri>>(emptyList())
     val pendingLocalFiles = MutableStateFlow<List<File>>(emptyList())
     val autoSendPending = MutableStateFlow(false)
@@ -334,7 +335,11 @@ class ShareViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            val activeIncomingPayloads = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
             nearby.progress.collect { event ->
+                if (event.status == PayloadTransferUpdate.Status.IN_PROGRESS) activeIncomingPayloads.add(event.payloadId)
+                else activeIncomingPayloads.remove(event.payloadId)
+                incomingTransferCount.value = activeIncomingPayloads.size
                 val key = event.endpointId to event.payloadId
                 if (event.status == PayloadTransferUpdate.Status.SUCCESS) {
                     if (nonFilePayloads.remove(key)) return@collect
