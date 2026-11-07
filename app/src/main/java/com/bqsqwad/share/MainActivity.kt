@@ -41,6 +41,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (backgroundAt > 0L) ads.maybeShowAppOpen(this, System.currentTimeMillis() - backgroundAt)
+        // App-open inventory is configured but not shown automatically: transfers and
+        // user tasks must never be interrupted by a full-screen ad.
     }
 }
