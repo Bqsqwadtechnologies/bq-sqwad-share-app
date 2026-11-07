@@ -5,6 +5,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
+import java.io.File
 
 class TransferProtocolTest {
     @Test
@@ -188,4 +191,65 @@ class TransferProtocolTest {
         assertEquals(3, ack.fileId)
         assertEquals(99_999L, ack.nextOffset)
     }
+    @Rule @JvmField
+    val temporaryFolder = TemporaryFolder()
+
+    @Test
+    fun resumableReceiverPersistsCheckpointAndFinalizesVerifiedFile() {
+        val source = ByteArray(70_000) { (it % 239).toByte() }
+        val offer = ResumableFileReceiver.Offer(
+            transferId = "resume-001",
+            displayName = "family-photo.bin",
+            totalBytes = source.size.toLong(),
+            sha256 = TransferProtocol.sha256(source),
+        )
+        val firstReceiver = ResumableFileReceiver(temporaryFolder.root)
+        assertEquals(0L, firstReceiver.begin(offer))
+        val firstChunk = source.copyOfRange(0, 32_000)
+        assertEquals(
+            32_000L,
+            firstReceiver.appendChunk("resume-001", 0L, firstChunk, TransferProtocol.sha256(firstChunk)),
+        )
+
+        val afterRestart = ResumableFileReceiver(temporaryFolder.root)
+        assertEquals(32_000L, afterRestart.begin(offer))
+        assertEquals(32_000L, afterRestart.resumeOffset("resume-001"))
+        val remaining = source.copyOfRange(32_000, source.size)
+        assertEquals(
+            source.size.toLong(),
+            afterRestart.appendChunk("resume-001", 32_000L, remaining, TransferProtocol.sha256(remaining)),
+        )
+        val received = afterRestart.complete("resume-001")
+        assertEquals("family-photo.bin", received.name)
+        assertArrayEquals(source, received.readBytes())
+        assertFalse(File(temporaryFolder.root, "resume-001.meta").exists())
+    }
+
+    @Test
+    fun resumableReceiverRejectsWrongOffsetsAndCorruptChunks() {
+        val source = "verified content".toByteArray()
+        val receiver = ResumableFileReceiver(temporaryFolder.root)
+        receiver.begin(
+            ResumableFileReceiver.Offer(
+                "resume-002",
+                "document.txt",
+                source.size.toLong(),
+                TransferProtocol.sha256(source),
+            ),
+        )
+        try {
+            receiver.appendChunk("resume-002", 1L, source, TransferProtocol.sha256(source))
+            throw AssertionError("Out-of-order chunk must be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+        try {
+            receiver.appendChunk("resume-002", 0L, source, ByteArray(32))
+            throw AssertionError("Corrupt chunk must be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+        assertEquals(0L, receiver.resumeOffset("resume-002"))
+    }
+
 }
