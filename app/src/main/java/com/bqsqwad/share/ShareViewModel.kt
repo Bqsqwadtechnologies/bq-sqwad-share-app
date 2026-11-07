@@ -156,6 +156,7 @@ class ShareViewModel @Inject constructor(
                         .forEach { transferId ->
                             incomingTransferEndpoints.remove(transferId)
                             incomingTransferMimes.remove(transferId)
+                        incomingTransferCount.value = incomingTransferMimes.size
                         }
                 }
                 previousConnected = connected
@@ -335,11 +336,8 @@ class ShareViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            val activeIncomingPayloads = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
             nearby.progress.collect { event ->
-                if (event.status == PayloadTransferUpdate.Status.IN_PROGRESS) activeIncomingPayloads.add(event.payloadId)
-                else activeIncomingPayloads.remove(event.payloadId)
-                incomingTransferCount.value = activeIncomingPayloads.size
+                incomingTransferCount.value = incomingTransferMimes.size
                 val key = event.endpointId to event.payloadId
                 if (event.status == PayloadTransferUpdate.Status.SUCCESS) {
                     if (nonFilePayloads.remove(key)) return@collect
@@ -913,6 +911,7 @@ class ShareViewModel @Inject constructor(
                         return true
                     }
                     incomingTransferMimes[offer.transferId] = offer.mime
+                    incomingTransferCount.value = incomingTransferMimes.size
                     incomingTransferEndpoints[offer.transferId] = endpointId
                     val offset = try {
                         withContext(Dispatchers.IO) {
@@ -927,6 +926,7 @@ class ShareViewModel @Inject constructor(
                         throw cancelled
                     } catch (failure: Exception) {
                         incomingTransferMimes.remove(offer.transferId)
+                        incomingTransferCount.value = incomingTransferMimes.size
                         incomingTransferEndpoints.remove(offer.transferId)
                         incomingTransferMessage.value = failure.message?.take(120) ?: "Could not prepare the receive file."
                         nearby.sendBytes(endpointId, TransferProtocol.frame(
@@ -994,6 +994,7 @@ class ShareViewModel @Inject constructor(
                 val failedId = runCatching { TransferProtocol.parseTransferId(frame.body) }.getOrNull()
                 if (failedId != null) {
                     incomingTransferMimes.remove(failedId)
+                    incomingTransferCount.value = incomingTransferMimes.size
                     incomingTransferEndpoints.remove(failedId)
                 }
                 updateTransferServiceIfIdle()
