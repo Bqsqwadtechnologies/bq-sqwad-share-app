@@ -6,9 +6,10 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+import com.android.build.api.dsl.ApplicationExtension
 import java.util.Properties
 
-android {
+extensions.configure<ApplicationExtension> {
     namespace = "com.bqsqwad.share"
     compileSdk = 36
 
@@ -67,7 +68,7 @@ android {
 tasks.configureEach {
     if (name == "packageRelease" || name == "bundleRelease") {
         doFirst {
-            val releaseSigning = android.signingConfigs.getByName("release")
+            val releaseSigning = extensions.getByType<ApplicationExtension>().signingConfigs.getByName("release")
             val signingReady = releaseSigning.storeFile?.isFile == true &&
                 !releaseSigning.storePassword.isNullOrBlank() &&
                 !releaseSigning.keyAlias.isNullOrBlank() &&
