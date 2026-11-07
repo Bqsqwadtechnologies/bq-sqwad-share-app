@@ -1405,7 +1405,7 @@ private fun Debug(ads: AdManager) {
         Text("Banners: Home, History, More and Storage. Native ads: Home, History, Apps, Photos, Videos, Music, Files and Favorites. Rewarded: Ad-Free and Premium.")
         Text("interstitialLoaded=${ads.interstitialLoaded} rewardedLoaded=${ads.rewardedLoaded} appOpenLoaded=${ads.appOpenLoaded}")
         BannerSlot(adsAllowed, AdUnits.HOME_BANNER)
-        NativeSlot(true, AdUnits.HOME_NATIVE)
+        NativeSlot(adsAllowed, AdUnits.HOME_NATIVE)
     }
 }
 
