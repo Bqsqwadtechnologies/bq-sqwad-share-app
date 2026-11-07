@@ -1018,7 +1018,7 @@ private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adF
                                     enabled = !item.localPath.isNullOrBlank(),
                                 ) { Text("Restore") }
                                 TextButton(onClick = { vm.permanentlyDelete(item) }) {
-                                    Text(if (item.localPath.isNullOrBlank()) "Remove record" else "Delete file and record")
+                                    Text(if (item.direction.equals("RECEIVE", true) && !item.localPath.isNullOrBlank()) "Delete file and record" else "Remove record")
                                 }
                             } else {
                                 if (section == "received" && !item.localPath.isNullOrBlank()) {
