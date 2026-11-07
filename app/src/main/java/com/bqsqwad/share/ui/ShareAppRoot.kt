@@ -570,6 +570,7 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
     val peers by vm.nearby.peers.collectAsState()
     val connected by vm.nearby.connected.collectAsState()
     val connecting by vm.nearby.connecting.collectAsState()
+    val incoming by vm.nearby.incoming.collectAsState()
     val scannedCode by vm.scannedReceiveCode.collectAsState()
     var receiveCode by remember { mutableStateOf(scannedCode) }
     LaunchedEffect(scannedCode) { if (scannedCode.isNotBlank()) receiveCode = scannedCode }
@@ -636,6 +637,31 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
                     Column {
                         Text("Connecting to device…", style = MaterialTheme.typography.titleSmall)
                         Text("Keep both devices nearby while the connection is established.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+        incoming?.let { request ->
+            Card(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Verify this connection", style = MaterialTheme.typography.titleSmall)
+                    Text("Device: ${request.name}")
+                    Text("Nearby verification digits: ${request.info}", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Compare these digits with the receiving phone. Accept only if they match on both devices.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { vm.nearby.accept(request.endpointId) }) {
+                            Text(stringResource(R.string.accept))
+                        }
+                        OutlinedButton(onClick = { vm.nearby.reject(request.endpointId) }) {
+                            Text(stringResource(R.string.decline))
+                        }
+                        TextButton(onClick = {
+                            vm.block(request.name)
+                            vm.nearby.reject(request.endpointId)
+                        }) { Text(stringResource(R.string.block)) }
                     }
                 }
             }
@@ -783,7 +809,11 @@ private fun Receive(vm: ShareViewModel) {
         incoming?.let { req ->
             Spacer(Modifier.height(12.dp))
             Text(stringResource(R.string.accept_title))
-            Text("${req.name} · ${req.info}")
+            Text("Device: ${req.name}\nNearby verification digits: ${req.info}")
+            Text(
+                "Compare these digits with the other phone before accepting. Accept only when they match.",
+                style = MaterialTheme.typography.bodySmall,
+            )
             Row {
                 Button(onClick = { vm.nearby.accept(req.endpointId) }) { Text(stringResource(R.string.accept)) }
                 Spacer(Modifier.size(8.dp))
