@@ -4,7 +4,6 @@ package com.bqsqwad.share.ui
 import android.app.Activity
 import android.content.Intent
 import android.content.ComponentName
-import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -905,13 +904,6 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
     val settings by vm.settings.collectAsState(initial = null)
     val s = settings ?: return
     val ctx = LocalContext.current
-    val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            runCatching { ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            ctx.getSharedPreferences("bq_brand_assets", Activity.MODE_PRIVATE).edit().putString("logo_uri", uri.toString()).apply()
-            Toast.makeText(ctx, "Brand logo updated.", Toast.LENGTH_SHORT).show()
-        }
-    }
     val (freeBytes, totalBytes) = vm.storage()
     val connectedDevices by vm.nearby.connected.collectAsState()
     val discoveredPeers by vm.nearby.peers.collectAsState()
@@ -979,10 +971,7 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Appearance", style = MaterialTheme.typography.titleMedium)
                     BrandLogo(Modifier.size(72.dp), "Current BQ Sqwad Share logo")
-                    OutlinedButton(onClick = { logoPicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Upload brand logo")
-                    }
-                    Text("This single upload updates the in-app logo and music artwork. Android launcher and notification icons are separate installed system resources.")
+                    Text("Master logo source: branding/logo/logo.png. Replace that one file in the GitHub repository, then regenerate branding assets to update the app icon, notification icon and in-app logo together.")
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("light", "dark").forEach { mode ->
                             FilterChip(selected = s.themeMode == mode, onClick = { vm.theme(mode) }, label = { Text(mode) })
