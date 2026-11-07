@@ -12,7 +12,7 @@ Run from this directory:
 ## Connect
 1. Start the phone's local sharing server from BQ Sqwad Share.
 2. Put the phone and PC on the same trusted Wi-Fi network.
-3. Enter the local address and PIN shown by the phone.
+3. Copy the complete local address (including its port, currently 8787) and PIN shown by the phone.
 4. Refresh to list files, download a selected file, or send multiple files to the phone.
 
 The companion never uses a cloud service. The connection is limited to the local network. Do not expose the phone sharing port to the public internet.
