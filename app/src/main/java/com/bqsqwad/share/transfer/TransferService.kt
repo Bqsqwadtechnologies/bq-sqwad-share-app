@@ -35,8 +35,9 @@ class TransferService : Service() {
         if (complete) builder.setProgress(0, 0, false)
         startForeground(NOTIFICATION_ID, builder.build())
         if (complete) {
-            stopForeground(STOP_FOREGROUND_DETACH)
-            stopSelf()
+            val showCompletion = intent?.getBooleanExtra(EXTRA_SHOW_COMPLETE, true) ?: true
+            stopForeground(if (showCompletion) STOP_FOREGROUND_DETACH else STOP_FOREGROUND_REMOVE)
+            stopSelf(startId)
         }
         return START_NOT_STICKY
     }
