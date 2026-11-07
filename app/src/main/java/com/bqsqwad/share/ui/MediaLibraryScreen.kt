@@ -353,10 +353,12 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, 
             Text("${visibleMedia.size} ${when (kind) { "music" -> "songs"; "photos" -> "photos"; else -> "videos" }}", style = MaterialTheme.typography.titleMedium)
             if (kind == "photos") {
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    itemsIndexed(visibleMedia.chunked(4), key = { _, row -> row.first().key }) { _, row ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            row.forEach { photo -> AsyncImage(model = photo.uri, contentDescription = photo.name, modifier = Modifier.weight(1f).height(96.dp).clickable { selectedPhoto = photo }) }
-                            repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                    itemsIndexed(visibleMedia.chunked(3), key = { _, row -> row.first().key }) { _, row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            row.forEach { photo ->
+                                AsyncImage(model = photo.uri, contentDescription = photo.name, modifier = Modifier.weight(1f).height(if (compact) 142.dp else 156.dp).clickable { selectedPhoto = photo })
+                            }
+                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
