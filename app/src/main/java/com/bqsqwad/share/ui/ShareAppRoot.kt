@@ -958,6 +958,7 @@ private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adF
     val history by vm.history.collectAsState()
     val apps = remember(section) { if (section == "apps") vm.installedApps() else emptyList() }
     val appContext = LocalContext.current
+    var deleteReceivedItem by remember { mutableStateOf<TransferEntity?>(null) }
     val (free, total) = vm.storage()
     val title = section.replaceFirstChar { it.uppercase() }
     val rows = when (section) {
@@ -1002,7 +1003,7 @@ private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adF
                         }
                     }
                 }
-                if (section == "deleted") Text("Long-press a transfer record to move it here. Restore it or remove the record from the list.")
+                if (section == "deleted") Text("Moving a record here keeps its file on this phone. Restore returns it to Received; Delete file and record permanently removes both.")
                 else if (section != "memory" && section != "apps") Text("Long-press a transfer record to move it to Deleted.")
             }
             itemsIndexed(rows, key = { _, item -> item.id }) { _, item ->
@@ -1012,9 +1013,18 @@ private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adF
                         Text("${item.bytes / 1024} KB · ${item.peerName}")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (section == "deleted") {
-                                TextButton(onClick = { vm.restoreFromDeleted(item) }) { Text("Restore") }
-                                TextButton(onClick = { vm.permanentlyDelete(item) }) { Text("Remove record") }
+                                TextButton(
+                                    onClick = { vm.restoreFromDeleted(item) },
+                                    enabled = !item.localPath.isNullOrBlank(),
+                                ) { Text("Restore") }
+                                TextButton(onClick = { vm.permanentlyDelete(item) }) {
+                                    Text(if (item.localPath.isNullOrBlank()) "Remove record" else "Delete file and record")
+                                }
                             } else {
+                                if (section == "received" && !item.localPath.isNullOrBlank()) {
+                                    TextButton(onClick = { openReceivedFile(appContext, item) }) { Text("Open") }
+                                    TextButton(onClick = { deleteReceivedItem = item }) { Text("Delete file") }
+                                }
                                 TextButton(onClick = { vm.toggleFavorite(item) }) { Text("Favorite") }
                                 TextButton(onClick = { vm.moveToDeleted(item) }) { Text("Move to Deleted") }
                             }
@@ -1024,6 +1034,20 @@ private fun LibraryPage(section: String, vm: ShareViewModel, ads: AdManager, adF
             }
             if (rows.isEmpty() && section != "memory" && section != "apps") item { Text("No items in this section yet.") }
         }
+    }
+    deleteReceivedItem?.let { item ->
+        AlertDialog(
+            onDismissRequest = { deleteReceivedItem = null },
+            title = { Text("Delete received file?") },
+            text = { Text("This permanently deletes ${item.displayName} from this phone and removes its transfer record.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.permanentlyDelete(item)
+                    deleteReceivedItem = null
+                }) { Text("Delete permanently") }
+            },
+            dismissButton = { TextButton(onClick = { deleteReceivedItem = null }) { Text("Cancel") } },
+        )
     }
 }
 
