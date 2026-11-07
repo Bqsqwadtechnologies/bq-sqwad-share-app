@@ -165,6 +165,7 @@ class NearbyTransport @Inject constructor(
 
     fun startDiscovery() {
         _discoveryError.value = null
+        _connectionError.value = null
         _peers.value = emptyList()
         try {
             client.startDiscovery(serviceId, discoveryCallback, DiscoveryOptions.Builder().setStrategy(strategy).build())
@@ -188,6 +189,7 @@ class NearbyTransport @Inject constructor(
     fun startAdvertising(name: String) {
         _advertising.value = false
         _advertisingError.value = null
+        _connectionError.value = null
         try {
             client.startAdvertising(name, serviceId, connectionCallback, AdvertisingOptions.Builder().setStrategy(strategy).build())
                 .addOnSuccessListener { _advertising.value = true }
