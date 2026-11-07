@@ -3,6 +3,7 @@ package com.bqsqwad.share.ui
 
 import android.app.Activity
 import android.content.Intent
+import android.content.ComponentName
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -95,6 +96,11 @@ import com.bqsqwad.share.data.TransferEntity
 import com.bqsqwad.share.ads.AdManager
 import com.bqsqwad.share.ads.BannerSlot
 import com.bqsqwad.share.ads.NativeSlot
+import com.bqsqwad.share.media.SharePlaybackService
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.MoreExecutors
 import com.bqsqwad.share.data.UserSettings
 import com.bqsqwad.share.design.ShareTheme
 import com.bqsqwad.share.design.QR_SIZE
@@ -222,10 +228,13 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
             ) {
                 Scaffold(
                     bottomBar = {
-                        BannerSlot(
-                            enabled = !adFree && ads.canRequestAds,
-                            modifier = Modifier.navigationBarsPadding(),
-                        )
+                        Column {
+                            GlobalMusicBar()
+                            BannerSlot(
+                                enabled = !adFree && ads.canRequestAds,
+                                modifier = Modifier.navigationBarsPadding(),
+                            )
+                        }
                     },
                 ) { adPadding ->
                     NavHost(
@@ -270,6 +279,50 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                         composable("debug") { Debug(ads) }
                     }
                 }
+            }
+        }
+    }
+}
+@Composable
+private fun GlobalMusicBar() {
+    val context = LocalContext.current
+    var player by remember { mutableStateOf<MediaController?>(null) }
+    var playing by remember { mutableStateOf(false) }
+    var title by remember { mutableStateOf<String?>(null) }
+    val future = remember(context) {
+        val token = SessionToken(context, ComponentName(context, SharePlaybackService::class.java))
+        MediaController.Builder(context, token).buildAsync()
+    }
+    DisposableEffect(future) {
+        future.addListener({ player = runCatching { future.get() }.getOrNull() }, MoreExecutors.directExecutor())
+        onDispose { player = null; MediaController.releaseFuture(future) }
+    }
+    DisposableEffect(player) {
+        val active = player ?: return@DisposableEffect onDispose { }
+        fun refresh() {
+            playing = active.isPlaying
+            title = active.currentMediaItem?.mediaMetadata?.title?.toString()
+        }
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) { refresh() }
+            override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) { refresh() }
+            override fun onPlaybackStateChanged(playbackState: Int) { refresh() }
+        }
+        active.addListener(listener)
+        refresh()
+        onDispose { active.removeListener(listener) }
+    }
+    val active = player
+    if (active != null && !title.isNullOrBlank()) {
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                BrandLogo(Modifier.size(34.dp), "BQ Sqwad Share")
+                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                    Text("Now playing", style = MaterialTheme.typography.labelSmall)
+                    Text(title ?: "", style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                }
+                TextButton(onClick = { if (active.isPlaying) active.pause() else active.play() }) { Text(if (playing) "Pause" else "Play") }
+                TextButton(onClick = { active.stop(); active.clearMediaItems(); title = null; playing = false }) { Text("Stop") }
             }
         }
     }

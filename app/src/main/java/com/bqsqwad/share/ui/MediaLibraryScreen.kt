@@ -190,7 +190,8 @@ fun MediaLibraryScreen(initialKind: String = "music") {
     fun playFrom(index: Int, shuffleAll: Boolean = false) {
         val player = controller ?: return
         if (visibleMedia.isEmpty()) return
-        val queue = visibleMedia.map { item ->
+        val selectedItems = if (kind == "videos") listOf(visibleMedia[index.coerceIn(0, visibleMedia.lastIndex)]) else visibleMedia
+        val queue = selectedItems.map { item ->
             MediaItem.Builder()
                 .setUri(item.uri)
                 .setMediaMetadata(
@@ -201,7 +202,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
                 )
                 .build()
         }
-        player.setMediaItems(queue, index.coerceIn(0, queue.lastIndex), 0L)
+        player.setMediaItems(queue, if (kind == "videos") 0 else index.coerceIn(0, queue.lastIndex), 0L)
         player.shuffleModeEnabled = shuffleAll
         player.repeatMode = Player.REPEAT_MODE_OFF
         player.prepare()
