@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.VideoLibrary
@@ -41,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import coil.compose.AsyncImage
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -56,7 +58,8 @@ import kotlinx.coroutines.withContext
 @Composable
 fun MediaLibraryScreen(initialKind: String = "music") {
     val context = LocalContext.current
-    var kind by remember { mutableStateOf(if (initialKind == "videos") "videos" else "music") }
+    var kind by remember { mutableStateOf(initialKind.takeIf { it == "photos" || it == "videos" || it == "music" } ?: "music") }
+    var selectedPhoto by remember { mutableStateOf<ShareMediaItem?>(null) }
     var media by remember { mutableStateOf<List<ShareMediaItem>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var permissionGranted by remember { mutableStateOf(false) }
@@ -70,7 +73,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
 
     fun requiredMediaPermission(): String =
         if (Build.VERSION.SDK_INT >= 33) {
-            if (kind == "music") Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_MEDIA_VIDEO
+            when (kind) { "music" -> Manifest.permission.READ_MEDIA_AUDIO; "photos" -> Manifest.permission.READ_MEDIA_IMAGES; else -> Manifest.permission.READ_MEDIA_VIDEO }
         } else {
             Manifest.permission.READ_EXTERNAL_STORAGE
         }
@@ -175,7 +178,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
             onValueChange = { searchQuery = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text(if (kind == "music") "Search music" else "Search videos") },
+            label = { Text(when (kind) { "music" -> "Search music"; "photos" -> "Search photos"; else -> "Search videos" }) },
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
@@ -190,6 +193,12 @@ fun MediaLibraryScreen(initialKind: String = "music") {
                 label = { Text("Videos") },
                 leadingIcon = { androidx.compose.material3.Icon(Icons.Filled.VideoLibrary, null) },
             )
+            FilterChip(
+                selected = kind == "photos",
+                onClick = { kind = "photos"; selectedPhoto = null },
+                label = { Text("Photos") },
+                leadingIcon = { androidx.compose.material3.Icon(Icons.Filled.PhotoLibrary, null) },
+            )
         }
 
         if (!permissionGranted) {
@@ -202,7 +211,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
         } else if (loading) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
         } else if (media.isEmpty()) {
-            Text(if (kind == "music") "No music was found on this device." else "No videos were found on this device.")
+            Text(when (kind) { "music" -> "No music was found on this device."; "photos" -> "No photos were found on this device."; else -> "No videos were found on this device." })
         } else {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { playFrom(0) }, enabled = controller != null) {
@@ -212,6 +221,16 @@ fun MediaLibraryScreen(initialKind: String = "music") {
                 OutlinedButton(onClick = { playFrom(0, true) }, enabled = controller != null) {
                     androidx.compose.material3.Icon(Icons.Filled.Shuffle, null)
                     Text("Shuffle")
+                }
+            }
+        }
+
+        selectedPhoto?.let { photo ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AsyncImage(model = photo.uri, contentDescription = photo.name, modifier = Modifier.fillMaxWidth().height(260.dp))
+                    Text(photo.name, style = MaterialTheme.typography.titleMedium)
+                    Text(MediaRepository.formatBytes(photo.sizeBytes), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -302,13 +321,14 @@ fun MediaLibraryScreen(initialKind: String = "music") {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 itemsIndexed(visibleMedia, key = { _, item -> item.key }) { index, item ->
                     Card(
-                        Modifier.fillMaxWidth().clickable { playFrom(index) },
+                        Modifier.fillMaxWidth().clickable { if (kind == "photos") selectedPhoto = item else playFrom(index) },
                     ) {
                         Row(
                             Modifier.padding(12.dp).fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
+                            if (kind == "photos") AsyncImage(model = item.uri, contentDescription = item.name, modifier = Modifier.size(76.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 2)
                                 Text(MediaRepository.formatBytes(item.sizeBytes), style = MaterialTheme.typography.bodySmall)

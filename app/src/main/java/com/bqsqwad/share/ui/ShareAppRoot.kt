@@ -163,7 +163,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                             listOf(
                                 "Files" to "files",
                                 "Apps" to "library/apps",
-                                "Photos" to "library/pictures",
+                                "Photos" to "media/photos",
                                 "Videos" to "media/videos",
                                 "Music" to "media/music",
                                 "Documents" to "files",
