@@ -17,7 +17,7 @@ public sealed class RemoteFile
 
 public partial class MainWindow : Window
 {
-    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(15) };
+    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromHours(2) };
     private Uri? _baseUri;
     private string _pin = "";
 
@@ -104,10 +104,25 @@ public partial class MainWindow : Window
             var url = file.Url + (file.Url.Contains('?') ? "&" : "?") + "pin=" + Uri.EscapeDataString(_pin);
             using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
-            await using var input = await response.Content.ReadAsStreamAsync();
-            await using var output = File.Create(destination);
-            await input.CopyToAsync(output);
-            StatusText.Text = "Downloaded " + file.Name;
+            var temporary = destination + ".part";
+            try
+            {
+                await using var input = await response.Content.ReadAsStreamAsync();
+                await using (var output = File.Create(temporary))
+                {
+                    await input.CopyToAsync(output);
+                    await output.FlushAsync();
+                    if (response.Content.Headers.ContentLength is long expected && output.Length != expected)
+                        throw new IOException("The download was incomplete; the original destination was not replaced.");
+                }
+                File.Move(temporary, destination, overwrite: true);
+                StatusText.Text = "Downloaded " + file.Name;
+            }
+            catch
+            {
+                if (File.Exists(temporary)) File.Delete(temporary);
+                throw;
+            }
         }
         catch (Exception ex) { StatusText.Text = "Download failed: " + ex.Message; }
     }
