@@ -309,6 +309,7 @@ class ShareViewModel @Inject constructor(
         chatSessionReady.value = true
         chatReadyEndpoints.value = emptySet()
         chatMessages.value = emptyList()
+        nearby.stopAdvertising()
         receiveExpiresAt.value = System.currentTimeMillis() + 10 * 60 * 1000L
         nearby.setExpectedReceiveCode(next)
         nearby.startAdvertising("BQ Sqwad Share code $next")
