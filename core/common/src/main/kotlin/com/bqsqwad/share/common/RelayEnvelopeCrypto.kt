@@ -79,6 +79,7 @@ object RelayEnvelopeCrypto {
         val aad = associatedData(
             sender.signing.public.encoded,
             recipientSigning.encoded,
+            recipientAgreement.encoded,
             ephemeral.public.encoded,
             nonce,
             createdAtMillis,
@@ -91,6 +92,7 @@ object RelayEnvelopeCrypto {
         val unsigned = serializeUnsigned(
             sender.signing.public.encoded,
             recipientSigning.encoded,
+            recipientAgreement.encoded,
             ephemeral.public.encoded,
             nonce,
             createdAtMillis,
@@ -183,6 +185,7 @@ object RelayEnvelopeCrypto {
             out.writeByte(VERSION)
             writeSized(out, sender)
             writeSized(out, recipient)
+            writeSized(out, recipientAgreement)
             writeSized(out, ephemeral)
             out.writeByte(nonce.size)
             out.write(nonce)
