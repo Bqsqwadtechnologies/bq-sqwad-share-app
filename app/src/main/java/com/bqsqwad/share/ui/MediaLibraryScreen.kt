@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Button
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
@@ -191,7 +193,7 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, 
         val selectedItems = if (kind == "videos") listOf(visibleMedia[index.coerceIn(0, visibleMedia.lastIndex)]) else visibleMedia
         val queue = selectedItems.map { item ->
             MediaItem.Builder()
-                .setMediaId("${item.category}:\u0024{item.key}")
+                .setMediaId("${item.category}:" + item.key)
                 .setUri(item.uri)
                 .setMediaMetadata(
                     MediaMetadata.Builder()
