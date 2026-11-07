@@ -3,10 +3,15 @@ package com.bqsqwad.share.data
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.net.Inet4Address
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicBoolean
 
 class WebShareServer(
@@ -14,32 +19,63 @@ class WebShareServer(
     private val pin: String,
     private val inbox: File,
     private val shared: List<File>,
+    private val onUpload: (File) -> Unit = {},
 ) {
     private val running = AtomicBoolean(false)
+    private val clientSlots = Semaphore(MAX_CLIENTS)
+    private val failedPinAttempts = ConcurrentHashMap<String, Pair<Long, Int>>()
     @Volatile private var socket: ServerSocket? = null
+    @Volatile private var boundAddress: InetAddress? = null
 
     fun start() {
-        if (!running.compareAndSet(false, true)) return
-        inbox.mkdirs()
+        if (running.get()) return
+        require(pin.matches(Regex("[0-9]{6}"))) { "A six-digit sharing PIN is required." }
+        val address = findLocalWifiAddress()
+            ?: throw IllegalStateException("Connect this phone to Wi-Fi or enable its hotspot before sharing with a computer.")
+        check(inbox.exists() || inbox.mkdirs()) { "Could not create the computer receive folder." }
+
+        val server = ServerSocket()
+        try {
+            server.reuseAddress = true
+            server.bind(InetSocketAddress(address, port), MAX_CLIENTS)
+        } catch (failure: Exception) {
+            runCatching { server.close() }
+            throw IllegalStateException("Could not start local sharing on this Wi-Fi network.", failure)
+        }
+        if (!running.compareAndSet(false, true)) {
+            server.close()
+            return
+        }
+        socket = server
+        boundAddress = address
         Thread({
             try {
-                ServerSocket(port).use { server ->
-                    socket = server
-                    while (running.get()) {
-                        try {
-                            val client = server.accept()
-                            client.soTimeout = 15_000
-                            Thread({ handle(client) }, "bq-share-http-client").start()
-                        } catch (_: Exception) {
-                            if (running.get()) continue else break
-                        }
+                while (running.get()) {
+                    val client = try {
+                        server.accept()
+                    } catch (_: Exception) {
+                        if (running.get()) continue else break
                     }
+                    if (!clientSlots.tryAcquire()) {
+                        runCatching { client.close() }
+                        continue
+                    }
+                    Thread({
+                        try {
+                            client.soTimeout = 15_000
+                            handle(client)
+                        } finally {
+                            clientSlots.release()
+                        }
+                    }, "bq-share-http-client").apply { isDaemon = true }.start()
                 }
             } finally {
                 socket = null
+                boundAddress = null
                 running.set(false)
+                runCatching { server.close() }
             }
-        }, "bq-share-http-server").start()
+        }, "bq-share-http-server").apply { isDaemon = true }.start()
     }
 
     fun stop() {
@@ -48,11 +84,9 @@ class WebShareServer(
     }
 
     fun lanAddress(): String {
-        val host = NetworkInterface.getNetworkInterfaces().toList()
-            .flatMap { it.inetAddresses.toList() }
-            .firstOrNull { !it.isLoopbackAddress && it is java.net.Inet4Address }
-            ?.hostAddress ?: "127.0.0.1"
-        return "http://$host:$port"
+        val address = boundAddress
+            ?: throw IllegalStateException("The local sharing server is not running.")
+        return "http://${address.hostAddress}:$port"
     }
 
     private fun handle(client: java.net.Socket) {
@@ -83,14 +117,23 @@ class WebShareServer(
                     URLDecoder.decode(part.substringAfter('='), StandardCharsets.UTF_8)
                 }.getOrNull() else null
             }
+            val clientAddress = sock.inetAddress.hostAddress.orEmpty()
             val pinOk = constantTimeEquals(queryPin.orEmpty(), pin) ||
                 constantTimeEquals(headers["x-pin"].orEmpty(), pin)
             val out = sock.getOutputStream()
+            if (path != "/health" && isPinRateLimited(clientAddress)) {
+                write(out, 429, "text/plain", "Too many incorrect PIN attempts. Wait one minute and try again.")
+                return
+            }
             if (!pinOk && path != "/health") {
+                noteFailedPinAttempt(clientAddress)
                 write(out, 401, "text/plain", "PIN required. Open the link from the phone.")
                 return
             }
+            if (pinOk) failedPinAttempts.remove(clientAddress)
+
             when {
+                method == "GET" && path == "/health" -> write(out, 200, "text/plain", "BQ Sqwad Share is ready.")
                 method == "GET" && path == "/" -> write(out, 200, "text/html", page())
                 method == "GET" && path.startsWith("/file/") -> {
                     val name = runCatching {
@@ -100,7 +143,7 @@ class WebShareServer(
                     if (file == null || !file.isFile) write(out, 404, "text/plain", "Missing")
                     else {
                         val safeName = file.name.replace("\\", "_").replace("\"", "_").replace("\r", "_").replace("\n", "_")
-                        val header = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: ${file.length()}\r\nContent-Disposition: attachment; filename=\"$safeName\"\r\nConnection: close\r\n\r\n"
+                        val header = "HTTP/1.1 200 OK\\r\\nContent-Type: application/octet-stream\\r\\nContent-Length: ${file.length()}\\r\\nContent-Disposition: attachment; filename=\"$safeName\"\\r\\nCache-Control: no-store\\r\\nX-Content-Type-Options: nosniff\\r\\nConnection: close\\r\\n\\r\\n"
                         out.write(header.toByteArray(StandardCharsets.US_ASCII))
                         file.inputStream().use { it.copyTo(out) }
                     }
@@ -111,10 +154,39 @@ class WebShareServer(
         }
     }
 
+    private fun isPinRateLimited(address: String): Boolean {
+        val attempts = failedPinAttempts[address] ?: return false
+        val now = System.currentTimeMillis()
+        if (now - attempts.first >= PIN_FAILURE_WINDOW_MS) {
+            failedPinAttempts.remove(address, attempts)
+            return false
+        }
+        return attempts.second >= MAX_PIN_FAILURES
+    }
+
+    private fun noteFailedPinAttempt(address: String) {
+        val now = System.currentTimeMillis()
+        failedPinAttempts.compute(address) { _, previous ->
+            if (previous == null || now - previous.first >= PIN_FAILURE_WINDOW_MS) now to 1
+            else previous.first to (previous.second + 1)
+        }
+    }
+
+    private fun findLocalWifiAddress(): InetAddress? = runCatching {
+        val wifiInterfacePrefixes = listOf("wlan", "ap", "swlan", "wifi")
+        NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
+            .filter { network ->
+                network.isUp && !network.isLoopback &&
+                    wifiInterfacePrefixes.any { prefix -> network.name.lowercase().startsWith(prefix) }
+            }
+            .flatMap { it.inetAddresses.toList() }
+            .filterIsInstance<Inet4Address>()
+            .firstOrNull { it.isSiteLocalAddress && !it.isLoopbackAddress && !it.isLinkLocalAddress }
+    }.getOrNull()
+
     /**
-     * The request headers are read directly from the socket, one byte at a time.
-     * A BufferedReader can read ahead into the binary body and silently consume
-     * the first bytes of an upload, so the body must use the same raw stream.
+     * Headers are read directly from the socket so parsing cannot consume bytes
+     * from the following binary upload body.
      */
     private fun receiveUpload(input: InputStream, out: OutputStream, headers: Map<String, String>) {
         val length = headers["content-length"]?.toLongOrNull()
@@ -129,7 +201,7 @@ class WebShareServer(
         val requestedName = headers["x-file-name"]?.let { encoded ->
             runCatching { URLDecoder.decode(encoded, StandardCharsets.UTF_8) }.getOrNull()
         }.orEmpty()
-        val leafName = requestedName.substringAfterLast('/').substringAfterLast('\\')
+        val leafName = requestedName.substringAfterLast('/').substringAfterLast('\\\\')
         val safeName = leafName.filter { it.isLetterOrDigit() || it in " ._()-[]" }.trim().trim('.').take(180)
             .ifBlank { "received-${System.currentTimeMillis()}.bin" }
         val base = safeName.substringBeforeLast('.', safeName)
@@ -151,6 +223,7 @@ class WebShareServer(
                 fileOut.flush()
             }
             check(temporary.renameTo(destination)) { "Could not finish saving the uploaded file." }
+            runCatching { onUpload(destination) }
             write(out, 200, "text/plain", "Saved ${destination.name}")
         } catch (_: Exception) {
             temporary.delete()
@@ -181,18 +254,53 @@ class WebShareServer(
     }
 
     private fun page(): String {
-        val links = shared.filter { it.isFile }.joinToString("") { f ->
-            "<li><a href=\"/file/${urlEncode(f.name)}?pin=${urlEncode(pin)}\">${htmlEscape(f.name)}</a> (${f.length()} bytes)</li>"
+        val links = shared.filter { it.isFile }.joinToString("") { file ->
+            "<li><a href=\"/file/${urlEncode(file.name)}?pin=${urlEncode(pin)}\">${htmlEscape(file.name)}</a> (${file.length()} bytes)</li>"
         }
+        val safePin = htmlEscape(pin)
         return """
-            <!doctype html><html><head><meta name=viewport content="width=device-width,initial-scale=1">
+            <!doctype html><html lang="en"><head><meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <meta name="referrer" content="no-referrer">
             <title>BQ Sqwad Share</title>
-            <style>body{font-family:sans-serif;background:#f4f7ff;color:#0b1b4a;padding:24px}a{color:#0a4dff}</style>
-            </head><body><h1>BQ Sqwad Share</h1><p>Files stay on this phone. This page only works on the same Wi-Fi.</p>
-            <ul>$links</ul>
-            <form method="post" action="/upload?pin=${htmlEscape(urlEncode(pin))}" enctype="application/octet-stream">
-            <p>Uploads from the Windows companion are saved to the phone's receive folder.</p>
-            </form></body></html>
+            <style>
+              body{font-family:system-ui,sans-serif;background:#f4f7ff;color:#0b1b4a;padding:24px;max-width:760px;margin:auto}
+              a{color:#0a4dff}button{padding:10px 16px;border:0;border-radius:8px;background:#1759d1;color:white}
+              input{display:block;margin:14px 0}li{margin:10px 0}.note{color:#52627c;font-size:14px}
+            </style></head><body><h1>BQ Sqwad Share</h1>
+            <p>Files selected on your phone are available below. Files uploaded here are saved in the phone's FromComputer folder.</p>
+            <h2>Download from phone</h2><ul>$links</ul>
+            <h2>Send files to phone</h2>
+            <input id="files" type="file" multiple>
+            <button id="upload" type="button">Upload selected files</button>
+            <p id="status" role="status" aria-live="polite"></p>
+            <p class="note">Use only a trusted private Wi-Fi network or your own hotspot. This local browser connection uses HTTP and is not suitable for public Wi-Fi.</p>
+            <script>
+              const pin = "$safePin";
+              const picker = document.getElementById("files");
+              const status = document.getElementById("status");
+              document.getElementById("upload").addEventListener("click", async () => {
+                if (!picker.files || picker.files.length === 0) { status.textContent = "Choose at least one file."; return; }
+                for (const file of picker.files) {
+                  status.textContent = "Uploading " + file.name + "…";
+                  try {
+                    const response = await fetch("/upload", {
+                      method: "POST",
+                      headers: { "X-PIN": pin, "X-File-Name": encodeURIComponent(file.name) },
+                      body: file
+                    });
+                    const message = await response.text();
+                    if (!response.ok) throw new Error(message);
+                    status.textContent = message;
+                  } catch (error) {
+                    status.textContent = "Upload failed: " + (error && error.message ? error.message : "connection error");
+                    return;
+                  }
+                }
+                picker.value = "";
+                status.textContent = "All selected uploads finished.";
+              });
+            </script></body></html>
         """.trimIndent()
     }
 
@@ -202,8 +310,16 @@ class WebShareServer(
 
     private fun write(out: OutputStream, code: Int, type: String, body: String) {
         val bytes = body.toByteArray(StandardCharsets.UTF_8)
-        val msg = when (code) { 200 -> "OK"; 400 -> "Bad Request"; 401 -> "Unauthorized"; 411 -> "Length Required"; 413 -> "Payload Too Large"; else -> "Error" }
-        val header = "HTTP/1.1 $code $msg\r\nContent-Type: $type; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n"
+        val msg = when (code) {
+            200 -> "OK"
+            400 -> "Bad Request"
+            401 -> "Unauthorized"
+            411 -> "Length Required"
+            413 -> "Payload Too Large"
+            429 -> "Too Many Requests"
+            else -> "Error"
+        }
+        val header = "HTTP/1.1 $code $msg\\r\\nContent-Type: $type; charset=utf-8\\r\\nContent-Length: ${bytes.size}\\r\\nCache-Control: no-store\\r\\nX-Content-Type-Options: nosniff\\r\\nConnection: close\\r\\n\\r\\n"
         out.write(header.toByteArray(StandardCharsets.US_ASCII))
         out.write(bytes)
     }
@@ -212,5 +328,8 @@ class WebShareServer(
         private const val MAX_HEADER_LINE = 8 * 1024
         private const val MAX_HEADER_BYTES = 16 * 1024
         private const val MAX_UPLOAD_BYTES = 1024L * 1024L * 1024L
+        private const val MAX_CLIENTS = 4
+        private const val MAX_PIN_FAILURES = 8
+        private const val PIN_FAILURE_WINDOW_MS = 60_000L
     }
 }
