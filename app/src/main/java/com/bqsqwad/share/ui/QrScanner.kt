@@ -79,6 +79,7 @@ fun QrScanner(onCodeScanned: (String) -> Unit) {
     val scanner: BarcodeScanner = remember { BarcodeScanning.getClient() }
     val active = remember { AtomicBoolean(true) }
     val completed = remember { AtomicBoolean(false) }
+    val processing = remember { AtomicBoolean(false) }
     var cameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
 
     DisposableEffect(lifecycleOwner, scanner, executor) {
@@ -113,43 +114,57 @@ fun QrScanner(onCodeScanned: (String) -> Unit) {
                                 .build()
                             analysis.setAnalyzer(executor) { proxy ->
                                 val mediaImage = proxy.image
-                                if (mediaImage == null || !active.get() || completed.get()) {
+                                if (
+                                    mediaImage == null || !active.get() || completed.get() ||
+                                    !processing.compareAndSet(false, true)
+                                ) {
                                     proxy.close()
                                 } else {
-                                    val input = InputImage.fromMediaImage(mediaImage, proxy.imageInfo.rotationDegrees)
-                                    scanner.process(input)
-                                        .addOnSuccessListener(ContextCompat.getMainExecutor(viewContext)) { barcodes ->
-                                            if (!active.get() || completed.get()) return@addOnSuccessListener
-                                            val raw = barcodes.firstOrNull()?.rawValue ?: return@addOnSuccessListener
-                                            val uri = runCatching { Uri.parse(raw) }.getOrNull()
-                                            val code = uri?.getQueryParameter("code")
-                                            val expires = uri?.getQueryParameter("expires")?.toLongOrNull() ?: 0L
-                                            val encodedKey = uri?.getQueryParameter("key")
-                                            val fingerprint = uri?.getQueryParameter("v")
-                                            val keyValid = if (!encodedKey.isNullOrBlank() && !fingerprint.isNullOrBlank()) {
-                                                runCatching {
-                                                    val key = SessionCrypto.keyFromString(encodedKey)
-                                                    key.encoded.size == 32 && SessionCrypto.fingerprint(key) == fingerprint
-                                                }.getOrDefault(false)
-                                            } else false
-                                            if (
-                                                uri?.scheme == "bqsqwad" &&
-                                                code != null && code.length == 6 && code.all(Char::isDigit) &&
-                                                expires > System.currentTimeMillis() && keyValid
-                                            ) {
-                                                if (completed.compareAndSet(false, true)) onCodeScanned(raw)
-                                            } else {
-                                                error = if (expires > 0L && expires <= System.currentTimeMillis()) {
-                                                    "This receive QR code has expired."
+                                    try {
+                                        val input = InputImage.fromMediaImage(mediaImage, proxy.imageInfo.rotationDegrees)
+                                        scanner.process(input)
+                                            .addOnSuccessListener(ContextCompat.getMainExecutor(viewContext)) { barcodes ->
+                                                if (!active.get() || completed.get()) return@addOnSuccessListener
+                                                val raw = barcodes.firstOrNull()?.rawValue ?: return@addOnSuccessListener
+                                                val uri = runCatching { Uri.parse(raw) }.getOrNull()
+                                                val code = uri?.getQueryParameter("code")
+                                                val expires = uri?.getQueryParameter("expires")?.toLongOrNull() ?: 0L
+                                                val encodedKey = uri?.getQueryParameter("key")
+                                                val fingerprint = uri?.getQueryParameter("v")
+                                                val keyValid = if (!encodedKey.isNullOrBlank() && !fingerprint.isNullOrBlank()) {
+                                                    runCatching {
+                                                        val key = SessionCrypto.keyFromString(encodedKey)
+                                                        key.encoded.size == 32 && SessionCrypto.fingerprint(key) == fingerprint
+                                                    }.getOrDefault(false)
+                                                } else false
+                                                if (
+                                                    uri?.scheme == "bqsqwad" &&
+                                                    code != null && code.length == 6 && code.all(Char::isDigit) &&
+                                                    expires > System.currentTimeMillis() && keyValid
+                                                ) {
+                                                    if (completed.compareAndSet(false, true)) onCodeScanned(raw)
                                                 } else {
-                                                    "This is not a valid BQ Sqwad Share receive QR code."
+                                                    error = if (expires > 0L && expires <= System.currentTimeMillis()) {
+                                                        "This receive QR code has expired."
+                                                    } else {
+                                                        "This is not a valid BQ Sqwad Share receive QR code."
+                                                    }
                                                 }
                                             }
+                                            .addOnFailureListener(ContextCompat.getMainExecutor(viewContext)) {
+                                                if (active.get()) error = it.localizedMessage ?: "Unable to read QR code."
+                                            }
+                                            .addOnCompleteListener {
+                                                processing.set(false)
+                                                proxy.close()
+                                            }
+                                    } catch (failure: Exception) {
+                                        processing.set(false)
+                                        proxy.close()
+                                        ContextCompat.getMainExecutor(viewContext).execute {
+                                            if (active.get()) error = failure.localizedMessage ?: "Unable to process camera frame."
                                         }
-                                        .addOnFailureListener(ContextCompat.getMainExecutor(viewContext)) {
-                                            if (active.get()) error = it.localizedMessage ?: "Unable to read QR code."
-                                        }
-                                        .addOnCompleteListener { proxy.close() }
+                                    }
                                 }
                             }
                             provider.unbindAll()
