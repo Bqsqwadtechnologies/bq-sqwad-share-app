@@ -276,15 +276,6 @@ fun MediaLibraryScreen(initialKind: String = "music") {
             }
         }
 
-        selectedPhoto?.let { photo ->
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    AsyncImage(model = photo.uri, contentDescription = photo.name, modifier = Modifier.fillMaxWidth().height(260.dp))
-                    Text(photo.name, style = MaterialTheme.typography.titleMedium)
-                    Text(MediaRepository.formatBytes(photo.sizeBytes), style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
 
         val activePlayer = controller
         if (activePlayer != null && kind == "videos") {
@@ -315,11 +306,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(R.drawable.brand_logo),
-                            contentDescription = "BQ Sqwad Share artwork",
-                            modifier = Modifier.size(64.dp),
-                        )
+                        BrandLogo(Modifier.size(48.dp), "BQ Sqwad Share artwork")
                         Column(Modifier.weight(1f).padding(start = 12.dp)) {
                             Text("BQ Sqwad Music", style = MaterialTheme.typography.labelMedium)
                             Text(
