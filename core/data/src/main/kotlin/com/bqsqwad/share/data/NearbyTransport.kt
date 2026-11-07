@@ -46,6 +46,8 @@ class NearbyTransport @Inject constructor(
 
     private val _peers = MutableStateFlow<List<Peer>>(emptyList())
     val peers: StateFlow<List<Peer>> = _peers
+    private val _discoveryError = MutableStateFlow<String?>(null)
+    val discoveryError: StateFlow<String?> = _discoveryError
 
     private val _incoming = MutableStateFlow<IncomingRequest?>(null)
     private val remoteIdentities = java.util.concurrent.ConcurrentHashMap<String, TransferProtocol.DeviceIdentity>()
@@ -150,11 +152,20 @@ class NearbyTransport @Inject constructor(
     }
 
     fun startDiscovery() {
+        _discoveryError.value = null
+        _peers.value = emptyList()
         client.startDiscovery(serviceId, discoveryCallback, DiscoveryOptions.Builder().setStrategy(strategy).build())
-            .addOnFailureListener { lastError = it.message }
+            .addOnSuccessListener { _discoveryError.value = null }
+            .addOnFailureListener {
+                val reason = it.message ?: "Nearby discovery could not start."
+                lastError = reason
+                _discoveryError.value = reason
+            }
     }
 
-    fun stopDiscovery() { client.stopDiscovery() }
+    fun stopDiscovery() {
+        client.stopDiscovery()
+    }
 
     fun startAdvertising(name: String) {
         client.startAdvertising(name, serviceId, connectionCallback, AdvertisingOptions.Builder().setStrategy(strategy).build())

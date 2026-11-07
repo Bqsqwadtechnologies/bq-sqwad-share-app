@@ -449,6 +449,7 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                 placeholder = { Text("Photos, music, videos, files…") },
             )
         }
+        item { BannerSlot(enabled = !adFree && ads.canRequestAds) }
         if (search.isBlank()) {
             item {
                 Card(Modifier.fillMaxWidth()) {
@@ -521,22 +522,46 @@ private fun Send(nav: NavHostController, vm: ShareViewModel) {
     var receiveCode by remember { mutableStateOf(scannedCode) }
     LaunchedEffect(scannedCode) { if (scannedCode.isNotBlank()) receiveCode = scannedCode }
     val matchingPeers = peers
-    val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
-        if (granted.values.all { it }) vm.nearby.startDiscovery()
-    }
-    LaunchedEffect(Unit) {
-        val requiredPermissions = if (android.os.Build.VERSION.SDK_INT >= 33) {
-            arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_ADVERTISE, android.Manifest.permission.NEARBY_WIFI_DEVICES)
+    val discoveryError by vm.nearby.discoveryError.collectAsState()
+    val requiredPermissions = remember {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.NEARBY_WIFI_DEVICES)
         } else if (android.os.Build.VERSION.SDK_INT >= 31) {
-            arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_ADVERTISE)
+            arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT)
         } else {
             arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
         }
+    }
+    var permissionDenied by remember { mutableStateOf(false) }
+    val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        val missing = requiredPermissions.filter { granted[it] != true }
+        permissionDenied = missing.isNotEmpty()
+        if (missing.isEmpty()) vm.nearby.startDiscovery()
+    }
+    LaunchedEffect(Unit) {
         perms.launch(requiredPermissions)
     }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text(stringResource(R.string.looking), style = MaterialTheme.typography.titleLarge)
         Text(stringResource(R.string.privacy_note))
+        if (permissionDenied) {
+            Card(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Nearby permission is missing")
+                    Text("Allow Bluetooth scan and connection access so this phone can find other BQ Sqwad Share devices.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick = { perms.launch(requiredPermissions) }) { Text("Grant permissions and retry") }
+                }
+            }
+        }
+        discoveryError?.let { error ->
+            Card(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Nearby discovery could not start")
+                    Text(error, style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick = { vm.nearby.startDiscovery() }) { Text("Retry discovery") }
+                }
+            }
+        }
         androidx.compose.material3.OutlinedTextField(
             value = receiveCode,
             onValueChange = { receiveCode = it.filter(Char::isDigit).take(6) },
@@ -1015,7 +1040,7 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Appearance", style = MaterialTheme.typography.titleMedium)
                     BrandLogo(Modifier.size(72.dp), "Current BQ Sqwad Share logo")
-                    Text("Master logo source: branding/logo/logo.png. Replace that one file in the GitHub repository, then regenerate branding assets to update the app icon, notification icon and in-app logo together.")
+                    Text("Brand assets are stored separately: branding/app-identity/app-icon.png for the app icon and branding/company-identity/company-icon.png for the company logo. Replace the appropriate source file and regenerate branding assets when either identity changes.")
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("light", "dark").forEach { mode ->
                             FilterChip(selected = s.themeMode == mode, onClick = { vm.theme(mode) }, label = { Text(mode) })
@@ -1048,6 +1073,7 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
                 }
             }
         }
+        item { BannerSlot(enabled = s.adFreeUntil <= System.currentTimeMillis() && ads.canRequestAds) }
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
