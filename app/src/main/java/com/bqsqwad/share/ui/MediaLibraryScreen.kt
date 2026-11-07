@@ -155,7 +155,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
 
     LaunchedEffect(kind, permissionGranted, media, controller) {
         val player = controller
-        if (permissionGranted && player != null && kind != "photos" && media.isNotEmpty()) {
+        if (permissionGranted && player != null && kind == "music" && media.isNotEmpty()) {
             val queue = media.map { item ->
                 MediaItem.Builder()
                     .setUri(item.uri)
@@ -169,7 +169,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
             player.repeatMode = Player.REPEAT_MODE_OFF
             player.prepare()
             player.play()
-        } else if (kind == "photos") {
+        } else if (kind != "music") {
             player?.pause()
         }
     }
