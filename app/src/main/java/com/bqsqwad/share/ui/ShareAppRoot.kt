@@ -1258,10 +1258,26 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Ads and rewards", style = MaterialTheme.typography.titleMedium)
                     Text("Watch five rewarded videos to unlock 24 hours without ads (${s.adFreeRewardCount}/5).")
-                    Button(onClick = { ads.showAdFreeRewarded(activity) { vm.rewardAdFreeProgress() } }, modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = {
+                        ads.showAdFreeRewarded(
+                            activity,
+                            onReward = { vm.rewardAdFreeProgress() },
+                            onUnavailable = {
+                                Toast.makeText(ctx, "No rewarded ad is ready right now. Please try again later.", Toast.LENGTH_LONG).show()
+                            },
+                        )
+                    }, modifier = Modifier.fillMaxWidth()) {
                         Text("Watch rewarded video")
                     }
-                    OutlinedButton(onClick = { ads.showPremiumRewarded(activity) { vm.premiumDay() } }, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = {
+                        ads.showPremiumRewarded(
+                            activity,
+                            onReward = { vm.premiumDay() },
+                            onUnavailable = {
+                                Toast.makeText(ctx, "No rewarded ad is ready right now. Please try again later.", Toast.LENGTH_LONG).show()
+                            },
+                        )
+                    }, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.unlock_premium))
                     }
                     TextButton(onClick = { ads.privacyOptions(activity) }) { Text(stringResource(R.string.privacy_options)) }
@@ -1294,10 +1310,19 @@ private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
 
 @Composable
 private fun Gated(settings: UserSettings, ads: AdManager, activity: Activity, vm: ShareViewModel, which: String, content: @Composable () -> Unit) {
+    val context = LocalContext.current
     val open = settings.premiumUntil > System.currentTimeMillis()
     if (open) content() else Column(Modifier.padding(16.dp)) {
         Text(stringResource(R.string.unlock_premium))
-        Button(onClick = { ads.showRewarded(activity) { vm.premiumDay() } }) { Text(stringResource(R.string.unlock_premium)) }
+        Button(onClick = {
+            ads.showPremiumRewarded(
+                activity,
+                onReward = { vm.premiumDay() },
+                onUnavailable = {
+                    Toast.makeText(context, "No rewarded ad is ready right now. Please try again later.", Toast.LENGTH_LONG).show()
+                },
+            )
+        }) { Text(stringResource(R.string.unlock_premium)) }
     }
 }
 
@@ -1628,7 +1653,7 @@ private fun Debug(ads: AdManager) {
         Text(stringResource(R.string.debug_ads), style = MaterialTheme.typography.titleLarge)
         Text("consent=${ads.consentResolved} canRequest=${adsAllowed}")
         Text("Banners: Home, History, More and Storage. Native ads: Home, History, Apps, Photos, Videos, Music, Files and Favorites. Rewarded: Ad-Free and Premium.")
-        Text("interstitialLoaded=${ads.interstitialLoaded} rewardedLoaded=${ads.rewardedLoaded} appOpenLoaded=${ads.appOpenLoaded}")
+        Text("Rewarded ad ready=${ads.rewardedLoaded}. Transfer interstitial and app-open formats are reserved and are not requested or displayed.")
         BannerSlot(adsAllowed, AdUnits.HOME_BANNER)
         NativeSlot(adsAllowed, AdUnits.HOME_NATIVE)
     }
