@@ -11,7 +11,7 @@
     <string name="recent">Recent transfers</string>
     <string name="empty_recent">Nothing sent or received yet.</string>
     <string name="looking">Looking for nearby phones</string>
-    <string name="qr_help">The other phone can scan this code or type the 6-digit code.</string>
+    <string name="qr_help">Share the QR code or six-digit session code with the intended nearby person. Nearby devices may see the session code; compare the connection verification digits on both phones before accepting.</string>
     <string name="accept_title">Accept this connection?</string>
     <string name="accept">Accept</string>
     <string name="decline">Decline</string>
