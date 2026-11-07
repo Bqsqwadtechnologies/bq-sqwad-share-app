@@ -455,7 +455,6 @@ class ShareViewModel @Inject constructor(
             }
             val shared = staged.toMutableList()
             if (includeAppInstaller) shared += ownApk()
-            require(shared.isNotEmpty()) { "Select at least one file or include the app installer." }
             val server = createWebShareServer(shared, pin)
             server.start()
             synchronized(this@ShareViewModel) {
