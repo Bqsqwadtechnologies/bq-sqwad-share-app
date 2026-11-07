@@ -7,7 +7,10 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
@@ -52,6 +56,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
 import com.bqsqwad.share.media.SharePlaybackService
+import com.bqsqwad.share.R
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -148,6 +153,33 @@ fun MediaLibraryScreen(initialKind: String = "music") {
 
     val visibleMedia = media.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
 
+    LaunchedEffect(kind, permissionGranted, media, controller) {
+        val player = controller
+        if (permissionGranted && player != null && kind != "photos" && media.isNotEmpty()) {
+            val queue = media.map { item ->
+                MediaItem.Builder()
+                    .setUri(item.uri)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder().setTitle(item.name).setArtist("BQ Sqwad Share").build(),
+                    )
+                    .build()
+            }
+            player.setMediaItems(queue, 0, 0L)
+            player.shuffleModeEnabled = false
+            player.repeatMode = Player.REPEAT_MODE_OFF
+            player.prepare()
+            player.play()
+        } else if (kind == "photos") {
+            player?.pause()
+        }
+    }
+
+    fun switchMediaPage(direction: Int) {
+        val pages = listOf("music", "videos", "photos")
+        val next = (pages.indexOf(kind) + direction).coerceIn(0, pages.lastIndex)
+        if (pages[next] != kind) kind = pages[next]
+    }
+
     fun playFrom(index: Int, shuffleAll: Boolean = false) {
         val player = controller ?: return
         if (visibleMedia.isEmpty()) return
@@ -170,11 +202,11 @@ fun MediaLibraryScreen(initialKind: String = "music") {
     }
 
     Column(
-        Modifier.fillMaxSize().padding(16.dp),
+        Modifier.fillMaxSize().pointerInput(kind) {\n            var drag = 0f\n            detectHorizontalDragGestures(\n                onHorizontalDrag = { _, amount -> drag += amount },\n                onDragEnd = {\n                    if (drag < -72f) switchMediaPage(1)\n                    else if (drag > 72f) switchMediaPage(-1)\n                    drag = 0f\n                },\n            )\n        }.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Your media", style = MaterialTheme.typography.headlineMedium)
-        Text("Enjoy your music and videos while file transfers continue in the background.")
+        Text(when (kind) { "music" -> "Music"; "videos" -> "Videos"; else -> "Photos" }, style = MaterialTheme.typography.headlineMedium)
+        Text("Swipe left or right to switch between your media.")
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
@@ -265,10 +297,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
         } else if (activePlayer != null && kind == "music") {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        activePlayer.currentMediaItem?.mediaMetadata?.title?.toString() ?: "BQ Sqwad Music Player",
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {\n                        Image(\n                            painter = painterResource(R.drawable.brand_logo),\n                            contentDescription = "BQ Sqwad Share artwork",\n                            modifier = Modifier.size(64.dp),\n                        )\n                        Column(Modifier.weight(1f).padding(start = 12.dp)) {\n                            Text("BQ Sqwad Music", style = MaterialTheme.typography.labelMedium)\n                            Text(\n                                activePlayer.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Now playing",\n                                style = MaterialTheme.typography.titleMedium,\n                                maxLines = 2,\n                            )\n                        }\n                    }
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly,

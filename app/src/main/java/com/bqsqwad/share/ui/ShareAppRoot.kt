@@ -58,6 +58,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -221,26 +222,6 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                 },
             ) {
                 Scaffold(
-                    topBar = {
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            TextButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Text("☰ Menu")
-                            }
-                            Image(
-                                painterResource(R.drawable.brand_logo),
-                                contentDescription = "BQ Sqwad Share logo",
-                                modifier = Modifier.size(36.dp).padding(start = 4.dp),
-                            )
-                            Text(
-                                "BQ Sqwad Share",
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(start = 10.dp),
-                            )
-                        }
-                    },
                     bottomBar = {
                         BannerSlot(
                             enabled = !adFree && ads.canRequestAds,
@@ -328,106 +309,94 @@ private fun BrandHeader() {
 @Composable
 private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adFree: Boolean) {
     val history by vm.history.collectAsState()
+    var search by remember { mutableStateOf("") }
+    val tiles = listOf(
+        Triple("Send", "send", Icons.Filled.Send),
+        Triple("Receive", "receive", Icons.Filled.QrCodeScanner),
+        Triple("Photos", "media/photos", Icons.Filled.PhotoLibrary),
+        Triple("Videos", "media/videos", Icons.Filled.VideoLibrary),
+        Triple("Music", "media/music", Icons.Filled.MusicNote),
+        Triple("Files", "files", Icons.Filled.FolderOpen),
+        Triple("Apps", "library/apps", Icons.Filled.Apps),
+        Triple("History", "history", Icons.Filled.History),
+    ).filter { it.first.contains(search.trim(), ignoreCase = true) }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Card(
-                Modifier.fillMaxWidth().height(260.dp).clickable { nav.navigate("files") },
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(
-                    Modifier.fillMaxSize().padding(20.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.brand_logo),
-                        contentDescription = "BQ Sqwad Share logo",
-                        modifier = Modifier.size(112.dp),
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text("BQ SQWAD SHARE", style = MaterialTheme.typography.headlineSmall)
-                    Text("Select and share anything on your phone", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(12.dp))
-                    Button(onClick = { nav.navigate("files") }) {
-                        androidx.compose.material3.Icon(Icons.Filled.FolderOpen, contentDescription = null)
-                        Spacer(Modifier.size(8.dp))
-                        Text("Open Share")
-                    }
+                Image(
+                    painter = painterResource(R.drawable.brand_logo),
+                    contentDescription = "BQ Sqwad Share",
+                    modifier = Modifier.size(58.dp),
+                )
+                Column(Modifier.padding(start = 12.dp)) {
+                    Text("BQ Sqwad Share", style = MaterialTheme.typography.titleLarge)
+                    Text("Share everything. Simply.", style = MaterialTheme.typography.bodySmall)
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Card(Modifier.weight(1f).clickable { nav.navigate("send") }) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        androidx.compose.material3.Icon(Icons.Filled.Send, contentDescription = null)
-                        Spacer(Modifier.size(8.dp))
-                        Text("Send files", style = MaterialTheme.typography.titleSmall)
-                    }
-                }
-                Card(Modifier.weight(1f).clickable { nav.navigate("receive") }) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        androidx.compose.material3.Icon(Icons.Filled.QrCodeScanner, contentDescription = null)
-                        Spacer(Modifier.size(8.dp))
-                        Text("Receive files", style = MaterialTheme.typography.titleSmall)
-                    }
-                }
-            }
-            Text("Browse your phone", style = MaterialTheme.typography.titleLarge)
-            Text("Choose a category. Hold an item to select it, then select more items and send.", style = MaterialTheme.typography.bodySmall)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    Triple("Apps", "apps", Icons.Filled.Apps),
-                    Triple("Photos", "pictures", Icons.Filled.PhotoLibrary),
-                ).forEach { (label, section, icon) ->
-                    Card(Modifier.weight(1f).clickable { if (section.startsWith("media/")) nav.navigate(section) else nav.navigate("library/$section") }) {
-                        Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            androidx.compose.material3.Icon(icon, contentDescription = "$label", modifier = Modifier.size(34.dp))
-                            Spacer(Modifier.height(6.dp))
-                            Text(label, style = MaterialTheme.typography.titleSmall)
-                        }
-                    }
-                }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    Triple("Videos", "media/videos", Icons.Filled.VideoLibrary),
-                    Triple("Music", "media/music", Icons.Filled.MusicNote),
-                ).forEach { (label, section, icon) ->
-                    Card(Modifier.weight(1f).clickable { if (section.startsWith("media/")) nav.navigate(section) else nav.navigate("library/$section") }) {
-                        Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            androidx.compose.material3.Icon(icon, contentDescription = "$label", modifier = Modifier.size(34.dp))
-                            Spacer(Modifier.height(6.dp))
-                            Text(label, style = MaterialTheme.typography.titleSmall)
-                        }
-                    }
-                }
-            }
-            Text("Recent transfers", style = MaterialTheme.typography.titleLarge)
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Search") },
+                placeholder = { Text("Photos, music, videos, files…") },
+            )
         }
-        if (history.isEmpty()) item { Text(stringResource(R.string.empty_recent)) }
-        itemsIndexed(history.take(5), key = { _, item -> item.id }) { _, item ->
-            Card(Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.material3.Icon(
-                        if (item.direction.equals("SEND", true)) Icons.Filled.Send else Icons.Filled.FolderOpen,
-                        contentDescription = null,
-                    )
-                    Column(Modifier.padding(start = 10.dp)) {
-                        Text(item.displayName, style = MaterialTheme.typography.titleSmall)
-                        Text("${item.direction} · ${item.status}", style = MaterialTheme.typography.bodySmall)
+        items(tiles.chunked(2)) { pair ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                pair.forEach { (label, route, icon) ->
+                    Card(
+                        Modifier.weight(1f).height(132.dp).clickable {
+                            nav.navigate(route) { launchSingleTop = true }
+                        },
+                    ) {
+                        Column(
+                            Modifier.fillMaxSize().padding(14.dp),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            androidx.compose.material3.Icon(
+                                icon,
+                                contentDescription = label,
+                                modifier = Modifier.size(38.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Text(label, style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+        if (search.isBlank()) {
+            item {
+                Text("Recent transfers", style = MaterialTheme.typography.titleLarge)
+            }
+            if (history.isEmpty()) item { Text(stringResource(R.string.empty_recent)) }
+            itemsIndexed(history.take(5), key = { _, item -> item.id }) { _, item ->
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.Icon(
+                            if (item.direction.equals("SEND", true)) Icons.Filled.Send else Icons.Filled.FolderOpen,
+                            contentDescription = null,
+                        )
+                        Column(Modifier.padding(start = 10.dp)) {
+                            Text(item.displayName, style = MaterialTheme.typography.titleSmall)
+                            Text("${item.direction} · ${item.status}", style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
+        } else if (tiles.isEmpty()) {
+            item { Text("No matching section found.") }
         }
     }
 }
