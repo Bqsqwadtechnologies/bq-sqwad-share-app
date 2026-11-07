@@ -70,14 +70,21 @@ kotlin {
     }
 }
 
+// Read the Android project signing configuration during configuration, not from
+// the task's own extension container at execution time.
+val releaseSigning = extensions.getByType<ApplicationExtension>().signingConfigs.getByName("release")
+val releaseStoreFile = releaseSigning.storeFile
+val releaseStorePassword = releaseSigning.storePassword
+val releaseKeyAlias = releaseSigning.keyAlias
+val releaseKeyPassword = releaseSigning.keyPassword
+
 tasks.configureEach {
     if (name == "packageRelease" || name == "bundleRelease") {
         doFirst {
-            val releaseSigning = extensions.getByType<ApplicationExtension>().signingConfigs.getByName("release")
-            val signingReady = releaseSigning.storeFile?.isFile == true &&
-                !releaseSigning.storePassword.isNullOrBlank() &&
-                !releaseSigning.keyAlias.isNullOrBlank() &&
-                !releaseSigning.keyPassword.isNullOrBlank()
+            val signingReady = releaseStoreFile?.isFile == true &&
+                !releaseStorePassword.isNullOrBlank() &&
+                !releaseKeyAlias.isNullOrBlank() &&
+                !releaseKeyPassword.isNullOrBlank()
             check(signingReady) {
                 "Release signing is required. Configure KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD before building a release APK or AAB."
             }
