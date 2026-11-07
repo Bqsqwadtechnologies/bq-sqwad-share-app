@@ -96,6 +96,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
     }
 
     LaunchedEffect(kind) {
+        selectedPhoto = null
         permissionGranted = hasMediaPermission()
         if (!permissionGranted) requestMediaPermissions()
     }
@@ -212,7 +213,7 @@ fun MediaLibraryScreen(initialKind: String = "music") {
             LinearProgressIndicator(Modifier.fillMaxWidth())
         } else if (media.isEmpty()) {
             Text(when (kind) { "music" -> "No music was found on this device."; "photos" -> "No photos were found on this device."; else -> "No videos were found on this device." })
-        } else {
+        } else if (kind != "photos") {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { playFrom(0) }, enabled = controller != null) {
                     androidx.compose.material3.Icon(Icons.Filled.PlayArrow, null)
