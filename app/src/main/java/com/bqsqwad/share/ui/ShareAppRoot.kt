@@ -86,6 +86,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.fragment.app.FragmentActivity
 import com.bqsqwad.share.vault.PrivateVaultScreen
 import androidx.navigation.NavHostController
@@ -246,7 +247,7 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                 Scaffold(
                     bottomBar = {
                         Column {
-                            GlobalMusicBar()
+                            if (currentRoute != "home") GlobalMusicBar()
                             // Keep ads on browsing/information pages only. Never show them
                             // during pairing, QR scanning, sending, receiving, or transfer flows.
                             val adVisibleRoutes = setOf(
@@ -378,7 +379,7 @@ private fun GlobalMusicBar() {
     if (active != null && !title.isNullOrBlank()) {
         Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                BrandLogo(Modifier.size(34.dp), "BQ Sqwad Share")
+                androidx.compose.material3.Icon(Icons.Filled.MusicNote, contentDescription = "Music", modifier = Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
                     Text("Now playing", style = MaterialTheme.typography.labelSmall)
                     Text(title ?: "", style = MaterialTheme.typography.titleSmall, maxLines = 1)
