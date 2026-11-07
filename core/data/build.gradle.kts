@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
-android {
+extensions.configure<com.android.build.api.dsl.LibraryExtension> {
     namespace = "com.bqsqwad.share.data"
     compileSdk = 36
     defaultConfig { minSdk = 26 }
