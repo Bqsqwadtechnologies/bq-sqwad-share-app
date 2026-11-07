@@ -11,11 +11,9 @@ import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
-import com.google.android.ump.ConsentInformation
 import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,10 +31,10 @@ class AdManager @Inject constructor(@ApplicationContext private val context: Con
         private set
 
     private var interstitial: InterstitialAd? = null
-    private var rewarded: RewardedAd? = null
+    private var adFreeRewarded: RewardedAd? = null
+    private var premiumRewarded: RewardedAd? = null
     private var appOpen: AppOpenAd? = null
     private var lastInterstitialAt = 0L
-    private val completedTasks = AtomicInteger(0)
     private var appOpenShownThisSession = false
 
     fun startConsent(activity: Activity, onDone: () -> Unit) {
@@ -52,7 +50,8 @@ class AdManager @Inject constructor(@ApplicationContext private val context: Con
             }
         }, {
             consentResolved = true
-            canRequestAds = false
+            canRequestAds = consent.canRequestAds()
+            if (canRequestAds) { MobileAds.initialize(context) {}; preload() }
             onDone()
         })
     }
@@ -67,9 +66,13 @@ class AdManager @Inject constructor(@ApplicationContext private val context: Con
             override fun onAdLoaded(ad: InterstitialAd) { interstitial = ad; interstitialLoaded = true }
             override fun onAdFailedToLoad(error: LoadAdError) { interstitialLoaded = false }
         })
-        RewardedAd.load(context, AdUnits.REWARDED, AdRequest.Builder().build(), object : RewardedAdLoadCallback() {
-            override fun onAdLoaded(ad: RewardedAd) { rewarded = ad; rewardedLoaded = true }
+        RewardedAd.load(context, AdUnits.AD_FREE_REWARDED, AdRequest.Builder().build(), object : RewardedAdLoadCallback() {
+            override fun onAdLoaded(ad: RewardedAd) { adFreeRewarded = ad; rewardedLoaded = true }
             override fun onAdFailedToLoad(error: LoadAdError) { rewardedLoaded = false }
+        })
+        RewardedAd.load(context, AdUnits.PREMIUM_REWARDED, AdRequest.Builder().build(), object : RewardedAdLoadCallback() {
+            override fun onAdLoaded(ad: RewardedAd) { premiumRewarded = ad }
+            override fun onAdFailedToLoad(error: LoadAdError) { }
         })
         AppOpenAd.load(context, AdUnits.APP_OPEN, AdRequest.Builder().build(), object : AppOpenAd.AppOpenAdLoadCallback() {
             override fun onAdLoaded(ad: AppOpenAd) { appOpen = ad; appOpenLoaded = true }
@@ -77,29 +80,27 @@ class AdManager @Inject constructor(@ApplicationContext private val context: Con
         })
     }
 
-    fun onTaskCompleted(activity: Activity, adFree: Boolean) {
-        if (adFree || !canRequestAds) return
-        val count = completedTasks.incrementAndGet()
-        val now = System.currentTimeMillis()
-        if (count % 3 != 0) return
-        if (now - lastInterstitialAt < 180_000) return
-        val ad = interstitial ?: return
-        lastInterstitialAt = now
-        interstitial = null
-        interstitialLoaded = false
+    fun showAdFreeRewarded(activity: Activity, onReward: () -> Unit) {
+        val ad = adFreeRewarded
+        if (!canRequestAds || ad == null) return
+        adFreeRewarded = null
+        rewardedLoaded = false
         ad.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() { preload() }
+            override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) { preload() }
         }
-        ad.show(activity)
+        ad.show(activity) { onReward() }
     }
 
-    fun showRewarded(activity: Activity, onReward: () -> Unit) {
-        val ad = rewarded
+    fun showPremiumRewarded(activity: Activity, onReward: () -> Unit) {
+        val ad = premiumRewarded
         if (!canRequestAds || ad == null) return
-        rewarded = null
-        rewardedLoaded = false
+        premiumRewarded = null
+        ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+            override fun onAdDismissedFullScreenContent() { preload() }
+            override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) { preload() }
+        }
         ad.show(activity) { onReward() }
-        preload()
     }
 
     fun maybeShowAppOpen(activity: Activity, awayMs: Long) {
