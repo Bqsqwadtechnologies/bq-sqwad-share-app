@@ -35,7 +35,6 @@ class VaultCryptoStore {
     }
 
     fun encryptFile(cipher: Cipher, source: File, destination: File): File {
-        require(cipher.opmode == Cipher.ENCRYPT_MODE)
         require(source.isFile && source.canRead()) { "A readable source file is required." }
         require(!destination.exists()) { "The vault destination already exists." }
         require(destination.parentFile?.let { it.exists() || it.mkdirs() } != false)
@@ -57,7 +56,6 @@ class VaultCryptoStore {
     }
 
     fun decryptFile(cipher: Cipher, encryptedFile: File, destination: File): File {
-        require(cipher.opmode == Cipher.DECRYPT_MODE)
         require(encryptedFile.isFile && encryptedFile.canRead())
         require(!destination.exists()) { "The restore destination already exists." }
         require(destination.parentFile?.let { it.exists() || it.mkdirs() } != false)
