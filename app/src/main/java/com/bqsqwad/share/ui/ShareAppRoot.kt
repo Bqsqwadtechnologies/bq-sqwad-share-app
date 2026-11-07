@@ -229,8 +229,14 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                     bottomBar = {
                         Column {
                             GlobalMusicBar()
+                            // Keep ads on browsing/information pages only. Never show them
+                            // during pairing, QR scanning, sending, receiving, or transfer flows.
+                            val adVisibleRoutes = setOf(
+                                "home", "files", "history", "settings", "favorites", "more",
+                                "library/{section}", "media/{kind}",
+                            )
                             BannerSlot(
-                                enabled = !adFree && ads.canRequestAds,
+                                enabled = !adFree && ads.canRequestAds && currentRoute in adVisibleRoutes,
                                 modifier = Modifier.navigationBarsPadding(),
                             )
                         }
@@ -449,7 +455,6 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                 placeholder = { Text("Photos, music, videos, files…") },
             )
         }
-        item { BannerSlot(enabled = !adFree && ads.canRequestAds) }
         if (search.isBlank()) {
             item {
                 Card(Modifier.fillMaxWidth()) {
@@ -999,14 +1004,17 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Offline relay participation", style = MaterialTheme.typography.titleMedium)
-                    Text("Choose whether this phone may volunteer storage and connectivity to help forward encrypted transfer packages when the relay feature is available. Participation is off by default and can be withdrawn here.")
-                    SwitchRow("Allow this device to participate", s.relayParticipationEnabled) { vm.relayParticipation(it) }
-                    if (s.relayParticipationEnabled) {
-                        Text("Opt-in is saved on this device. Relay forwarding is not yet connected to Nearby transport; enabling this setting does not currently forward files.")
-                    } else {
-                        Text("This device will not volunteer for relay participation.")
-                    }
+                    Text("Relay participation", style = MaterialTheme.typography.titleMedium)
+                    Text("This setting is an explicit permission for this phone to help forward other people's encrypted transfers when a working relay network is available. It is off by default and you can turn it off at any time.")
+                    SwitchRow("Allow this device to help relay other people's transfers", s.relayParticipationEnabled) { vm.relayParticipation(it) }
+                    Text(
+                        if (s.relayParticipationEnabled)
+                            "Permission saved. Relay forwarding is not active yet: this app currently has no connected multi-hop relay transport. No background relay or sensor monitoring is running."
+                        else
+                            "Relay participation is off. This phone will not volunteer to forward other people's files.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text("Sending your own file does not silently enable third-party relay participation. When long-distance routing is implemented, your own transfer will use available relay hops only while your send session is active.", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -1073,7 +1081,6 @@ private fun Settings(nav: NavHostController, vm: ShareViewModel, ads: AdManager,
                 }
             }
         }
-        item { BannerSlot(enabled = s.adFreeUntil <= System.currentTimeMillis() && ads.canRequestAds) }
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
