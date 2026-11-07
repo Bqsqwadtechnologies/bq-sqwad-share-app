@@ -190,7 +190,7 @@ class ShareViewModel @Inject constructor(
                 val complete = progress.status != PayloadTransferUpdate.Status.IN_PROGRESS &&
                     activeNearbyPayloadIds.isEmpty() &&
                     activeResumableTransfers.isEmpty() &&
-                    pendingOutgoingQueue.isEmpty() &&
+                    pendingOutgoingQueue.none { it.peerName in nearby.connected.value } &&
                     incomingTransferMimes.isEmpty() &&
                     receiveExpiresAt.value == 0L
                 val text = if (complete) {
@@ -727,7 +727,7 @@ class ShareViewModel @Inject constructor(
     private fun updateTransferServiceIfIdle() {
         val idle = activeNearbyPayloadIds.isEmpty() &&
             activeResumableTransfers.isEmpty() &&
-            pendingOutgoingQueue.isEmpty() &&
+            pendingOutgoingQueue.none { it.peerName in nearby.connected.value } &&
             incomingTransferMimes.isEmpty() &&
             receiveExpiresAt.value == 0L
         if (idle && transferServiceActive.compareAndSet(true, false)) {
