@@ -1478,7 +1478,7 @@ private fun Chat(vm: ShareViewModel) {
         }
         androidx.compose.material3.OutlinedTextField(
             value = text,
-            onValueChange = { text = it.take(2000) },
+            onValueChange = { text = it.take(1000) },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Message") },
         )
