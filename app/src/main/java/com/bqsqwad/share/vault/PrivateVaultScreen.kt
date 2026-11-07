@@ -99,12 +99,17 @@ fun PrivateVaultScreen(activity: FragmentActivity) {
                 runCatching {
                     val name = displayName(context, source)
                     val payload = File(context.cacheDir, "vault-payload-${UUID.randomUUID()}.tmp")
-                    DataOutputStream(BufferedOutputStream(FileOutputStream(payload))).use { output ->
-                        output.writeUTF(name.take(1024))
-                        context.contentResolver.openInputStream(source)?.use { it.copyTo(output) }
-                            ?: error("Unable to read the selected file.")
+                    try {
+                        DataOutputStream(BufferedOutputStream(FileOutputStream(payload))).use { output ->
+                            output.writeUTF(name.take(1024))
+                            context.contentResolver.openInputStream(source)?.use { it.copyTo(output) }
+                                ?: error("Unable to read the selected file.")
+                        }
+                        payload to name
+                    } catch (failure: Throwable) {
+                        payload.delete()
+                        throw failure
                     }
-                    payload to name
                 }
             }
             if (prepared.isFailure) {
