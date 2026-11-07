@@ -121,6 +121,7 @@ class ShareViewModel @Inject constructor(
     private val incomingTransferMimes = java.util.concurrent.ConcurrentHashMap<String, String>()
     private val incomingTransferEndpoints = java.util.concurrent.ConcurrentHashMap<String, String>()
     private val activeNearbyPayloadIds = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
+    private val activeIncomingPayloadIds = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
     private val transferServiceActive = java.util.concurrent.atomic.AtomicBoolean(false)
     private val lastTransferNotificationAt = java.util.concurrent.atomic.AtomicLong(0L)
     private val resumableReceiver by lazy { ResumableFileReceiver(File(context.filesDir, "resumable-incoming")) }
@@ -156,7 +157,7 @@ class ShareViewModel @Inject constructor(
                         .forEach { transferId ->
                             incomingTransferEndpoints.remove(transferId)
                             incomingTransferMimes.remove(transferId)
-                        incomingTransferCount.value = incomingTransferMimes.size
+                        incomingTransferCount.value = maxOf(activeIncomingPayloadIds.size, incomingTransferMimes.size)
                         }
                 }
                 previousConnected = connected
@@ -180,6 +181,9 @@ class ShareViewModel @Inject constructor(
             nearby.progress.collect { progress ->
                 if (progress.status == PayloadTransferUpdate.Status.IN_PROGRESS) {
                     activeNearbyPayloadIds.add(progress.payloadId)
+                    if (outgoingPayloadRecords.containsKey(progress.payloadId)) activeIncomingPayloadIds.remove(progress.payloadId)
+                    else activeIncomingPayloadIds.add(progress.payloadId)
+                    incomingTransferCount.value = maxOf(activeIncomingPayloadIds.size, incomingTransferMimes.size)
                     outgoingPayloadRecords[progress.payloadId]?.let { outgoing ->
                         viewModelScope.launch {
                             dao.update(
@@ -192,6 +196,8 @@ class ShareViewModel @Inject constructor(
                     }
                 } else {
                     activeNearbyPayloadIds.remove(progress.payloadId)
+                    activeIncomingPayloadIds.remove(progress.payloadId)
+                    incomingTransferCount.value = maxOf(activeIncomingPayloadIds.size, incomingTransferMimes.size)
                     val outgoing = outgoingPayloadRecords.remove(progress.payloadId)
                     if (outgoing != null) {
                         outgoingPayloadIds.remove(outgoing.id)
@@ -218,17 +224,17 @@ class ShareViewModel @Inject constructor(
                     }
                     pumpOutgoingQueue()
                 }
-                val complete = progress.status != PayloadTransferUpdate.Status.IN_PROGRESS &&
-                    activeNearbyPayloadIds.isEmpty() &&
-                    activeResumableTransfers.isEmpty() &&
-                    pendingOutgoingQueue.none { it.peerName in nearby.connected.value } &&
-                    incomingTransferMimes.isEmpty() &&
-                    receiveExpiresAt.value == 0L
-                val activeTransfer = activeNearbyPayloadIds.isNotEmpty() ||
-                    activeResumableTransfers.isNotEmpty() ||
-                    pendingOutgoingQueue.any { it.peerName in nearby.connected.value } ||
-                    incomingTransferMimes.isNotEmpty()
-                val text = if (activeTransfer) "Nearby file transfer in progress" else "Ready to receive nearby files"
+                val outgoingCount = outgoingPayloadRecords.size + activeResumableTransfers.size
+                val incomingCount = maxOf(activeIncomingPayloadIds.size, incomingTransferMimes.size)
+                val activeTransfer = outgoingCount > 0 || incomingCount > 0 ||
+                    activeNearbyPayloadIds.isNotEmpty() ||
+                    pendingOutgoingQueue.any { it.peerName in nearby.connected.value }
+                val complete = !activeTransfer && receiveExpiresAt.value == 0L
+                val directions = buildList {
+                    if (outgoingCount > 0) add("Sending $outgoingCount")
+                    if (incomingCount > 0) add("Receiving $incomingCount")
+                }
+                val text = if (directions.isNotEmpty()) directions.joinToString(" · ") + " item(s)" else "Ready to receive nearby files"
                 val now = SystemClock.elapsedRealtime()
                 val shouldUpdateNotification = !transferServiceActive.get() || complete ||
                     now - lastTransferNotificationAt.get() >= NOTIFICATION_UPDATE_INTERVAL_MS
