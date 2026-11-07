@@ -277,6 +277,56 @@ class TransferProtocolTest {
     }
 
     @Test
+    fun resumableReceiverExpiresAbandonedCheckpoints() {
+        val root = temporaryFolder.newFolder("checkpoint-expiry")
+        val first = ResumableFileReceiver(root, minFreeBytes = 0L, checkpointTtlMillis = 1_000L)
+        val original = ResumableFileReceiver.Offer(
+            "ttl-001",
+            "old.bin",
+            10L,
+            TransferProtocol.sha256(ByteArray(10) { 1 }),
+        )
+        assertEquals(0L, first.begin(original, nowMillis = 1_000L))
+
+        val afterExpiry = ResumableFileReceiver(root, minFreeBytes = 0L, checkpointTtlMillis = 1_000L)
+        val replacement = original.copy(
+            displayName = "new.bin",
+            totalBytes = 12L,
+            sha256 = TransferProtocol.sha256(ByteArray(12) { 2 }),
+        )
+        assertEquals(0L, afterExpiry.begin(replacement, nowMillis = 2_001L))
+        assertTrue(File(root, "ttl-001.meta").isFile)
+        assertEquals(0L, File(root, "ttl-001.part").length())
+    }
+
+    @Test
+    fun resumableReceiverReservesSpaceForPendingTransfersAndReleasesItOnDiscard() {
+        val root = temporaryFolder.newFolder("checkpoint-quota")
+        val receiver = ResumableFileReceiver(root, maxPendingBytes = 10L, minFreeBytes = 0L)
+        val first = ResumableFileReceiver.Offer(
+            "quota-001",
+            "first.bin",
+            7L,
+            TransferProtocol.sha256(ByteArray(7) { 1 }),
+        )
+        val second = ResumableFileReceiver.Offer(
+            "quota-002",
+            "second.bin",
+            4L,
+            TransferProtocol.sha256(ByteArray(4) { 2 }),
+        )
+        assertEquals(0L, receiver.begin(first, nowMillis = 1_000L))
+        try {
+            receiver.begin(second, nowMillis = 1_001L)
+            throw AssertionError("A pending transfer reservation must prevent storage overcommit.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+        receiver.discard("quota-001")
+        assertEquals(0L, receiver.begin(second, nowMillis = 1_002L))
+    }
+
+    @Test
     fun resumableReceiverRejectsWrongOffsetsAndCorruptChunks() {
         val source = "verified content".toByteArray()
         val receiver = ResumableFileReceiver(temporaryFolder.root)
