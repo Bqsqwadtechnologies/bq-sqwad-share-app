@@ -193,26 +193,6 @@ fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?
                                 )
                             }
                             HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                            Text("BROWSE", style = MaterialTheme.typography.labelLarge)
-                            listOf(
-                                "Files" to "files",
-                                "Apps" to "library/apps",
-                                "Photos" to "media/photos",
-                                "Videos" to "media/videos",
-                                "Music" to "media/music",
-                                "Documents" to "files",
-                                "Received" to "library/received",
-                                "Sent" to "library/sent",
-                            ).forEach { (label, route) ->
-                                NavigationDrawerItem(
-                                    label = { Text(label) },
-                                    selected = currentRoute == route,
-                                    onClick = {
-                                        scope.launch { drawerState.close() }
-                                        nav.navigate(route) { launchSingleTop = true }
-                                    },
-                                )
-                            }
                             HorizontalDivider(Modifier.padding(vertical = 8.dp))
                             Text("TOOLS", style = MaterialTheme.typography.labelLarge)
                             listOf(
@@ -486,7 +466,7 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
             )
         }
         Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 2.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
