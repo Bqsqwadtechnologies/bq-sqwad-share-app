@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import android.content.pm.PackageManager
 import android.os.StatFs
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bqsqwad.share.common.FileKind
@@ -97,6 +98,7 @@ class ShareViewModel @Inject constructor(
     private val incomingTransferEndpoints = java.util.concurrent.ConcurrentHashMap<String, String>()
     private val activeNearbyPayloadIds = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
     private val transferServiceActive = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val lastTransferNotificationAt = java.util.concurrent.atomic.AtomicLong(0L)
     private val resumableReceiver by lazy { ResumableFileReceiver(File(context.filesDir, "resumable-incoming")) }
 
     init {
@@ -193,18 +195,24 @@ class ShareViewModel @Inject constructor(
                     pendingOutgoingQueue.none { it.peerName in nearby.connected.value } &&
                     incomingTransferMimes.isEmpty() &&
                     receiveExpiresAt.value == 0L
-                val text = if (complete) {
-                    if (progress.status == PayloadTransferUpdate.Status.SUCCESS) "Transfer completed" else "Transfer ended"
-                } else {
-                    "Transferring ${progress.bytes} of ${progress.total} bytes"
-                }
-                if (complete) {
-                    if (transferServiceActive.compareAndSet(true, false)) {
-                        TransferService.update(context, text, progress.bytes, progress.total, true)
+                val activeTransfer = activeNearbyPayloadIds.isNotEmpty() ||
+                    activeResumableTransfers.isNotEmpty() ||
+                    pendingOutgoingQueue.any { it.peerName in nearby.connected.value } ||
+                    incomingTransferMimes.isNotEmpty()
+                val text = if (activeTransfer) "Nearby file transfer in progress" else "Ready to receive nearby files"
+                val now = SystemClock.elapsedRealtime()
+                val shouldUpdateNotification = !transferServiceActive.get() || complete ||
+                    now - lastTransferNotificationAt.get() >= NOTIFICATION_UPDATE_INTERVAL_MS
+                if (shouldUpdateNotification) {
+                    lastTransferNotificationAt.set(now)
+                    if (complete) {
+                        if (transferServiceActive.compareAndSet(true, false)) {
+                            TransferService.update(context, "Transfers complete", 0L, 0L, true)
+                        }
+                    } else {
+                        transferServiceActive.set(true)
+                        TransferService.update(context, text, 0L, 0L, false)
                     }
-                } else {
-                    transferServiceActive.set(true)
-                    TransferService.update(context, text, progress.bytes, progress.total, false)
                 }
             }
         }
@@ -341,6 +349,7 @@ class ShareViewModel @Inject constructor(
         nearby.setExpectedReceiveCode(next)
         nearby.startAdvertising("BQ Sqwad Share code $next")
         if (transferServiceActive.compareAndSet(false, true)) {
+            lastTransferNotificationAt.set(SystemClock.elapsedRealtime())
             TransferService.update(context, "Ready to receive nearby files", 0L, 0L, complete = false)
         }
         nearby.connected.value.forEach(::sendChatHello)
@@ -731,6 +740,7 @@ class ShareViewModel @Inject constructor(
             incomingTransferMimes.isEmpty() &&
             receiveExpiresAt.value == 0L
         if (idle && transferServiceActive.compareAndSet(true, false)) {
+            lastTransferNotificationAt.set(SystemClock.elapsedRealtime())
             TransferService.update(context, "Transfers complete", 0L, 0L, complete = true)
         }
     }
@@ -1082,6 +1092,7 @@ class ShareViewModel @Inject constructor(
         private const val MAX_CHAT_HISTORY = 100
         private const val MIN_RECEIVE_FREE_BYTES = 128L * 1024L * 1024L
         private const val PROGRESS_PERSIST_INTERVAL_BYTES = 1024L * 1024L
+        private const val NOTIFICATION_UPDATE_INTERVAL_MS = 750L
     }
 
 
