@@ -441,6 +441,24 @@ class ShareViewModel @Inject constructor(
         autoSendPending.value = false
     }
 
+    /** Sends the same selected files only to the explicitly chosen live recipients. */
+    fun sendQueuedFilesToRecipients(endpointIds: List<String>) = viewModelScope.launch {
+        val endpoints = endpointIds.distinct().filter { it in nearby.connected.value }
+        if (endpoints.isEmpty()) return@launch
+        val uris = pendingUris.value
+        val files = pendingLocalFiles.value
+        if (uris.isEmpty() && files.isEmpty()) return@launch
+        autoSendPending.value = false
+        endpoints.forEach { endpointId ->
+            pendingUris.value = uris
+            pendingLocalFiles.value = files
+            sendQueuedFiles(endpointId).join()
+        }
+        pendingUris.value = emptyList()
+        pendingLocalFiles.value = emptyList()
+        autoSendPending.value = false
+    }
+
     /**
      * Keeps a small number of Nearby file payloads active at once. This allows
      * multi-select batches to progress concurrently without flooding the
