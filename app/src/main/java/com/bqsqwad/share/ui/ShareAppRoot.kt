@@ -469,7 +469,7 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                                         }
                                         Column(
                                             Modifier.weight(1f).height(92.dp).clickable {
-                                                context.packageManager.getLaunchIntentForPackage(app.packageName)?.let(context::startActivity)
+                                                context.packageManager.getLaunchIntentForPackage(app.packageName)?.let { launchIntent -> context.startActivity(launchIntent) }
                                             }.padding(4.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally,
                                             verticalArrangement = Arrangement.Center,
