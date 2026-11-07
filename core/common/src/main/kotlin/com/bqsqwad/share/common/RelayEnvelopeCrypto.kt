@@ -43,7 +43,8 @@ object RelayEnvelopeCrypto {
     data class IdentityKeys(val signing: KeyPair, val agreement: KeyPair) {
         val signingPublicKey: ByteArray get() = signing.public.encoded.copyOf()
         val agreementPublicKey: ByteArray get() = agreement.public.encoded.copyOf()
-        val fingerprint: String get() = fingerprint(signingPublicKey)
+        val fingerprint: String get() = RelayEnvelopeCrypto.fingerprint(signingPublicKey)
+        val recipientFingerprint: String get() = keyFingerprint(signingPublicKey, agreementPublicKey)
     }
 
     data class OpenedEnvelope(
@@ -70,7 +71,7 @@ object RelayEnvelopeCrypto {
         require(createdAtMillis > 0L && expiresAtMillis > createdAtMillis)
         val recipientSigning = decodePublic(recipientSigningPublicKey)
         val recipientAgreement = decodePublic(recipientAgreementPublicKey)
-        val recipientFingerprint = fingerprint(recipientSigning.encoded)
+        val recipientFingerprint = keyFingerprint(recipientSigning.encoded, recipientAgreement.encoded)
         val ephemeral = generateEcKeyPair()
         val nonce = ByteArray(NONCE_BYTES).also(SecureRandom()::nextBytes)
         val shared = agree(ephemeral.private, recipientAgreement)
@@ -122,8 +123,9 @@ object RelayEnvelopeCrypto {
         val parsed = parse(encodedEnvelope)
         val senderKey = decodePublic(parsed.senderSigningKey)
         val recipientKey = decodePublic(parsed.recipientSigningKey)
+        val recipientAgreementKey = decodePublic(parsed.recipientAgreementKey)
         val senderFingerprint = fingerprint(senderKey.encoded)
-        val recipientFingerprint = fingerprint(recipientKey.encoded)
+        val recipientFingerprint = keyFingerprint(recipientKey.encoded, recipientAgreementKey.encoded)
         require(constantTimeEquals(senderFingerprint, trustedSenderFingerprint)) { "Sender key is not trusted." }
         require(constantTimeEquals(recipientFingerprint, expectedRecipientFingerprint)) { "Envelope targets a different recipient key." }
         require(parsed.expiresAtMillis > nowMillis && parsed.createdAtMillis <= nowMillis + 5 * 60_000L) { "Relay envelope is expired or not yet valid." }
@@ -139,6 +141,7 @@ object RelayEnvelopeCrypto {
         val aad = associatedData(
             parsed.senderSigningKey,
             parsed.recipientSigningKey,
+            parsed.recipientAgreementKey,
             parsed.ephemeralAgreementKey,
             parsed.nonce,
             parsed.createdAtMillis,
@@ -155,6 +158,7 @@ object RelayEnvelopeCrypto {
     private data class Parsed(
         val senderSigningKey: ByteArray,
         val recipientSigningKey: ByteArray,
+        val recipientAgreementKey: ByteArray,
         val ephemeralAgreementKey: ByteArray,
         val nonce: ByteArray,
         val createdAtMillis: Long,
@@ -167,6 +171,7 @@ object RelayEnvelopeCrypto {
     private fun serializeUnsigned(
         sender: ByteArray,
         recipient: ByteArray,
+        recipientAgreement: ByteArray,
         ephemeral: ByteArray,
         nonce: ByteArray,
         created: Long,
@@ -193,6 +198,7 @@ object RelayEnvelopeCrypto {
         require(input.readInt() == MAGIC && input.readUnsignedByte() == VERSION) { "Unsupported relay envelope." }
         val sender = readSized(input, MAX_KEY_BYTES)
         val recipient = readSized(input, MAX_KEY_BYTES)
+        val recipientAgreement = readSized(input, MAX_KEY_BYTES)
         val ephemeral = readSized(input, MAX_KEY_BYTES)
         val nonceLength = input.readUnsignedByte()
         require(nonceLength == NONCE_BYTES)
@@ -206,19 +212,20 @@ object RelayEnvelopeCrypto {
         require(signatureLength in 8..144 && signatureLength == input.available())
         val signature = ByteArray(signatureLength).also(input::readFully)
         require(input.available() == 0)
-        return Parsed(sender, recipient, ephemeral, nonce, created, expires, ciphertext, unsigned, signature)
+        return Parsed(sender, recipient, recipientAgreement, ephemeral, nonce, created, expires, ciphertext, unsigned, signature)
     }
 
     private fun associatedData(
         sender: ByteArray,
         recipient: ByteArray,
+        recipientAgreement: ByteArray,
         ephemeral: ByteArray,
         nonce: ByteArray,
         created: Long,
         expires: Long,
     ): ByteArray = ByteArrayOutputStream().use { bytes ->
         DataOutputStream(bytes).use { out ->
-            writeSized(out, sender); writeSized(out, recipient); writeSized(out, ephemeral)
+            writeSized(out, sender); writeSized(out, recipient); writeSized(out, recipientAgreement); writeSized(out, ephemeral)
             out.write(nonce); out.writeLong(created); out.writeLong(expires)
         }
         bytes.toByteArray()
@@ -263,6 +270,9 @@ object RelayEnvelopeCrypto {
         extract.fill(0)
         return SecretKeySpec(expand.copyOf(32), "AES")
     }
+
+    private fun keyFingerprint(signingPublicKey: ByteArray, agreementPublicKey: ByteArray): String =
+        fingerprint(signingPublicKey + agreementPublicKey)
 
     private fun constantTimeEquals(left: String, right: String): Boolean =
         MessageDigest.isEqual(left.toByteArray(Charsets.US_ASCII), right.toByteArray(Charsets.US_ASCII))

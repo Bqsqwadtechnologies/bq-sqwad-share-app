@@ -20,13 +20,13 @@ class RelayEnvelopeCryptoTest {
         val opened = RelayEnvelopeCrypto.open(
             envelope,
             recipient.agreement.private,
-            recipient.fingerprint,
+            recipient.recipientFingerprint,
             sender.fingerprint,
             nowMillis = 15_000L,
         )
         assertArrayEquals(plaintext, opened.plaintext)
         assertTrue(runCatching {
-            RelayEnvelopeCrypto.open(envelope, other.agreement.private, other.fingerprint, sender.fingerprint, 15_000L)
+            RelayEnvelopeCrypto.open(envelope, other.agreement.private, other.recipientFingerprint, sender.fingerprint, 15_000L)
         }.isFailure)
     }
 
@@ -43,11 +43,11 @@ class RelayEnvelopeCryptoTest {
             20_000L,
         )
         assertTrue(runCatching {
-            RelayEnvelopeCrypto.open(envelope, recipient.agreement.private, recipient.fingerprint, stranger.fingerprint, 15_000L)
+            RelayEnvelopeCrypto.open(envelope, recipient.agreement.private, recipient.recipientFingerprint, stranger.fingerprint, 15_000L)
         }.isFailure)
         val tampered = envelope.copyOf().also { it[it.lastIndex - 4] = (it[it.lastIndex - 4].toInt() xor 1).toByte() }
         assertTrue(runCatching {
-            RelayEnvelopeCrypto.open(tampered, recipient.agreement.private, recipient.fingerprint, sender.fingerprint, 15_000L)
+            RelayEnvelopeCrypto.open(tampered, recipient.agreement.private, recipient.recipientFingerprint, sender.fingerprint, 15_000L)
         }.isFailure)
     }
 
@@ -56,7 +56,7 @@ class RelayEnvelopeCryptoTest {
         val recipient = RelayEnvelopeCrypto.generateIdentity()
         val envelope = RelayEnvelopeCrypto.seal(byteArrayOf(9), sender, recipient.signingPublicKey, recipient.agreementPublicKey, 10_000L, 20_000L)
         assertTrue(runCatching {
-            RelayEnvelopeCrypto.open(envelope, recipient.agreement.private, recipient.fingerprint, sender.fingerprint, 20_000L)
+            RelayEnvelopeCrypto.open(envelope, recipient.agreement.private, recipient.recipientFingerprint, sender.fingerprint, 20_000L)
         }.isFailure)
     }
 }
