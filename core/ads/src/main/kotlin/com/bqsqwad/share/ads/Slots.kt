@@ -57,18 +57,24 @@ object AdUnits {
 fun BannerSlot(enabled: Boolean, adUnitId: String, modifier: Modifier = Modifier) {
     if (!enabled) return
     val context = LocalContext.current
+    val adView = remember(adUnitId) {
+        AdView(context).apply {
+            setAdSize(AdSize.BANNER)
+            this.adUnitId = adUnitId
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
+        }
+    }
+    DisposableEffect(adView) {
+        onDispose { adView.destroy() }
+    }
     AndroidView(
         modifier = modifier.fillMaxWidth().height(60.dp),
-        factory = {
-            AdView(context).apply {
-                setAdSize(AdSize.BANNER)
-                this.adUnitId = adUnitId
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                )
-                loadAd(AdRequest.Builder().build())
-            }
+        factory = { view ->
+            view.loadAd(AdRequest.Builder().build())
+            view
         },
         update = { view ->
             if (view.adUnitId != adUnitId) {
