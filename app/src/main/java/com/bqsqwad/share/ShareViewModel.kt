@@ -483,7 +483,7 @@ class ShareViewModel @Inject constructor(
             server.lanAddress()
         } catch (failure: Throwable) {
             staged.forEach { it.delete() }
-            shareDirectory.delete()
+            shareDirectory.deleteRecursively()
             throw failure
         }
     }
@@ -495,7 +495,7 @@ class ShareViewModel @Inject constructor(
         web = null
         webStagedFiles.forEach { it.delete() }
         webStagedFiles.clear()
-        File(context.cacheDir, "web-share").delete()
+        File(context.cacheDir, "web-share").deleteRecursively()
     }
 
     fun peers(): List<Peer> = nearby.peers.value
