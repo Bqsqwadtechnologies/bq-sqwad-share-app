@@ -11,6 +11,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -35,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.FolderOpen
@@ -42,10 +45,13 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -55,6 +61,8 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -418,10 +426,24 @@ private fun BrandHeader() {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adFree: Boolean, onMenu: () -> Unit) {
-    var page by remember { mutableStateOf(0) }
+    val pageLabels = listOf("Apps", "Music", "Photos", "Files", "Videos", "Sent", "Received")
+    val pageIcons = listOf(
+        Icons.Filled.Apps,
+        Icons.Filled.MusicNote,
+        Icons.Filled.PhotoLibrary,
+        Icons.Filled.FolderOpen,
+        Icons.Filled.VideoLibrary,
+        Icons.Filled.Send,
+        Icons.Filled.Download,
+    )
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { pageLabels.size })
+    val scope = rememberCoroutineScope()
     var installedApps by remember { mutableStateOf<List<ShareAppItem>>(emptyList()) }
+    var searchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -432,92 +454,125 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
         }
     }
 
-    Column(
-        Modifier.fillMaxSize().pointerInput(page) {
-            var horizontalDrag = 0f
-            detectHorizontalDragGestures(
-                onHorizontalDrag = { _, amount -> horizontalDrag += amount },
-                onDragEnd = {
-                    if (horizontalDrag < -64f) page = 1
-                    else if (horizontalDrag > 64f) page = 0
-                    horizontalDrag = 0f
-                },
-            )
-        },
-    ) {
+    Column(Modifier.fillMaxSize()) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(if (page == 0) "Apps" else "Music", style = MaterialTheme.typography.titleLarge)
+            androidx.compose.material3.IconButton(onClick = onMenu) {
+                androidx.compose.material3.Icon(Icons.Filled.Menu, contentDescription = "Connection menu")
+            }
+            Text("BQ Sqwad Share", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = onMenu) { Text("Menu") }
+            androidx.compose.material3.IconButton(
+                onClick = {
+                    searchExpanded = !searchExpanded
+                    if (!searchExpanded) searchQuery = ""
+                },
+            ) {
+                androidx.compose.material3.Icon(
+                    if (searchExpanded) Icons.Filled.Close else Icons.Filled.Search,
+                    contentDescription = if (searchExpanded) "Close search" else "Search",
+                )
+            }
         }
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            FilterChip(selected = page == 0, onClick = { page = 0 }, label = { Text("Apps") })
-            Spacer(Modifier.size(8.dp))
-            FilterChip(
-                selected = page == 1,
-                onClick = { page = 1 },
-                label = { Text("Music") },
-                leadingIcon = { androidx.compose.material3.Icon(Icons.Filled.MusicNote, null) },
+        if (searchExpanded) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                singleLine = true,
+                placeholder = { Text("Search ${pageLabels[pagerState.currentPage].lowercase()}") },
             )
         }
-
-        if (page == 0) {
-            when {
-                installedApps.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-                else -> LazyColumn(
-                    Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            pageLabels.forEachIndexed { index, label ->
+                val selected = pagerState.currentPage == index
+                Column(
+                    Modifier.weight(1f).clickable { scope.launch { pagerState.animateScrollToPage(index) } }.padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    itemsIndexed(installedApps.chunked(4)) { _, appRow ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            appRow.forEach { app ->
-                                val appIcon = remember(app.packageName) {
-                                    runCatching {
-                                        context.packageManager.getApplicationIcon(app.packageName).toBitmap().asImageBitmap()
-                                    }.getOrNull()
-                                }
-                                Column(
-                                    Modifier.weight(1f).height(88.dp).clickable {
-                                        val launchIntent = context.packageManager.getLaunchIntentForPackage(app.packageName)
-                                        if (launchIntent != null) runCatching { context.startActivity(launchIntent) }
-                                    }.padding(horizontal = 3.dp, vertical = 5.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center,
-                                ) {
-                                    if (appIcon != null) {
-                                        Image(appIcon, contentDescription = app.label, modifier = Modifier.size(42.dp))
-                                    } else {
-                                        androidx.compose.material3.Icon(
-                                            Icons.Filled.PhoneAndroid,
-                                            contentDescription = app.label,
-                                            modifier = Modifier.size(42.dp),
-                                        )
-                                    }
-                                    Text(
-                                        app.label,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        maxLines = 1,
-                                    )
-                                }
-                            }
-                            repeat(4 - appRow.size) { Spacer(Modifier.weight(1f)) }
-                        }
+                    androidx.compose.material3.Icon(
+                        pageIcons[index],
+                        contentDescription = label,
+                        modifier = Modifier.size(20.dp),
+                        tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                    Box(
+                        Modifier.padding(top = 1.dp).fillMaxWidth(0.55f).height(2.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (selected) androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.primary, thickness = 2.dp)
                     }
                 }
             }
-        } else {
-            Box(Modifier.fillMaxSize()) {
-                MediaLibraryScreen(initialKind = "music", compact = true)
+        }
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            key = { it },
+        ) { page ->
+            when (page) {
+                0 -> {
+                    val visibleApps = remember(installedApps, searchQuery) {
+                        installedApps.filter { it.label.contains(searchQuery.trim(), true) || it.packageName.contains(searchQuery.trim(), true) }
+                    }
+                    when {
+                        installedApps.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                        visibleApps.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("No apps match your search.")
+                        }
+                        else -> LazyColumn(
+                            Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            itemsIndexed(visibleApps.chunked(4)) { _, appRow ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    appRow.forEach { app ->
+                                        val appIcon = remember(app.packageName) {
+                                            runCatching {
+                                                context.packageManager.getApplicationIcon(app.packageName).toBitmap().asImageBitmap()
+                                            }.getOrNull()
+                                        }
+                                        Column(
+                                            Modifier.weight(1f).height(88.dp).clickable {
+                                                val launchIntent = context.packageManager.getLaunchIntentForPackage(app.packageName)
+                                                if (launchIntent != null) runCatching { context.startActivity(launchIntent) }
+                                            }.padding(horizontal = 3.dp, vertical = 5.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center,
+                                        ) {
+                                            if (appIcon != null) Image(appIcon, contentDescription = app.label, modifier = Modifier.size(42.dp))
+                                            else androidx.compose.material3.Icon(Icons.Filled.PhoneAndroid, contentDescription = app.label, modifier = Modifier.size(42.dp))
+                                            Text(app.label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                                        }
+                                    }
+                                    repeat(4 - appRow.size) { Spacer(Modifier.weight(1f)) }
+                                }
+                            }
+                        }
+                    }
+                }
+                1 -> MediaLibraryScreen(initialKind = "music", compact = true, initialSearchQuery = searchQuery)
+                2 -> MediaLibraryScreen(initialKind = "photos", compact = true, initialSearchQuery = searchQuery)
+                3 -> FilesBrowser(nav, vm, initialTab = "files", showCategoryTabs = false, showSearch = false, externalSearchQuery = searchQuery)
+                4 -> MediaLibraryScreen(initialKind = "videos", compact = true, initialSearchQuery = searchQuery)
+                5 -> FilesBrowser(nav, vm, initialTab = "sent", showCategoryTabs = false, showSearch = false, externalSearchQuery = searchQuery)
+                else -> FilesBrowser(nav, vm, initialTab = "received", showCategoryTabs = false, showSearch = false, externalSearchQuery = searchQuery)
             }
         }
     }
