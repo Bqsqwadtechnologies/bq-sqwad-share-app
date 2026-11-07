@@ -489,15 +489,13 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
         ) { page ->
             when (page) {
                 0 -> {
-                    val visibleApps = remember(installedApps, searchQuery) {
-                        installedApps.filter { it.label.contains(searchQuery.trim(), true) || it.packageName.contains(searchQuery.trim(), true) }
-                    }
+                    val visibleApps = installedApps
                     when {
                         installedApps.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator()
                         }
                         visibleApps.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("No apps match your search.")
+                            Text("No installed apps were found.")
                         }
                         else -> LazyColumn(
                             Modifier.fillMaxSize(),
@@ -523,6 +521,7 @@ private fun Home(nav: NavHostController, vm: ShareViewModel, ads: AdManager, adF
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
                             }
                         }
+                    }
                 }
                 1 -> MediaLibraryScreen(initialKind = "music", compact = true, activePage = pagerState.currentPage == page)
                 2 -> MediaLibraryScreen(initialKind = "photos", compact = true, activePage = pagerState.currentPage == page)
