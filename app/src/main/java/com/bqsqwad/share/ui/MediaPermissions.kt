@@ -2,12 +2,8 @@ package com.bqsqwad.share.ui
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
-import android.os.Environment
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -51,17 +47,6 @@ object MediaPermissions {
         return granted || selectedVisual
     }
 
-    fun hasFull(ctx: Context): Boolean =
-        if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager() else hasMedia(ctx)
-
-    fun openAllFilesSettings(ctx: Context) {
-        val intent = if (Build.VERSION.SDK_INT >= 30) {
-            Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${ctx.packageName}"))
-        } else {
-            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}"))
-        }
-        ctx.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
 }
 
 @Composable
