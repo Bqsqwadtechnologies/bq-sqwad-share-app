@@ -191,7 +191,8 @@ class ShareViewModel @Inject constructor(
                     activeNearbyPayloadIds.isEmpty() &&
                     activeResumableTransfers.isEmpty() &&
                     pendingOutgoingQueue.isEmpty() &&
-                    incomingTransferMimes.isEmpty()
+                    incomingTransferMimes.isEmpty() &&
+                    receiveExpiresAt.value == 0L
                 val text = if (complete) {
                     if (progress.status == PayloadTransferUpdate.Status.SUCCESS) "Transfer completed" else "Transfer ended"
                 } else {
@@ -339,6 +340,9 @@ class ShareViewModel @Inject constructor(
         receiveExpiresAt.value = System.currentTimeMillis() + 10 * 60 * 1000L
         nearby.setExpectedReceiveCode(next)
         nearby.startAdvertising("BQ Sqwad Share code $next")
+        if (transferServiceActive.compareAndSet(false, true)) {
+            TransferService.update(context, "Ready to receive nearby files", 0L, 0L, complete = false)
+        }
         nearby.connected.value.forEach(::sendChatHello)
     }
 
@@ -351,6 +355,7 @@ class ShareViewModel @Inject constructor(
             chatMessages.value = emptyList()
             nearby.setExpectedReceiveCode("")
             nearby.stopAdvertising()
+            updateTransferServiceIfIdle()
         }
     }
 
@@ -362,6 +367,7 @@ class ShareViewModel @Inject constructor(
         chatSessionReady.value = false
         chatReadyEndpoints.value = emptySet()
         chatMessages.value = emptyList()
+        updateTransferServiceIfIdle()
     }
 
     fun confirmAge() = viewModelScope.launch { store.setAgeConfirmed() }
@@ -722,7 +728,8 @@ class ShareViewModel @Inject constructor(
         val idle = activeNearbyPayloadIds.isEmpty() &&
             activeResumableTransfers.isEmpty() &&
             pendingOutgoingQueue.isEmpty() &&
-            incomingTransferMimes.isEmpty()
+            incomingTransferMimes.isEmpty() &&
+            receiveExpiresAt.value == 0L
         if (idle && transferServiceActive.compareAndSet(true, false)) {
             TransferService.update(context, "Transfers complete", 0L, 0L, complete = true)
         }
