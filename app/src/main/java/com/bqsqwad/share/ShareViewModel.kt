@@ -49,6 +49,8 @@ import javax.inject.Inject
 
 private data class OutgoingShareFile(val file: File, val mime: String, val bytes: Long, val displayName: String)
 
+private class TransferRejectedException(message: String) : Exception(message)
+
 data class ChatMessage(
     val id: Long,
     val peer: String,
@@ -713,6 +715,9 @@ class ShareViewModel @Inject constructor(
             if (source.name.startsWith("outgoing-")) withContext(Dispatchers.IO) { source.delete() }
         } catch (cancelled: CancellationException) {
             throw cancelled
+        } catch (rejected: TransferRejectedException) {
+            dao.update(row.copy(status = "FAILED", bytesDone = acknowledgedBytes))
+            incomingTransferMessage.value = rejected.message ?: "The receiving device could not accept this file."
         } catch (_: Exception) {
             dao.update(row.copy(status = "WAITING_FOR_DEVICE", bytesDone = acknowledgedBytes))
             incomingTransferMessage.value = "Transfer paused. Reconnect to resume from the last verified checkpoint."
@@ -743,6 +748,13 @@ class ShareViewModel @Inject constructor(
             if (incoming.endpointId != endpointId || incoming.payload.type != Payload.Type.BYTES) return@first false
             val bytes = incoming.payload.asBytes() ?: return@first false
             val parsed = runCatching { TransferProtocol.parse(bytes) }.getOrNull() ?: return@first false
+            if (parsed.type == TransferProtocol.TYPE_CANCEL) {
+                val cancelledId = runCatching { TransferProtocol.parseTransferId(parsed.body) }.getOrNull()
+                if (cancelledId == transferId) {
+                    throw TransferRejectedException("The receiving device rejected this file or does not have enough free storage.")
+                }
+                return@first false
+            }
             if (parsed.type != expectedType) return@first false
             val receivedId = runCatching {
                 if (expectedType == TransferProtocol.TYPE_ACCEPT || expectedType == TransferProtocol.TYPE_ACK) {
@@ -765,14 +777,39 @@ class ShareViewModel @Inject constructor(
             when (frame.type) {
                 TransferProtocol.TYPE_OFFER -> {
                     val offer = TransferProtocol.parseResumableOffer(frame.body)
-                    incomingTransferMimes[offer.transferId] = offer.mime
-                    val offset = withContext(Dispatchers.IO) {
-                        resumableReceiver.begin(ResumableFileReceiver.Offer(
-                            transferId = offer.transferId,
-                            displayName = offer.displayName,
-                            totalBytes = offer.totalBytes,
-                            sha256 = offer.sha256,
+                    val destinationRoot = context.getExternalFilesDir(null) ?: context.filesDir
+                    val internalAvailable = StatFs(context.filesDir.absolutePath).availableBytes
+                    val destinationAvailable = StatFs(destinationRoot.absolutePath).availableBytes
+                    if (offer.totalBytes > internalAvailable - MIN_RECEIVE_FREE_BYTES ||
+                        offer.totalBytes > destinationAvailable - MIN_RECEIVE_FREE_BYTES
+                    ) {
+                        incomingTransferMessage.value = "Not enough free storage to receive ${offer.displayName}. Free space and try again."
+                        nearby.sendBytes(endpointId, TransferProtocol.frame(
+                            TransferProtocol.TYPE_CANCEL,
+                            TransferProtocol.transferIdBody(offer.transferId),
                         ))
+                        return true
+                    }
+                    incomingTransferMimes[offer.transferId] = offer.mime
+                    val offset = try {
+                        withContext(Dispatchers.IO) {
+                            resumableReceiver.begin(ResumableFileReceiver.Offer(
+                                transferId = offer.transferId,
+                                displayName = offer.displayName,
+                                totalBytes = offer.totalBytes,
+                                sha256 = offer.sha256,
+                            ))
+                        }
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (failure: Exception) {
+                        incomingTransferMimes.remove(offer.transferId)
+                        incomingTransferMessage.value = failure.message?.take(120) ?: "Could not prepare the receive file."
+                        nearby.sendBytes(endpointId, TransferProtocol.frame(
+                            TransferProtocol.TYPE_CANCEL,
+                            TransferProtocol.transferIdBody(offer.transferId),
+                        ))
+                        return true
                     }
                     nearby.sendBytes(endpointId, TransferProtocol.frame(
                         TransferProtocol.TYPE_ACCEPT,
@@ -947,6 +984,7 @@ class ShareViewModel @Inject constructor(
         private const val CHAT_MESSAGE_PREFIX = "BQCHAT/MSG:"
         private const val MAX_CHAT_MESSAGE_BYTES = 4096
         private const val MAX_CHAT_HISTORY = 100
+        private const val MIN_RECEIVE_FREE_BYTES = 128L * 1024L * 1024L
     }
 
 
