@@ -48,3 +48,12 @@ Package: `com.bqsqwad.share` · Target **1.1.0**
 ## Agent environment limits
 
 No Android SDK or emulator in the coding agent. Full assembleDebug and two-phone tests must run in GitHub Actions or Android Studio on your machine. See docs/VERIFICATION_REPORT.md.
+
+
+## 7 November 2026 implementation update
+
+- Private Vault screen is now connected to the navigation drawer. It encrypts imported files with the Android Keystore AES-GCM key and requires strong biometric authentication for import, restore, and permanent deletion. Vault metadata (including the original filename) is inside the encrypted payload.
+- Folder Transfer now accepts a user-selected Storage Access Framework folder, packages its nested files into a ZIP while preserving relative folder paths, enforces entry/depth/size limits, and queues the archive for the existing Nearby Send flow.
+- Device Hub now lists currently discovered and connected Nearby peers and allows disconnecting active peers. It is a live-session manager, not yet a persistent trusted-device registry.
+- A durable receiver-side chunk checkpoint store and tests have been added. It fsyncs accepted chunks, atomically records committed offsets, truncates uncommitted tails after restart, and verifies the complete SHA-256 before finalizing. **It is not yet wired into the Nearby sender/receiver callbacks**, so current Nearby file transfers still restart from the beginning after interruption.
+- Android build, automated test execution, biometric-device verification, folder transfer verification, and two-device testing remain outstanding. Do not treat source commits as proof of runtime verification.

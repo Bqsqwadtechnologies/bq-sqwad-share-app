@@ -3,12 +3,12 @@ package com.bqsqwad.share.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.weight
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -30,7 +30,7 @@ fun DeviceHubScreen(nav: NavHostController, vm: ShareViewModel) {
     val nearbyPeers = peers.filterNot { it.endpointId in connected }
 
     Column(
-        Modifier.fillMaxSize().padding(16.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Device Hub", style = MaterialTheme.typography.headlineSmall)
@@ -44,8 +44,8 @@ fun DeviceHubScreen(nav: NavHostController, vm: ShareViewModel) {
                 }
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(activePeers, key = { it.endpointId }) { peer ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                activePeers.forEach { peer ->
                     Card(Modifier.fillMaxWidth()) {
                         Row(
                             Modifier.fillMaxWidth().padding(12.dp),
