@@ -243,7 +243,7 @@ class TransferProtocolTest {
             totalBytes = source.size.toLong(),
             sha256 = TransferProtocol.sha256(source),
         )
-        val firstReceiver = ResumableFileReceiver(temporaryFolder.root)
+        val firstReceiver = ResumableFileReceiver(temporaryFolder.root, minFreeBytes = 0L)
         assertEquals(0L, firstReceiver.begin(offer))
 
         val firstChunk = source.copyOfRange(0, 600_000)
@@ -262,7 +262,7 @@ class TransferProtocolTest {
             firstReceiver.appendChunk("resume-001", 1_050_000L, uncommittedTail, TransferProtocol.sha256(uncommittedTail)),
         )
 
-        val afterRestart = ResumableFileReceiver(temporaryFolder.root)
+        val afterRestart = ResumableFileReceiver(temporaryFolder.root, minFreeBytes = 0L)
         assertEquals(1_050_000L, afterRestart.begin(offer))
         assertEquals(1_050_000L, afterRestart.resumeOffset("resume-001"))
         val remaining = source.copyOfRange(1_050_000, source.size)
@@ -329,7 +329,7 @@ class TransferProtocolTest {
     @Test
     fun resumableReceiverRejectsWrongOffsetsAndCorruptChunks() {
         val source = "verified content".toByteArray()
-        val receiver = ResumableFileReceiver(temporaryFolder.root)
+        val receiver = ResumableFileReceiver(temporaryFolder.root, minFreeBytes = 0L)
         receiver.begin(
             ResumableFileReceiver.Offer(
                 "resume-002",
