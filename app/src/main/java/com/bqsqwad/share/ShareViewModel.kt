@@ -372,7 +372,7 @@ class ShareViewModel @Inject constructor(
     fun record(name: String, mime: String, bytes: Long, direction: String, peer: String, path: String?) {
         viewModelScope.launch {
             val kind = kindForMime(mime, name)
-            val dir = File(context.getExternalFilesDir(null), folderFor(kind))
+            val dir = File(context.getExternalFilesDir(null) ?: context.filesDir, folderFor(kind))
             dir.mkdirs()
             dao.insert(
                 TransferEntity(
@@ -845,7 +845,7 @@ class ShareViewModel @Inject constructor(
                             ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(completed.extension.lowercase())
                             ?: "application/octet-stream"
                         val kind = kindForMime(mime, name)
-                        val directory = File(context.getExternalFilesDir(null), folderFor(kind))
+                        val directory = File(context.getExternalFilesDir(null) ?: context.filesDir, folderFor(kind))
                         val destination = withContext(Dispatchers.IO) {
                             FileUtilities.copyToUniqueDestination(completed, directory, name)
                         }
