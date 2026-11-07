@@ -756,6 +756,7 @@ class ShareViewModel @Inject constructor(
             require(offset in 0..source.length()) { "Receiver returned an invalid resume offset." }
             acknowledgedBytes = offset
             dao.update(row.copy(status = "SENDING", bytesDone = offset))
+            var lastPersistedOffset = offset
             RandomAccessFile(source, "r").use { input ->
                 while (offset < source.length()) {
                     if (endpointId !in nearby.connected.value) throw IllegalStateException("Device disconnected.")
@@ -774,7 +775,10 @@ class ShareViewModel @Inject constructor(
                     require(nextOffset == offset + count) { "Receiver acknowledged an unexpected byte offset." }
                     offset = nextOffset
                     acknowledgedBytes = offset
-                    dao.update(row.copy(status = "SENDING", bytesDone = offset))
+                    if (offset - lastPersistedOffset >= PROGRESS_PERSIST_INTERVAL_BYTES || offset == source.length()) {
+                        dao.update(row.copy(status = "SENDING", bytesDone = offset))
+                        lastPersistedOffset = offset
+                    }
                 }
             }
             val finalAck = sendAndAwait(
@@ -1077,6 +1081,7 @@ class ShareViewModel @Inject constructor(
         private const val MAX_CHAT_MESSAGE_BYTES = 4096
         private const val MAX_CHAT_HISTORY = 100
         private const val MIN_RECEIVE_FREE_BYTES = 128L * 1024L * 1024L
+        private const val PROGRESS_PERSIST_INTERVAL_BYTES = 1024L * 1024L
     }
 
 
