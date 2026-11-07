@@ -25,6 +25,26 @@ class FileUtilitiesTest {
     }
 
     @Test
+    fun copiedIncomingFileMatchesSourceDigest() {
+        val directory = Files.createTempDirectory("bq-share-copy-integrity").toFile()
+        val source = File(directory, "incoming.tmp").apply {
+            writeBytes(ByteArray(180_000) { (it % 251).toByte() })
+        }
+        val destinationDirectory = File(directory, "received")
+        try {
+            val destination = FileUtilities.copyToUniqueDestination(
+                source,
+                destinationDirectory,
+                "large-file.bin",
+            )
+            assertEquals(FileUtilities.sha256(source), FileUtilities.sha256(destination))
+            assertEquals(source.length(), destination.length())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun zipRoundTripPreservesFileContentsAndAvoidsNameCollisions() {
         val directory = Files.createTempDirectory("bq-share-zip").toFile()
         val first = File(directory, "notes.txt").apply { writeText("first") }

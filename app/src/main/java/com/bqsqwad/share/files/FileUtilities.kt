@@ -43,6 +43,11 @@ object FileUtilities {
             if (destination.createNewFile()) {
                 try {
                     source.copyTo(destination, overwrite = true)
+                    val sourceDigest = sha256(source)
+                    val destinationDigest = sha256(destination)
+                    check(sourceDigest == destinationDigest) {
+                        "The received file failed its integrity check. Please retry the transfer."
+                    }
                     return destination
                 } catch (failure: Throwable) {
                     destination.delete()
