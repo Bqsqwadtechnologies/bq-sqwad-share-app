@@ -45,6 +45,28 @@ class FileUtilitiesTest {
     }
 
     @Test
+    fun startupCleanupDeletesOnlyUnreferencedOutgoingStagingFiles() {
+        val directory = Files.createTempDirectory("bq-share-orphan-cleanup").toFile()
+        val retained = File(directory, "outgoing-retained.txt").apply { writeText("retry me") }
+        val orphan = File(directory, "outgoing-orphan.txt").apply { writeText("abandoned") }
+        val unrelated = File(directory, "thumbnail.jpg").apply { writeText("keep") }
+        val folder = File(directory, "outgoing-folder").apply { mkdirs() }
+        try {
+            val deleted = FileUtilities.cleanupOrphanedOutgoingFiles(
+                directory,
+                setOf(retained.absolutePath),
+            )
+            assertEquals(1, deleted)
+            assertTrue(retained.exists())
+            assertFalse(orphan.exists())
+            assertTrue(unrelated.exists())
+            assertTrue(folder.isDirectory)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun zipRoundTripPreservesFileContentsAndAvoidsNameCollisions() {
         val directory = Files.createTempDirectory("bq-share-zip").toFile()
         val first = File(directory, "notes.txt").apply { writeText("first") }

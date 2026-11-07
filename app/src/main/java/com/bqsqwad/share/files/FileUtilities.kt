@@ -69,6 +69,26 @@ object FileUtilities {
         return cleaned.ifBlank { "received-file" }
     }
 
+    /**
+     * Removes only abandoned URI-staging files created by this app. Files still
+     * referenced by transfer history are retained so failed sends remain retryable.
+     * Other cache contents and directories are never touched.
+     */
+    fun cleanupOrphanedOutgoingFiles(cacheDirectory: File, retainedPaths: Set<String>): Int {
+        if (!cacheDirectory.isDirectory) return 0
+        val retainedCanonical = retainedPaths.mapNotNull { path ->
+            runCatching { File(path).canonicalPath }.getOrNull()
+        }.toHashSet()
+        return cacheDirectory.listFiles().orEmpty().count { candidate ->
+            if (!candidate.isFile || !candidate.name.startsWith("outgoing-")) {
+                false
+            } else {
+                val canonical = runCatching { candidate.canonicalPath }.getOrNull()
+                canonical != null && canonical !in retainedCanonical && candidate.delete()
+            }
+        }
+    }
+
     fun sha256(file: File): String {
         require(file.isFile && file.canRead()) { "A readable file is required." }
         val digest = MessageDigest.getInstance("SHA-256")
