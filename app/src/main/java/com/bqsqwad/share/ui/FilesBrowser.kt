@@ -562,9 +562,10 @@ fun FilesBrowser(nav: NavHostController, vm: ShareViewModel, initialTab: String 
                                 val shareUris = mutableListOf<Uri>()
                                 shareUris.addAll(selectedUris.values)
                                 val stagedFiles = withContext(Dispatchers.IO) {
+                                    val stagingDirectory = File(context.cacheDir, "bluetooth-share").apply { mkdirs() }
                                     selectedFiles.values.flatten().filter { it.isFile }.mapIndexedNotNull { index, file ->
                                         runCatching {
-                                            val copy = File(context.cacheDir, "bluetooth-share-${System.currentTimeMillis()}-$index-${file.name}")
+                                            val copy = File(stagingDirectory, "share-${System.currentTimeMillis()}-$index-${file.name}")
                                             file.inputStream().use { input -> copy.outputStream().use { output -> input.copyTo(output) } }
                                             copy
                                         }.getOrNull()
