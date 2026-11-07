@@ -4,6 +4,7 @@ data class Peer(
     val endpointId: String,
     val name: String,
     val trusted: Boolean = false,
+    val stableIdentity: String? = null,
 )
 
 enum class Direction { SEND, RECEIVE }

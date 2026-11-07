@@ -50,6 +50,7 @@ class ShareViewModel @Inject constructor(
     val history = dao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val favorites = dao.observeFavorites().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val moved = dao.observeMovedBytes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+    val trustedDeviceHistory = store.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val sessionKey = SessionCrypto.newKey()
     var sessionCode: String = SessionCrypto.sixDigitCode()
@@ -289,6 +290,8 @@ class ShareViewModel @Inject constructor(
     }
     fun premiumDay() = viewModelScope.launch { store.grantPremium(System.currentTimeMillis() + 86_400_000L) }
     fun block(name: String) = viewModelScope.launch { store.block(name) }
+    fun trustDevice(endpointId: String) = viewModelScope.launch { nearby.trustDevice(endpointId) }
+    fun untrustDevice(identity: String) = viewModelScope.launch { nearby.untrustDevice(identity) }
     fun nickname(id: String, name: String) = viewModelScope.launch { store.setNickname(id, name) }
     fun clearHistory() = viewModelScope.launch { dao.clear() }
     fun moveToDeleted(item: TransferEntity) = viewModelScope.launch { dao.update(item.copy(status = "DELETED")) }

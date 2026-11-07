@@ -11,6 +11,22 @@ import java.io.File
 
 class TransferProtocolTest {
     @Test
+    fun deviceIdentityRoundTripsAndRejectsTampering() {
+        val id = "123e4567-e89b-12d3-a456-426614174000"
+        val encoded = TransferProtocol.deviceIdentityBody(id, "Isaac's phone")
+        val decoded = TransferProtocol.parseDeviceIdentity(encoded)
+        assertEquals(id, decoded.id)
+        assertEquals("Isaac's phone", decoded.name)
+        val corrupt = encoded.copyOf().also { it[0] = 0 }
+        try {
+            TransferProtocol.parseDeviceIdentity(corrupt)
+            throw AssertionError("Invalid identity payload must be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
+    @Test
     fun frameRoundTrip() {
         val body = "hello".toByteArray()
         val framed = TransferProtocol.frame(TransferProtocol.TYPE_HELLO, body)

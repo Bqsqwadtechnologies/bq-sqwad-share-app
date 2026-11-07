@@ -28,6 +28,7 @@ fun DeviceHubScreen(nav: NavHostController, vm: ShareViewModel) {
     val connected by vm.nearby.connected.collectAsState()
     val activePeers = peers.filter { it.endpointId in connected }
     val nearbyPeers = peers.filterNot { it.endpointId in connected }
+    val savedDevices by vm.trustedDeviceHistory.collectAsState()
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -54,7 +55,14 @@ fun DeviceHubScreen(nav: NavHostController, vm: ShareViewModel) {
                             Column(Modifier.weight(1f)) {
                                 Text(peer.name, style = MaterialTheme.typography.titleSmall)
                                 Text("Connected · nearby session", style = MaterialTheme.typography.bodySmall)
-                                if (peer.trusted) Text("Trusted device", style = MaterialTheme.typography.labelSmall)
+                                if (peer.trusted) {
+                                    Text("Trusted device · saved", style = MaterialTheme.typography.labelSmall)
+                                    OutlinedButton(onClick = { peer.stableIdentity?.let(vm::untrustDevice) }) { Text("Remove trust") }
+                                } else if (peer.stableIdentity != null) {
+                                    OutlinedButton(onClick = { vm.trustDevice(peer.endpointId) }) { Text("Trust this device") }
+                                } else {
+                                    Text("Verifying device identity…", style = MaterialTheme.typography.bodySmall)
+                                }
                             }
                             OutlinedButton(onClick = { vm.nearby.disconnect(peer.endpointId) }) {
                                 Text("Disconnect")
@@ -81,9 +89,20 @@ fun DeviceHubScreen(nav: NavHostController, vm: ShareViewModel) {
                 }
             }
         }
-        Text(
-            "Only devices in the current Nearby session are shown. Persistent trusted-device identities and cross-session device history are not enabled yet.",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        if (!savedDevices?.trustedDevices.isNullOrEmpty()) {
+            Text("Saved trusted devices", style = MaterialTheme.typography.titleMedium)
+            savedDevices?.trustedDevices?.forEach { (identity, name) ->
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f)) {
+                            Text(name, style = MaterialTheme.typography.titleSmall)
+                            Text("Saved identity · " + identity.take(8) + "…", style = MaterialTheme.typography.bodySmall)
+                        }
+                        OutlinedButton(onClick = { vm.untrustDevice(identity) }) { Text("Remove") }
+                    }
+                }
+            }
+        }
+        Text("Trusted identities are exchanged over Nearby and saved on this device. Trust is never granted automatically; approve each device here.", style = MaterialTheme.typography.bodySmall)
     }
 }

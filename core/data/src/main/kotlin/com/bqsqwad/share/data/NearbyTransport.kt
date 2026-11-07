@@ -48,6 +48,8 @@ class NearbyTransport @Inject constructor(
     val peers: StateFlow<List<Peer>> = _peers
 
     private val _incoming = MutableStateFlow<IncomingRequest?>(null)
+    private val remoteIdentities = java.util.concurrent.ConcurrentHashMap<String, TransferProtocol.DeviceIdentity>()
+    private val identitySent = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     val incoming: StateFlow<IncomingRequest?> = _incoming
 
     private val _connected = MutableStateFlow<Set<String>>(emptySet())
@@ -115,6 +117,7 @@ class NearbyTransport @Inject constructor(
             clearConnecting(endpointId)
             if (resolution.status.statusCode == ConnectionsStatusCodes.STATUS_OK) {
                 _connected.value = _connected.value + endpointId
+                callbackScope.launch { sendDeviceIdentity(endpointId) }
             } else {
                 lastError = resolution.status.statusMessage ?: "Connection declined"
             }
@@ -123,11 +126,22 @@ class NearbyTransport @Inject constructor(
         override fun onDisconnected(endpointId: String) {
             clearConnecting(endpointId)
             _connected.value = _connected.value - endpointId
+            remoteIdentities.remove(endpointId)
+            identitySent.remove(endpointId)
+            callbackScope.launch { refreshPeerTrust() }
         }
     }
 
     private val payloadCallback = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
+            if (payload.type == Payload.Type.BYTES) {
+                val identity = payload.asBytes()?.let { bytes -> runCatching { TransferProtocol.parseDeviceIdentity(bytes) }.getOrNull() }
+                if (identity != null) {
+                    remoteIdentities[endpointId] = identity
+                    callbackScope.launch { refreshPeerTrust() }
+                    return
+                }
+            }
             _payloads.tryEmit(PayloadEvent(endpointId, payload))
         }
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
@@ -175,6 +189,32 @@ class NearbyTransport @Inject constructor(
         _connected.value = _connected.value - endpointId
     }
 
+
+    private suspend fun sendDeviceIdentity(endpointId: String) {
+        if (endpointId !in _connected.value || !identitySent.add(endpointId)) return
+        val localId = settingsStore.stableDeviceId()
+        client.sendPayload(endpointId, Payload.fromBytes(TransferProtocol.deviceIdentityBody(localId, "BQ Sqwad Share")))
+    }
+
+    private suspend fun refreshPeerTrust() {
+        val trusted = runCatching { settingsStore.settings.first().trustedDevices }.getOrDefault(emptyMap())
+        _peers.value = _peers.value.map { peer ->
+            val identity = remoteIdentities[peer.endpointId]
+            peer.copy(name = identity?.name ?: peer.name, trusted = identity?.id in trusted.keys, stableIdentity = identity?.id)
+        }
+    }
+
+    suspend fun trustDevice(endpointId: String): Boolean {
+        val identity = remoteIdentities[endpointId] ?: return false
+        settingsStore.trustDevice(identity.id, identity.name)
+        refreshPeerTrust()
+        return true
+    }
+
+    suspend fun untrustDevice(identity: String) {
+        settingsStore.untrustDevice(identity)
+        refreshPeerTrust()
+    }
     fun sendBytes(endpointId: String, bytes: ByteArray) {
         client.sendPayload(endpointId, Payload.fromBytes(bytes))
     }

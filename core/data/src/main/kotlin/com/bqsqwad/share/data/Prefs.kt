@@ -29,6 +29,7 @@ data class UserSettings(
     val blocked: Set<String>,
     val nicknames: Map<String, String>,
     val lastBackgroundAt: Long,
+    val trustedDevices: Map<String, String>,
 )
 
 @Singleton
@@ -46,6 +47,8 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
     private val blocked = stringSetPreferencesKey("blocked")
     private val nick = stringPreferencesKey("nicks")
     private val bg = longPreferencesKey("bg")
+    private val deviceId = stringPreferencesKey("stable_device_id")
+    private val trusted = stringSetPreferencesKey("trusted_device_records")
 
     val settings: Flow<UserSettings> = context.dataStore.data.map { p ->
         val nickRaw = p[nick].orEmpty()
@@ -67,6 +70,10 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
             blocked = p[blocked] ?: emptySet(),
             nicknames = map,
             lastBackgroundAt = p[bg] ?: 0L,
+            trustedDevices = (p[trusted] ?: emptySet()).mapNotNull { record ->
+                val split = record.indexOf('|')
+                if (split <= 0) null else record.substring(0, split) to record.substring(split + 1)
+            }.toMap(),
         )
     }
 
@@ -91,5 +98,31 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
     suspend fun setNickname(endpoint: String, name: String) = context.dataStore.edit { prefs ->
         val current = prefs[nick].orEmpty().split('|').filter { it.contains('=') && !it.startsWith("$endpoint=") }
         prefs[nick] = (current + "$endpoint=$name").joinToString("|")
+    }
+
+    suspend fun stableDeviceId(): String {
+        var id = ""
+        context.dataStore.edit { preferences ->
+            id = preferences[deviceId].orEmpty()
+            if (id.isBlank()) {
+                id = java.util.UUID.randomUUID().toString()
+                preferences[deviceId] = id
+            }
+        }
+        return id
+    }
+
+    suspend fun trustDevice(identity: String, name: String) {
+        require(identity.matches(Regex("[A-Fa-f0-9-]{36}")))
+        val safeName = name.replace(Regex("[|\\u0000-\\u001f]"), " ").trim().take(80).ifBlank { "BQ Sqwad Share device" }
+        context.dataStore.edit { preferences ->
+            val updated = (preferences[trusted] ?: emptySet()).filterNot { it.startsWith(identity + "|") }.toMutableSet()
+            updated += identity + "|" + safeName
+            preferences[trusted] = updated
+        }
+    }
+
+    suspend fun untrustDevice(identity: String) = context.dataStore.edit { preferences ->
+        preferences[trusted] = (preferences[trusted] ?: emptySet()).filterNot { it.startsWith(identity + "|") }.toSet()
     }
 }

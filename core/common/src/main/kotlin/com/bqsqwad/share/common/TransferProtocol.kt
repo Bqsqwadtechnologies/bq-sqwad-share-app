@@ -47,6 +47,36 @@ object TransferProtocol {
 
     data class ParsedFrame(val type: Byte, val flags: Short, val body: ByteArray)
 
+    private const val DEVICE_IDENTITY_MAGIC = 0x42514449 // BQDI
+    data class DeviceIdentity(val id: String, val name: String)
+
+    fun deviceIdentityBody(id: String, name: String): ByteArray {
+        require(id.matches(Regex("[A-Fa-f0-9-]{36}")))
+        val idBytes = id.toByteArray(Charsets.US_ASCII)
+        val nameBytes = name.replace(Regex("[\\u0000-\\u001f]"), " ").trim().take(80)
+            .ifBlank { "BQ Sqwad Share device" }.toByteArray(Charsets.UTF_8)
+        return ByteBuffer.allocate(4 + 1 + 1 + idBytes.size + 2 + nameBytes.size)
+            .order(ByteOrder.LITTLE_ENDIAN).apply {
+                putInt(DEVICE_IDENTITY_MAGIC); put(VERSION); put(idBytes.size.toByte()); put(idBytes)
+                putShort(nameBytes.size.toShort()); put(nameBytes)
+            }.array()
+    }
+
+    fun parseDeviceIdentity(body: ByteArray): DeviceIdentity {
+        require(body.size in 45..128)
+        val buffer = ByteBuffer.wrap(body).order(ByteOrder.LITTLE_ENDIAN)
+        require(buffer.int == DEVICE_IDENTITY_MAGIC && buffer.get() == VERSION)
+        val idLength = buffer.get().toInt() and 0xff
+        require(idLength == 36 && buffer.remaining() >= idLength + 2)
+        val id = ByteArray(idLength).also(buffer::get).toString(Charsets.US_ASCII)
+        require(id.matches(Regex("[A-Fa-f0-9-]{36}")))
+        val nameLength = buffer.short.toInt() and 0xffff
+        require(nameLength in 1..80 && nameLength == buffer.remaining())
+        val name = ByteArray(nameLength).also(buffer::get).toString(Charsets.UTF_8)
+        return DeviceIdentity(id, name)
+    }
+
+
     fun parse(frame: ByteArray): ParsedFrame {
         require(frame.size >= 12) { "Frame too short" }
         val buf = ByteBuffer.wrap(frame).order(ByteOrder.LITTLE_ENDIAN)
