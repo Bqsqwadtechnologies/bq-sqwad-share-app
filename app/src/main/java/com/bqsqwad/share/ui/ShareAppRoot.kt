@@ -128,7 +128,7 @@ private const val PRIVACY = "https://bqsqwadtechnologies.github.io/bq-sqwad-shar
 
 @Composable
 fun ShareAppRoot(activity: Activity, vm: ShareViewModel, settings: UserSettings?, ads: AdManager) {
-    val adsAllowed by adsAllowedState.collectAsState()
+    val adsAllowed by ads.canRequestAdsState.collectAsState()
     LaunchedEffect(settings?.ageConfirmed) {
         if (settings?.ageConfirmed == true) ads.startConsent(activity) {}
     }
