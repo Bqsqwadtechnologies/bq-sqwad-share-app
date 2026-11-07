@@ -25,15 +25,27 @@ public partial class MainWindow : Window
 
     private bool TryConnect()
     {
-        if (!Uri.TryCreate(AddressBox.Text.Trim().TrimEnd('/') + "/", UriKind.Absolute, out var uri) ||
-            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        if (!Uri.TryCreate(AddressBox.Text.Trim(), UriKind.Absolute, out var enteredUri) ||
+            (enteredUri.Scheme != Uri.UriSchemeHttp && enteredUri.Scheme != Uri.UriSchemeHttps))
         {
             StatusText.Text = "Enter the local sharing address shown by the phone.";
             return false;
         }
-        _baseUri = uri;
+
+        var pinFromAddress = enteredUri.Query.TrimStart('?')
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Split('=', 2))
+            .FirstOrDefault(parts => parts.Length == 2 && parts[0] == "pin");
         _pin = PinBox.Password.Trim();
-        if (_pin.Length < 4) { StatusText.Text = "Enter the phone's sharing PIN."; return false; }
+        if (string.IsNullOrWhiteSpace(_pin) && pinFromAddress is { Length: 2 })
+            _pin = Uri.UnescapeDataString(pinFromAddress[1]);
+        if (!Regex.IsMatch(_pin, @"^\\d{6}$"))
+        {
+            StatusText.Text = "Enter the six-digit PIN shown by the phone, or paste the complete QR link.";
+            return false;
+        }
+
+        _baseUri = new UriBuilder(enteredUri.Scheme, enteredUri.Host, enteredUri.Port, "/").Uri;
         return true;
     }
 
