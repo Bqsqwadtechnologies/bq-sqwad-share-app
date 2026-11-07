@@ -72,9 +72,8 @@ fun BannerSlot(enabled: Boolean, adUnitId: String, modifier: Modifier = Modifier
     }
     AndroidView(
         modifier = modifier.fillMaxWidth().height(60.dp),
-        factory = { view ->
-            view.loadAd(AdRequest.Builder().build())
-            view
+        factory = {
+            adView.apply { loadAd(AdRequest.Builder().build()) }
         },
         update = { view ->
             if (view.adUnitId != adUnitId) {
