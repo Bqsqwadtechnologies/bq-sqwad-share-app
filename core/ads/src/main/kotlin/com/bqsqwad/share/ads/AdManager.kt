@@ -62,7 +62,7 @@ class AdManager @Inject constructor(@ApplicationContext private val context: Con
 
     fun preload() {
         if (!canRequestAds) return
-        InterstitialAd.load(context, AdUnits.INTERSTITIAL, AdRequest.Builder().build(), object : InterstitialAdLoadCallback() {
+        InterstitialAd.load(context, AdUnits.TRANSFER_INTERSTITIAL, AdRequest.Builder().build(), object : InterstitialAdLoadCallback() {
             override fun onAdLoaded(ad: InterstitialAd) { interstitial = ad; interstitialLoaded = true }
             override fun onAdFailedToLoad(error: LoadAdError) { interstitialLoaded = false }
         })
