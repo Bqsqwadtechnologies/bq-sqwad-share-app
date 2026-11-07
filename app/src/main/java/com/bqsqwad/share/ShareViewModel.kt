@@ -47,6 +47,14 @@ import javax.inject.Inject
 
 private data class OutgoingShareFile(val file: File, val mime: String, val bytes: Long, val displayName: String)
 
+data class ChatMessage(
+    val id: Long,
+    val peer: String,
+    val text: String,
+    val outgoing: Boolean,
+    val createdAt: Long,
+)
+
 @HiltViewModel
 class ShareViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -60,7 +68,8 @@ class ShareViewModel @Inject constructor(
     val moved = dao.observeMovedBytes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
     val trustedDeviceHistory = store.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val sessionKey = SessionCrypto.newKey()
+    var sessionKey = SessionCrypto.newKey()
+        private set
     var sessionCode: String = SessionCrypto.sixDigitCode()
         private set
     val receiveExpiresAt = MutableStateFlow(0L)
@@ -69,8 +78,12 @@ class ShareViewModel @Inject constructor(
     val pendingLocalFiles = MutableStateFlow<List<File>>(emptyList())
     val autoSendPending = MutableStateFlow(false)
     val scannedReceiveCode = MutableStateFlow("")
-    val verification = SessionCrypto.fingerprint(sessionKey)
-    val keyText = SessionCrypto.keyToString(sessionKey)
+    val verification: String get() = SessionCrypto.fingerprint(sessionKey)
+    val keyText: String get() = SessionCrypto.keyToString(sessionKey)
+    val chatSessionReady = MutableStateFlow(false)
+    val chatReadyEndpoints = MutableStateFlow<Set<String>>(emptySet())
+    val chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    private val chatMagic = "BQCH".toByteArray(Charsets.US_ASCII)
     private val outgoingPayloadRecords = java.util.concurrent.ConcurrentHashMap<Long, TransferEntity>()
     private val outgoingPayloadIds = java.util.concurrent.ConcurrentHashMap<Long, Long>()
     private val pendingOutgoingQueue = java.util.concurrent.ConcurrentLinkedQueue<TransferEntity>()
@@ -94,7 +107,12 @@ class ShareViewModel @Inject constructor(
                 .forEach { dao.update(it.copy(status = "WAITING_FOR_DEVICE")) }
         }
         viewModelScope.launch {
+            var previousConnected = emptySet<String>()
             nearby.connected.collect { connected ->
+                val newlyConnected = connected - previousConnected
+                chatReadyEndpoints.value = chatReadyEndpoints.value.intersect(connected)
+                if (chatSessionReady.value) newlyConnected.forEach(::sendChatHello)
+                previousConnected = connected
                 if (connected.isNotEmpty()) {
                     val waiting = dao.observeAll().first().filter {
                         it.direction.equals("SEND", true) && it.status == "WAITING_FOR_DEVICE" && it.peerName in connected
@@ -227,6 +245,7 @@ class ShareViewModel @Inject constructor(
                         nonFilePayloads.add(key)
                         val bytes = payload.asBytes()
                         if (bytes != null && handleResumableFrame(event.endpointId, bytes)) return@collect
+                        if (bytes != null && handleChatPayload(event.endpointId, bytes)) return@collect
                         val manifest = bytes?.let { data ->
                             runCatching { TransferProtocol.parseFileManifest(data) }.getOrNull()
                         }
@@ -286,14 +305,21 @@ class ShareViewModel @Inject constructor(
         while (next == previous) next = SessionCrypto.sixDigitCode()
         sessionCode = next
         nearby.stopAdvertising()
-        nearby.setExpectedReceiveCode(next)
+        sessionKey = SessionCrypto.newKey()
+        chatSessionReady.value = true
+        chatReadyEndpoints.value = emptySet()
+        chatMessages.value = emptyList()
         receiveExpiresAt.value = System.currentTimeMillis() + 10 * 60 * 1000L
-        nearby.startAdvertising("BQ Sqwad Share")
+        nearby.setExpectedReceiveCode(next)
+        nearby.startAdvertising("BQ Sqwad Share code $next")
+        nearby.connected.value.forEach(::sendChatHello)
     }
 
     fun expireReceiveSessionIfNeeded(now: Long = System.currentTimeMillis()) {
         if (receiveExpiresAt.value > 0L && now >= receiveExpiresAt.value) {
             sessionCode = ""
+            chatSessionReady.value = false
+            chatReadyEndpoints.value = emptySet()
             nearby.setExpectedReceiveCode("")
             nearby.stopAdvertising()
         }
@@ -304,6 +330,9 @@ class ShareViewModel @Inject constructor(
         nearby.stopAdvertising()
         sessionCode = ""
         receiveExpiresAt.value = 0L
+        chatSessionReady.value = false
+        chatReadyEndpoints.value = emptySet()
+        chatMessages.value = emptyList()
     }
 
     fun confirmAge() = viewModelScope.launch { store.setAgeConfirmed() }
@@ -450,7 +479,34 @@ class ShareViewModel @Inject constructor(
 
     fun peers(): List<Peer> = nearby.peers.value
 
-    fun setScannedReceiveCode(code: String) { scannedReceiveCode.value = code.filter(Char::isDigit).take(6) }
+    fun setScannedReceiveCode(payload: String): Boolean {
+        val uri = runCatching { Uri.parse(payload) }.getOrNull() ?: return false
+        if (uri.scheme != "bqsqwad") return false
+        val code = uri.getQueryParameter("code") ?: return false
+        val expires = uri.getQueryParameter("expires")?.toLongOrNull() ?: return false
+        val encodedKey = uri.getQueryParameter("key") ?: return false
+        val fingerprint = uri.getQueryParameter("v") ?: return false
+        if (code.length != 6 || !code.all(Char::isDigit) || expires <= System.currentTimeMillis()) return false
+        val decodedKey = runCatching { SessionCrypto.keyFromString(encodedKey) }.getOrNull() ?: return false
+        if (decodedKey.encoded.size != 32 || SessionCrypto.fingerprint(decodedKey) != fingerprint) return false
+        sessionKey = decodedKey
+        scannedReceiveCode.value = code
+        nearby.setExpectedReceiveCode(code)
+        chatSessionReady.value = true
+        chatReadyEndpoints.value = emptySet()
+        chatMessages.value = emptyList()
+        nearby.connected.value.forEach(::sendChatHello)
+        return true
+    }
+
+    fun clearScannedChatSession() {
+        scannedReceiveCode.value = ""
+        nearby.setExpectedReceiveCode("")
+        sessionKey = SessionCrypto.newKey()
+        chatSessionReady.value = false
+        chatReadyEndpoints.value = emptySet()
+        chatMessages.value = emptyList()
+    }
 
     fun queueFiles(uris: List<Uri>, autoSend: Boolean = false) {
         pendingUris.value = (pendingUris.value + uris).distinct()
@@ -820,10 +876,67 @@ class ShareViewModel @Inject constructor(
         pumpOutgoingQueue()
     }
 
-    fun sendText(endpointId: String, text: String) {
-        val secret = SessionCrypto.encrypt(sessionKey, text.toByteArray())
-        nearby.sendBytes(endpointId, secret)
-        record("clipboard.txt", "text/plain", text.length.toLong(), "SEND", endpointId, null)
+    private fun sendChatHello(endpointId: String) {
+        if (!chatSessionReady.value || endpointId !in nearby.connected.value) return
+        val encrypted = SessionCrypto.encrypt(sessionKey, CHAT_HELLO.toByteArray(Charsets.UTF_8))
+        nearby.sendBytes(endpointId, chatMagic + encrypted)
+    }
+
+    private fun handleChatPayload(endpointId: String, bytes: ByteArray): Boolean {
+        if (bytes.size <= chatMagic.size ||
+            !bytes.copyOfRange(0, chatMagic.size).contentEquals(chatMagic)
+        ) return false
+        val plaintext = runCatching {
+            SessionCrypto.decrypt(sessionKey, bytes.copyOfRange(chatMagic.size, bytes.size))
+        }.getOrNull() ?: return true
+        val message = plaintext.toString(Charsets.UTF_8)
+        when {
+            message == CHAT_HELLO -> {
+                if (chatSessionReady.value && endpointId in nearby.connected.value) {
+                    chatReadyEndpoints.value = chatReadyEndpoints.value + endpointId
+                }
+            }
+            message.startsWith(CHAT_MESSAGE_PREFIX) && endpointId in chatReadyEndpoints.value -> {
+                val text = message.removePrefix(CHAT_MESSAGE_PREFIX)
+                if (text.isNotBlank() && text.toByteArray(Charsets.UTF_8).size <= MAX_CHAT_MESSAGE_BYTES) {
+                    appendChatMessage(endpointId, text, outgoing = false)
+                }
+            }
+        }
+        return true
+    }
+
+    private fun appendChatMessage(peer: String, text: String, outgoing: Boolean) {
+        val item = ChatMessage(
+            id = System.nanoTime(),
+            peer = peer,
+            text = text,
+            outgoing = outgoing,
+            createdAt = System.currentTimeMillis(),
+        )
+        chatMessages.value = (chatMessages.value + item).takeLast(MAX_CHAT_HISTORY)
+    }
+
+    fun sendTextToConnected(text: String): Boolean {
+        val safeText = text.trim()
+        val encoded = safeText.toByteArray(Charsets.UTF_8)
+        if (safeText.isBlank() || encoded.size > MAX_CHAT_MESSAGE_BYTES || !chatSessionReady.value) return false
+        val recipients = nearby.connected.value.intersect(chatReadyEndpoints.value)
+        if (recipients.isEmpty()) return false
+        val envelope = chatMagic + SessionCrypto.encrypt(
+            sessionKey,
+            (CHAT_MESSAGE_PREFIX + safeText).toByteArray(Charsets.UTF_8),
+        )
+        recipients.forEach { nearby.sendBytes(it, envelope) }
+        appendChatMessage("You", safeText, outgoing = true)
+        return true
+    }
+
+    companion object {
+        private const val CHAT_HELLO = "BQCHAT/HELLO"
+        private const val CHAT_MESSAGE_PREFIX = "BQCHAT/MSG\\n"
+        private const val MAX_CHAT_MESSAGE_BYTES = 4096
+        private const val MAX_CHAT_HISTORY = 100
     }
 
 
