@@ -29,8 +29,6 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -65,11 +63,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, initialSearchQuery: String = "") {
+fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, initialSearchQuery: String = "", activePage: Boolean = true) {
     val context = LocalContext.current
     var kind by remember { mutableStateOf(initialKind.takeIf { it == "photos" || it == "videos" || it == "music" } ?: "music") }
     var selectedPhoto by remember { mutableStateOf<ShareMediaItem?>(null) }
-    var selectedVideo by remember { mutableStateOf<ShareMediaItem?>(null) }
     var media by remember { mutableStateOf<List<ShareMediaItem>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var permissionGranted by remember { mutableStateOf(false) }
@@ -150,8 +147,27 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, 
 
     val visibleMedia = media.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
 
-    LaunchedEffect(kind) {
-        if (kind != "music") controller?.pause()
+    LaunchedEffect(activePage, kind, controller) {
+        val player = controller ?: return@LaunchedEffect
+        if (activePage && (kind == "videos" || kind == "music")) {
+            val playingCategory = player.currentMediaItem?.mediaId?.substringBefore(':')
+            if (playingCategory != null && playingCategory != kind) player.pause()
+        }
+    }
+
+    DisposableEffect(controller, activePage, kind) {
+        val player = controller
+        if (player == null || !activePage || (kind != "music" && kind != "videos")) {
+            return@DisposableEffect onDispose { }
+        }
+        val listener = object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val playingCategory = mediaItem?.mediaId?.substringBefore(':')
+                if (playingCategory != null && playingCategory != kind) player.pause()
+            }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
     }
 
     fun shareMedia(item: ShareMediaItem) {
@@ -175,6 +191,7 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, 
         val selectedItems = if (kind == "videos") listOf(visibleMedia[index.coerceIn(0, visibleMedia.lastIndex)]) else visibleMedia
         val queue = selectedItems.map { item ->
             MediaItem.Builder()
+                .setMediaId("${item.category}:\u0024{item.key}")
                 .setUri(item.uri)
                 .setMediaMetadata(
                     MediaMetadata.Builder()
@@ -336,9 +353,9 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, 
                     itemsIndexed(visibleMedia, key = { _, item -> item.key }) { index, item ->
                         Card(Modifier.fillMaxWidth()) {
                             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                if (kind == "videos") AsyncImage(model = item.uri, contentDescription = item.name, modifier = Modifier.size(width = 104.dp, height = 64.dp).clickable { selectedVideo = item; playFrom(index) }) else androidx.compose.material3.Icon(Icons.Filled.MusicNote, contentDescription = "Music", modifier = Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
+                                if (kind == "videos") AsyncImage(model = item.uri, contentDescription = item.name, modifier = Modifier.size(width = 104.dp, height = 64.dp).clickable { playFrom(index) }) else androidx.compose.material3.Icon(Icons.Filled.MusicNote, contentDescription = "Music", modifier = Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
                                 Column(Modifier.weight(1f)) {
-                                    Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, modifier = Modifier.clickable { if (kind == "videos") { selectedVideo = item; playFrom(index) } else playFrom(index) })
+                                    Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, modifier = Modifier.clickable { if (kind == "videos") playFrom(index) else playFrom(index) })
                                     Text(if (kind == "videos") MediaRepository.formatDuration(item.durationMs) else "Audio", style = MaterialTheme.typography.bodySmall, maxLines = 1)
                                 }
                                 TextButton(onClick = { shareMedia(item) }) { Text("Share") }
@@ -361,13 +378,6 @@ fun MediaLibraryScreen(initialKind: String = "music", compact: Boolean = false, 
                 }
             }
         }
-        selectedVideo?.let { video ->
-            Dialog(onDismissRequest = { selectedVideo = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-                Box(Modifier.fillMaxSize()) {
-                    AndroidView(modifier = Modifier.fillMaxSize(), factory = { viewContext -> PlayerView(viewContext).apply { player = controller; useController = true; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING) } }, update = { it.player = controller })
-                    OutlinedButton(onClick = { selectedVideo = null }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) { Text("Close") }
-                }
-            }
-        }
+
     }
 }
