@@ -235,8 +235,8 @@ class TransferProtocolTest {
     val temporaryFolder = TemporaryFolder()
 
     @Test
-    fun resumableReceiverPersistsCheckpointAndFinalizesVerifiedFile() {
-        val source = ByteArray(70_000) { (it % 239).toByte() }
+    fun resumableReceiverPersistsDurableCheckpointsAndDiscardsUncommittedTail() {
+        val source = ByteArray(1_100_000) { (it % 239).toByte() }
         val offer = ResumableFileReceiver.Offer(
             transferId = "resume-001",
             displayName = "family-photo.bin",
@@ -245,19 +245,30 @@ class TransferProtocolTest {
         )
         val firstReceiver = ResumableFileReceiver(temporaryFolder.root)
         assertEquals(0L, firstReceiver.begin(offer))
-        val firstChunk = source.copyOfRange(0, 32_000)
+
+        val firstChunk = source.copyOfRange(0, 600_000)
         assertEquals(
-            32_000L,
+            600_000L,
             firstReceiver.appendChunk("resume-001", 0L, firstChunk, TransferProtocol.sha256(firstChunk)),
+        )
+        val checkpointChunk = source.copyOfRange(600_000, 1_050_000)
+        assertEquals(
+            1_050_000L,
+            firstReceiver.appendChunk("resume-001", 600_000L, checkpointChunk, TransferProtocol.sha256(checkpointChunk)),
+        )
+        val uncommittedTail = source.copyOfRange(1_050_000, 1_070_000)
+        assertEquals(
+            1_070_000L,
+            firstReceiver.appendChunk("resume-001", 1_050_000L, uncommittedTail, TransferProtocol.sha256(uncommittedTail)),
         )
 
         val afterRestart = ResumableFileReceiver(temporaryFolder.root)
-        assertEquals(32_000L, afterRestart.begin(offer))
-        assertEquals(32_000L, afterRestart.resumeOffset("resume-001"))
-        val remaining = source.copyOfRange(32_000, source.size)
+        assertEquals(1_050_000L, afterRestart.begin(offer))
+        assertEquals(1_050_000L, afterRestart.resumeOffset("resume-001"))
+        val remaining = source.copyOfRange(1_050_000, source.size)
         assertEquals(
             source.size.toLong(),
-            afterRestart.appendChunk("resume-001", 32_000L, remaining, TransferProtocol.sha256(remaining)),
+            afterRestart.appendChunk("resume-001", 1_050_000L, remaining, TransferProtocol.sha256(remaining)),
         )
         val received = afterRestart.complete("resume-001")
         assertEquals("family-photo.bin", received.name)
