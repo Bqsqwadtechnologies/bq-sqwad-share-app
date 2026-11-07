@@ -409,6 +409,11 @@ class ShareViewModel @Inject constructor(
 
     fun ownApk(): File = File(context.applicationInfo.sourceDir)
 
+    fun ownApkFiles(): List<File> = buildList {
+        add(File(context.applicationInfo.sourceDir))
+        context.applicationInfo.splitSourceDirs?.forEach { add(File(it)) }
+    }.filter { it.isFile && it.canRead() }
+
     private fun createWebShareServer(files: List<File>, pin: String): WebShareServer {
         val inbox = File(context.getExternalFilesDir(null) ?: context.filesDir, "FromComputer")
         return WebShareServer(8787, pin, inbox, files) { uploaded ->
@@ -469,7 +474,7 @@ class ShareViewModel @Inject constructor(
                 staged += destination
             }
             val shared = staged.toMutableList()
-            if (includeAppInstaller) shared += ownApk()
+            if (includeAppInstaller) shared += ownApkFiles()
             val server = createWebShareServer(shared, pin)
             server.start()
             synchronized(this@ShareViewModel) {
